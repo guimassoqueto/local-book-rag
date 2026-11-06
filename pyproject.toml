@@ -1,0 +1,123 @@
+[project]
+name = "local-book-rag"
+version = "0.1.0"
+description = "Local RAG research platform for indexing, searching and summarizing books with open-weight models"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "beautifulsoup4",
+    "chromadb",
+    "ebooklib",
+    "filelock",
+    "gradio",
+    "httpx",
+    "llama-index",
+    "llama-index-core",
+    "llama-index-embeddings-ollama",
+    "llama-index-llms-ollama",
+    "llama-index-vector-stores-chroma",
+    "lxml",
+    "markdown",
+    "ollama",
+    "pydantic",
+    "pydantic-settings",
+    "pymupdf",
+    "pyyaml",
+    "sqlalchemy",
+    "tenacity",
+    "tiktoken",
+]
+
+[project.scripts]
+book-rag = "app.main:main"
+
+# Optional model-specific stacks. The image installs all of them (--all-extras).
+[project.optional-dependencies]
+docling = [
+    "docling",
+    "torch",
+    "torchvision",
+]
+reranking = [
+    "sentence-transformers",
+    "torch",
+    "transformers",
+]
+evaluation = [
+    "numpy",
+    "pandas",
+    "ragas",
+    "scikit-learn",
+]
+
+[dependency-groups]
+dev = [
+    "commitizen",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "respx",
+    "ruff",
+]
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv]
+# asdf owns Python (.tool-versions): use only interpreters found on PATH, never
+# download or pick a uv-managed one.
+python-preference = "only-system"
+# The only deployment target; keeps the CUDA wheels out of other platforms' markers.
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
+[tool.uv.build-backend]
+module-name = "app"
+module-root = ""
+
+# CUDA torch: the RTX 5060 Ti is a Blackwell GPU, which older CUDA builds cannot drive.
+# torchvision has to come from the same index or it would not match the torch ABI.
+[tool.uv.sources]
+torch = { index = "pytorch-cu134" }
+torchvision = { index = "pytorch-cu134" }
+
+[[tool.uv.index]]
+name = "pytorch-cu134"
+url = "https://download.pytorch.org/whl/cu134"
+explicit = true
+
+[tool.ruff]
+line-length = 120
+# Markdown is documentation, not source: ruff >= 0.14 formats the Python code
+# blocks inside .md files, which rewrites hand-aligned snippets in the docs.
+# Notebooks are left as written too: ruff lints and formats .ipynb cells by default
+# (.ipynb is the only notebook format it reads).
+# extend-exclude (not exclude) keeps ruff's own default exclusions in place.
+extend-exclude = ["*.md", "*.ipynb", "devtools"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "semver"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: needs the running Compose stack (Ollama and ChromaDB)",
+]
