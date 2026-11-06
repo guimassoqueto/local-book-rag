@@ -19,6 +19,7 @@ dependencies = [
     "lxml",
     "markdown",
     "ollama",
+    "py3langid",
     "pydantic",
     "pydantic-settings",
     "pymupdf",
@@ -26,6 +27,7 @@ dependencies = [
     "sqlalchemy",
     "tenacity",
     "tiktoken",
+    "tokenizers",
 ]
 
 [project.scripts]

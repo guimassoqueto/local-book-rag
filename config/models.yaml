@@ -1,0 +1,51 @@
+# Every tag below was checked against the Ollama registry on 2026-11-06.
+llm:
+  provider: ollama
+  model: gpt-oss:20b
+
+  # num_ctx sent to Ollama. Benchmarks raise it up to generation.context.max_size.
+  context_size: 8192
+
+  # Defaults; the tasks in generation.yaml override them.
+  temperature: 0.2
+  max_tokens: 1500
+
+  # Sent as Ollama's `think` option, and checked against the model's capabilities before
+  # inference. gpt-oss takes low, medium or high; models that only switch reasoning on and
+  # off take true or false; null sends nothing.
+  reasoning: low
+
+
+embedding:
+  provider: ollama
+  model: qwen3-embedding:0.6b
+
+  # Checked against the loaded model, and stored with the index configuration.
+  dimensions: 1024
+  batch_size: 16
+
+
+reranker:
+  provider: transformers
+  model: Qwen/Qwen3-Reranker-0.6B
+
+  device: cpu
+
+
+# Model-specific behavior, by model name. Switching embedding.model selects the matching
+# entry, so that no model name has to change anywhere else.
+embedding_profiles:
+  qwen3-embedding:0.6b:
+    tokenizer:
+      kind: huggingface
+      name: Qwen/Qwen3-Embedding-0.6B
+
+    # From the Qwen3-Embedding model card: queries get an instruction, documents do not.
+    query_template: "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:{text}"
+
+  bge-m3:
+    tokenizer:
+      kind: huggingface
+      name: BAAI/bge-m3
+
+    query_template: "{text}"

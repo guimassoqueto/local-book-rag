@@ -1641,6 +1641,7 @@ dependencies = [
     { name = "lxml" },
     { name = "markdown" },
     { name = "ollama" },
+    { name = "py3langid" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pymupdf" },
@@ -1648,6 +1649,7 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "tenacity" },
     { name = "tiktoken" },
+    { name = "tokenizers" },
 ]
 
 [package.optional-dependencies]
@@ -1697,6 +1699,7 @@ requires-dist = [
     { name = "numpy", marker = "extra == 'evaluation'" },
     { name = "ollama" },
     { name = "pandas", marker = "extra == 'evaluation'" },
+    { name = "py3langid" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pymupdf" },
@@ -1707,6 +1710,7 @@ requires-dist = [
     { name = "sqlalchemy" },
     { name = "tenacity" },
     { name = "tiktoken" },
+    { name = "tokenizers" },
     { name = "torch", marker = "extra == 'docling'", index = "https://download.pytorch.org/whl/cu134" },
     { name = "torch", marker = "extra == 'reranking'", index = "https://download.pytorch.org/whl/cu134" },
     { name = "torchvision", marker = "extra == 'docling'", index = "https://download.pytorch.org/whl/cu134" },
@@ -2430,6 +2434,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/37/d6/246513fbf9fa174af531f28412297dd05241d97a75911ac8febefa1a53c6/psutil-7.2.2-cp313-cp313t-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1a571f2330c966c62aeda00dd24620425d4b0cc86881c89861fbc04549e5dc63", size = 181476, upload-time = "2026-01-28T18:15:01.884Z" },
     { url = "https://files.pythonhosted.org/packages/b5/70/5d8df3b09e25bce090399cf48e452d25c935ab72dad19406c77f4e828045/psutil-7.2.2-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:076a2d2f923fd4821644f5ba89f059523da90dc9014e85f8e45a5774ca5bc6f9", size = 155560, upload-time = "2026-01-28T18:15:25.976Z" },
     { url = "https://files.pythonhosted.org/packages/04/78/0acd37ca84ce3ddffaa92ef0f571e073faa6d8ff1f0559ab1272188ea2be/psutil-7.2.2-cp36-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:b58fabe35e80b264a4e3bb23e6b96f9e45a3df7fb7eed419ac0e5947c61e47cc", size = 148266, upload-time = "2026-01-28T18:15:31.597Z" },
+]
+
+[[package]]
+name = "py3langid"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/16/fc/51c88e5ef8346878ae6c09e1f7c86c6e6308c57794723bf423a72ddba4dd/py3langid-0.4.0.tar.gz", hash = "sha256:5924159039b5cc282c2edc10a7ea9363b2099834a0e99ed8d5bea3cc435d7871", size = 4604185, upload-time = "2026-09-02T09:10:53.983Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/2d/0eeff2727c970b1d553be70d15ba2d84e3830696c09a79d954c5ae3d5212/py3langid-0.4.0-py3-none-any.whl", hash = "sha256:c25bd038147951ba3a89efe9ec12cc7d2116cb6f311ff8af84ade398a8bc0616", size = 4600605, upload-time = "2026-09-02T09:10:49.54Z" },
 ]
 
 [[package]]

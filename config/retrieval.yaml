@@ -1,0 +1,16 @@
+retrieval:
+  strategy: hybrid
+
+  dense:
+    top_k: 15
+
+  bm25:
+    top_k: 15
+
+  fusion:
+    method: rrf
+
+  # The reranker model and device are in models.yaml.
+  reranker:
+    enabled: true
+    top_k: 5

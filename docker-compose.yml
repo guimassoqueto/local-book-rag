@@ -1,0 +1,133 @@
+# Ollama and ChromaDB are published on loopback only: they have no authentication, and
+# Docker's published ports bypass host firewalls. The app reaches both over the internal
+# network; the host ports exist for debugging from this machine.
+services:
+  ollama:
+    image: ollama/ollama:0.40.15@sha256:0e59999e0e8f9fd4e704bd788a89b7e4cad399367fb1365f8c102ac662288761
+    container_name: book-rag-ollama
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:11434:11434"
+
+    volumes:
+      - ollama_data:/root/.ollama
+
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_KEEP_ALIVE: 5m
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    networks:
+      - book-rag-network
+
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+
+  chromadb:
+    image: chromadb/chroma:1.5.9@sha256:1e0b73a187a28757c572acba508c46f48c9e8b0acaf5c20e6d95cdedce1acdf6
+    container_name: book-rag-chromadb
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8000:8000"
+
+    # The image's /config.yaml already sets persist_path: /data. Its Rust server has no
+    # IS_PERSISTENT or PERSIST_DIRECTORY settings and sends no telemetry to disable.
+    volumes:
+      - chroma_data:/data
+
+    networks:
+      - book-rag-network
+
+    # The image has bash but no python, curl or wget.
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8000 &&
+          printf 'GET /api/v2/heartbeat HTTP/1.0\r\n\r\n' >&3 &&
+          grep -q nanosecond <&3
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+
+    container_name: book-rag-app
+    restart: unless-stopped
+
+    ports:
+      - "${GRADIO_BIND_ADDRESS:-127.0.0.1}:7860:7860"
+
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
+      - huggingface_cache:/app/.cache/huggingface
+
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+    # The reranker and Docling run inside this container, on the GPU when configured to.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    depends_on:
+      ollama:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+
+    networks:
+      - book-rag-network
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/')"
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+
+volumes:
+  ollama_data:
+  chroma_data:
+  huggingface_cache:
+
+
+networks:
+  book-rag-network:
+    driver: bridge
