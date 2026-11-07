@@ -179,6 +179,7 @@ class GenerationConfig(ConfigModel):
     question_answering: GenerationTaskConfig
     summarization: SummarizationConfig
     context: ContextConfig
+    response_languages: tuple[str, ...]
 
 
 class Settings(ConfigModel):

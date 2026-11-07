@@ -49,3 +49,6 @@ generation:
     # Share of the window left unused, to absorb the error of approximate tokenizers. Ollama
     # silently cuts a prompt that doesn't fit, and answers from what remains.
     safety_margin: 0.1
+
+  # Offered in the interface. Any language a model can write in works here.
+  response_languages: [English, Portuguese, Spanish, French, German, Italian]

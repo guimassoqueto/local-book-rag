@@ -319,6 +319,17 @@ def test_headings_and_list_markers_survive_citing(settings, catalog, tmp_path):
     assert "\n1. **Second**" in summary.text
 
 
+def test_a_heading_wrapped_in_bold_becomes_a_real_heading(settings, catalog, tmp_path):
+    reply = "**## Chapter overview** The chapter explains how costs work in practice.\n\n**## Main thesis**\nA claim."
+    llm = FakeLLM([reply])
+
+    summary = summarizer(settings, llm, catalog, chapter(2, words=100), tmp_path).summarize("book_001", 4, "standard")
+
+    assert summary.text.startswith("## Chapter overview\n\nThe chapter explains how costs work in practice. [1]")
+    assert "\n## Main thesis\n" in summary.text
+    assert "**" not in summary.text.split("## References")[0]
+
+
 def test_headings_are_not_looked_up(settings, catalog, tmp_path):
     chunks = chapter(2, words=100)
     locator = FirstChunkLocator(chunks)

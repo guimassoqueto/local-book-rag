@@ -10,6 +10,7 @@ summary is looked up among the chapter's chunks, and cites the passage it actual
 This works the same for every model.
 """
 
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from time import perf_counter
@@ -30,6 +31,7 @@ from app.retrieval.bm25 import ChunkSource
 from app.storage.catalog import BookCatalog
 from app.storage.repositories import SummaryDocuments
 
+_BOLD_HEADING = re.compile(r"^\s*\*\*\s*(#{1,6}\s[^*\n]+?)\s*\*\*[ \t]*(.*)$", re.MULTILINE)
 _COLLAPSE_FAN_IN = 3  # merging everything at once would squeeze a long chapter into one reply
 _PARTS_SEPARATOR = "\n\n---\n\n"
 _MAP_INPUT_RATIO = 4  # how many tokens of text a reply of one token can do justice to
@@ -179,7 +181,7 @@ class ChapterSummarizer:
         final = run.step(final_messages(material), self._parameters(final_tokens))
 
         report("Finding the sources of each statement")
-        cited_text, citations, unsourced = self._cite(final.text, book_id, chapter_number, chunks)
+        cited_text, citations, unsourced = self._cite(_clean_headings(final.text), book_id, chapter_number, chunks)
 
         verification = None
         if self._config.verify_claims and citations:
@@ -388,6 +390,11 @@ class _Run:
                 "to reasoning: raise the limits in config/generation.yaml."
             )
         return generation
+
+
+def _clean_headings(text: str) -> str:
+    """Undo the bold that some replies wrap around a heading, which shows its # marks as text."""
+    return _BOLD_HEADING.sub(lambda match: f"{match.group(1).strip()}\n\n{match.group(2).strip()}".strip(), text)
 
 
 def _cite_line(line: str, cite: Callable[[str], str]) -> str:

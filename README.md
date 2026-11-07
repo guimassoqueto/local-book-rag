@@ -64,6 +64,22 @@ The interface is at <http://localhost:7860>. `docker compose exec app book-rag d
 `docker compose down -v` is not a reset: it deletes the named volumes, with the downloaded
 models and the vector database in them.
 
+## Interface
+
+The Gradio interface at <http://localhost:7860> has four tabs:
+
+| Tab           | What it does                                                                        |
+| ------------- | ----------------------------------------------------------------------------------- |
+| Library       | Upload, replace, remove and reindex books, and reset. Shows each book's status      |
+| Chat          | Ask about one book, one chapter or several books, and inspect the retrieved passages |
+| Summarization | Summarize a chapter in any of the types, and save the result                        |
+| Research      | The latest question from the inside: models, each stage's scores, final context, reasoning, tokens, timings, and GPU memory |
+
+Everything in it goes through the same services as the commands. Destructive actions need
+the same confirmation in both, and errors appear as notifications that stay until dismissed,
+because most of them say what to do next. A book that fails while indexing stays in the list
+with its reason, and uploading it again retries it.
+
 ## Library
 
 ```bash
