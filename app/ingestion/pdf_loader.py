@@ -274,6 +274,9 @@ def _place_entry(page: _Page, level: int, title: str) -> None:
 
     first, *fragments = matches
     first.kind, first.level, first.text, first.named_by_toc = BlockKind.HEADING, level, title, True
+    # At the top of a page, a heading sits where running headers do, and a recurring one like
+    # "Glossary" repeats like them. The outline naming it on this page says it isn't one.
+    first.margin = False
     page.items = [item for item in page.items if not any(item is fragment for fragment in fragments)]
 
 

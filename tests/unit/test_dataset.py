@@ -59,7 +59,9 @@ def write_dataset(directory, questions, key_points=()):
 def full_book_questions():
     counts = {"factual": 10, "conceptual": 5, "multi_section": 5, "chapter_specific": 5}
     questions = [
-        question(f"{category}_{index}", category) for category, count in counts.items() for index in range(count)
+        question(f"{category}_{index}", category, chapter="One" if category == "chapter_specific" else None)
+        for category, count in counts.items()
+        for index in range(count)
     ]
     return [*questions, *(unanswerable(f"u{index}") for index in range(5))]
 
@@ -77,6 +79,19 @@ def test_an_unanswerable_question_cant_have_evidence():
 def test_only_the_unanswerable_category_can_be_unanswerable():
     with pytest.raises(ValueError, match="unanswerable"):
         question(answerable=False)
+
+
+def test_a_question_about_one_chapter_has_to_name_it():
+    with pytest.raises(ValueError, match="chapter"):
+        question(category="chapter_specific")
+
+
+def test_a_chapter_title_shared_by_two_chapters_is_reported():
+    problems = validate_against_book(
+        dataset_of(full_book_questions()), "a_book", [make_chunk("the exact words")], ["One", "One"]
+    )
+
+    assert "chapter_specific_0: 2 chapters are titled 'One'" in problems
 
 
 def test_evidence_finds_its_chunks():
@@ -122,7 +137,7 @@ def dataset_of(questions, key_points=()):
 def test_a_sound_book_has_no_problems():
     chunks = [make_chunk("Here are the exact words.")]
 
-    assert validate_against_book(dataset_of(full_book_questions()), "a_book", chunks, []) == []
+    assert validate_against_book(dataset_of(full_book_questions()), "a_book", chunks, ["One"]) == []
 
 
 def test_a_quote_that_isnt_in_the_book_is_reported():

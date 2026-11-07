@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
 
 from app.config.settings import EnvironmentSettings, JudgeConfig, Settings
 from app.container import Container, assemble, build_pipeline
@@ -57,6 +57,7 @@ from app.generation.question_answering import read_reply
 from app.ingestion.chunker import Chunk
 from app.ingestion.validation import validate_upload
 from app.retrieval.base import RetrievalFilters
+from app.services.reset_service import CONFIRM_RESET_EVERYTHING
 from app.storage.catalog import Book, BookStatus, utc_now
 from app.utils.gpu import query_gpu
 from app.utils.hashing import file_checksum
@@ -139,6 +140,13 @@ class Experiment(BaseModel):
     max_tokens: PositiveInt = 256
     prompt_book: str | None = None
 
+    @model_validator(mode="after")
+    def distinct_variants(self) -> "Experiment":
+        names = [variant.name for variant in self.variants]
+        if len(set(names)) != len(names):
+            raise ValueError("variant names have to differ: results are grouped by them")
+        return self
+
 
 def load_experiment(path: Path) -> Experiment:
     try:
@@ -168,6 +176,7 @@ def index_key(settings: Settings) -> str:
         "embedding": settings.embedding.model,
         "profile": settings.embedding_profile.model_dump(),
         "chunking": settings.chunking.model_dump(),
+        "extraction": {"pdf": settings.pdf.model_dump(), "normalization": settings.normalization.model_dump()},
     }
     return hashlib.sha256(json.dumps(shape, sort_keys=True).encode()).hexdigest()[:10]
 
@@ -267,11 +276,21 @@ class BenchmarkRunner:
         return selected
 
     def _open(self, settings: Settings) -> Workspace:
-        """Open a variant's workspace, indexing the dataset's books the first time."""
+        """Open a variant's workspace, indexing the dataset's books the first time.
+
+        Changes to the ingestion code aren't detected: after one, delete benchmarks/workspace.
+        """
         key = index_key(settings)
-        environment = self._environment.model_copy(update={"data_dir": self._root / "workspace" / key})
+        directory = self._root / "workspace" / key
+        new = not directory.exists()
+        environment = self._environment.model_copy(update={"data_dir": directory})
         container = assemble(settings, environment, collection_prefix=f"bench_{key}_v")
+        if new:  # a workspace deleted by hand leaves collections that its first index would fill again
+            container.resets.reset_everything(CONFIRM_RESET_EVERYTHING)
         container.library.recover()
+        if container.indexes.needs_reindex():  # the embedding model pulled again, say
+            self._say(f"  rebuilding {key}, whose index no longer matches the configuration")
+            container.library.reindex_all()
 
         books: dict[str, Book] = {}
         chunks: dict[str, Sequence[Chunk]] = {}
@@ -542,7 +561,7 @@ class BenchmarkRunner:
                 "gpu_driver": _gpu_driver(),
             },
             "python": platform.python_version(),
-            "packages": {name: metadata.version(name) for name in _TRACKED_PACKAGES},
+            "packages": {name: _package_version(name) for name in _TRACKED_PACKAGES},
         }
 
 
@@ -622,6 +641,14 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
         writer = csv.DictWriter(file, fieldnames=list(columns))
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _package_version(name: str) -> str | None:
+    """None for a package left out with its extra, which an experiment may not need."""
+    try:
+        return metadata.version(name)
+    except metadata.PackageNotFoundError:
+        return None
 
 
 def _cpu_model() -> str | None:

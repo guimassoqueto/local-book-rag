@@ -24,6 +24,7 @@ from app.generation.base import GenerationParameters
 from app.generation.question_answering import QuestionAnsweringService
 from app.ingestion.chunker import Chunker
 from app.services.health_service import HealthService
+from app.services.reset_service import CONFIRM_RESET_EVERYTHING, ResetService
 from app.storage.catalog import BookStatus
 from app.utils.hashing import file_checksum
 from tests.fakes import FakeEmbedder, FakeLLM, FakeRuntime, WordCounter
@@ -90,6 +91,13 @@ def test_a_malformed_experiment_is_reported(tmp_path):
 
     with pytest.raises(ConfigurationError):
         load_experiment(path)
+
+
+def test_two_variants_with_the_same_name_are_refused():
+    variants = (VariantConfig(name="same"), VariantConfig(name="same"))
+
+    with pytest.raises(ValueError, match="variant names"):
+        Experiment(name="test", kind="retrieval", description="A test.", variants=variants)
 
 
 def test_variants_that_index_the_same_way_share_a_workspace(settings):
@@ -269,6 +277,34 @@ def test_a_book_left_failed_in_a_workspace_is_indexed_again(lab):
     assert json.loads((directory / "results.json").read_text(encoding="utf-8"))["summary"][0]["samples"] == 1
 
 
+def test_a_workspace_whose_index_went_stale_is_rebuilt(lab):
+    runner, _, libraries, _ = lab
+    runner.run(retrieval_experiment())
+    [library] = libraries.values()
+    library.runtime.digest = "digest-2"  # the embedding model, pulled again
+
+    runner.run(retrieval_experiment())
+
+    assert library.catalog.active_index().embedding_digest == "digest-2"
+
+
+def test_only_a_new_workspace_clears_what_a_deleted_one_left_on_the_server(lab, monkeypatch):
+    runner, *_ = lab
+    confirmations = []
+    real_reset = ResetService.reset_everything
+
+    def reset(service, confirmation):
+        confirmations.append(confirmation)
+        real_reset(service, confirmation)
+
+    monkeypatch.setattr(ResetService, "reset_everything", reset)
+
+    runner.run(retrieval_experiment())
+    runner.run(retrieval_experiment())
+
+    assert confirmations == [CONFIRM_RESET_EVERYTHING]
+
+
 def test_rows_reach_the_disk_before_a_run_fails(lab, monkeypatch):
     runner, *_ = lab
     two_variants = retrieval_experiment().model_copy(
@@ -288,6 +324,22 @@ def test_rows_reach_the_disk_before_a_run_fails(lab, monkeypatch):
 
     [directory] = (runner._root / "results").iterdir()
     assert json.loads((directory / "rows.jsonl").read_text(encoding="utf-8"))["variant"] == "bm25"
+
+
+def test_a_package_left_out_with_its_extra_is_recorded_as_missing(lab, monkeypatch):
+    runner, *_ = lab
+    real_version = benchmark.metadata.version
+
+    def version(name):
+        if name == "ragas":
+            raise benchmark.metadata.PackageNotFoundError(name)
+        return real_version(name)
+
+    monkeypatch.setattr(benchmark.metadata, "version", version)
+
+    report = json.loads((runner.run(retrieval_experiment()) / "results.json").read_text(encoding="utf-8"))
+
+    assert report["environment"]["packages"]["ragas"] is None
 
 
 def test_the_environment_is_read_before_the_work_starts(lab, monkeypatch):

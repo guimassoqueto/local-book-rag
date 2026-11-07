@@ -12,11 +12,10 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Any
 
-import py3langid
-
 from app.config.settings import JudgeConfig
 from app.evaluation.retrieval_metrics import Evidence
 from app.generation.base import GenerationParameters, LLMProvider
+from app.ingestion.language import reply_language
 from app.utils.logging import get_logger, log_event
 
 logger = get_logger("evaluation.generation")
@@ -35,7 +34,7 @@ def citation_accuracy(cited: Sequence[str], evidence: Evidence) -> float:
 
 def language_matches(text: str, expected: str) -> bool:
     """Whether an answer is in the expected language. Very short texts can't be told, so they pass."""
-    return len(text) < _MIN_CHARACTERS_FOR_LANGUAGE or py3langid.classify(text)[0] == expected
+    return len(text) < _MIN_CHARACTERS_FOR_LANGUAGE or reply_language(text) == expected
 
 
 def abstention_is_correct(answerable: bool, abstained: bool) -> bool:
@@ -92,7 +91,9 @@ class RagasJudge:
             embeddings = embedding_factory("openai", model=self._config.embedding_model, client=client)
             return {
                 "faithfulness": Faithfulness(llm=llm),
-                "relevance": AnswerRelevancy(llm=llm, embeddings=embeddings),
+                # Its default asks for three questions with one prompt, which a judge decoding
+                # greedily answers three times the same: one ask gives the same score.
+                "relevance": AnswerRelevancy(llm=llm, embeddings=embeddings, strictness=1),
                 "correctness": AnswerCorrectness(llm=llm, embeddings=embeddings),
             }
 

@@ -317,7 +317,8 @@ the full configuration and the checksum of the dataset. A sampled run says so in
 An experiment is a YAML file: variants that are the normal configuration plus overrides, checked
 by the same validation as `config/`. It runs in `benchmarks/workspace`, on separate files and
 `bench_*` collections, so it can't touch the real library. Variants that index the same way
-share a workspace.
+share a workspace. A workspace whose index no longer matches the configuration is rebuilt, but a
+change to the ingestion code can't be seen: delete `benchmarks/workspace` after one.
 
 The dataset is three books: *Quincas Borba* in Portuguese, *Think Python* in English from a PDF,
 and *On Liberty* for its complex arguments. Each has 30 questions: 10 factual, 5 conceptual, 5

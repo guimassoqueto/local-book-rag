@@ -9,7 +9,8 @@ from app.ingestion.chunker import Chunk
 _CITATION = re.compile(r"\[(\d+(?:\s*[,;–-]\s*\d+)*)\]")
 _CODE = re.compile(r"```.*?```|`[^`\n]*`", re.DOTALL)
 # gpt-oss cites as 【3】 or 【3†L1-L4】, whatever the prompt shows it.
-_LENTICULAR_CITATION = re.compile(r"[【［〔]\s*(\d+(?:\s*[,;–-]\s*\d+)*)[^】］〕]*[】］〕]")
+# What follows the number can't open another bracket: one left open would swallow the next citation.
+_LENTICULAR_CITATION = re.compile(r"[【［〔]\s*(\d+(?:\s*[,;–-]\s*\d+)*)[^【［〔】］〕]*[】］〕]")
 _SEPARATOR = re.compile(r"\s*[,;]\s*")
 _RANGE = re.compile(r"\s*[–-]\s*")
 _MAX_RANGE = 50  # beyond this, "[1-9999]" is not a citation anyone meant

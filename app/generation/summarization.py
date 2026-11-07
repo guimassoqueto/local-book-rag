@@ -35,6 +35,7 @@ from app.utils.logging import get_logger, log_event, operation
 logger = get_logger("generation.summaries")
 
 _BOLD_HEADING = re.compile(r"^\s*\*\*\s*(#{1,6}\s[^*\n]+?)\s*\*\*[ \t]*(.*)$", re.MULTILINE)
+_REFERENCES = "\n\n## References\n\n"
 _COLLAPSE_FAN_IN = 3  # merging everything at once would squeeze a long chapter into one reply
 _PARTS_SEPARATOR = "\n\n---\n\n"
 _MAP_INPUT_RATIO = 4  # how many tokens of text a reply of one token can do justice to
@@ -452,4 +453,9 @@ def _with_references(text: str, citations: Sequence[Citation]) -> str:
     for citation in citations:
         place = ", ".join(part for part in (citation.section_title, citation.pages) if part)
         lines.append(f"- [{citation.number}] " + (f"{place}: " if place else "") + f"“{citation.excerpt}”")
-    return f"{text.rstrip()}\n\n## References\n\n" + "\n".join(lines)
+    return f"{text.rstrip()}{_REFERENCES}" + "\n".join(lines)
+
+
+def without_references(text: str) -> str:
+    """A summary as the model wrote it. The references quote the book, which the model didn't write."""
+    return text.split(_REFERENCES)[0]

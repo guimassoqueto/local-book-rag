@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from app.errors import BookRagError
 from app.evaluation.verdicts import JUDGE_ATTEMPTS, attempt_parameters, read_verdict
 from app.generation.base import GenerationParameters, LLMProvider, Message
-from app.generation.summarization import ChapterSummary
+from app.generation.summarization import ChapterSummary, without_references
 from app.utils.logging import get_logger, log_event
 
 logger = get_logger("evaluation.summaries")
@@ -85,17 +85,19 @@ class SummaryJudge:
             key_points: what it has to cover.
             sources: passages of the chapter to check it against.
         """
-        ratings = self._rate(summary.text, sources)
+        text = without_references(summary.text)
+        ratings = self._rate(text, sources)
         return SummaryScores(
-            argument_coverage=self._coverage(summary.text, key_points),
+            argument_coverage=self._coverage(text, key_points),
             citation_traceability=citation_traceability(summary),
             **{name: ratings.get(name) for name in _RATINGS},
         )
 
     def _coverage(self, summary: str, key_points: Sequence[str]) -> float | None:
+        """None unless every point got a verdict: a share of some of them would hide which."""
         verdicts = [self._ask(_COVERAGE_PROMPT.format(point=point, summary=summary)) for point in key_points]
         known = [verdict["covered"] for verdict in verdicts if isinstance(verdict.get("covered"), bool)]
-        return sum(known) / len(known) if known else None
+        return sum(known) / len(known) if known and len(known) == len(key_points) else None
 
     def _rate(self, summary: str, sources: Sequence[str]) -> dict[str, float]:
         reply = self._ask(_RATING_PROMPT.format(summary=summary, sources=self._fit(summary, sources)))

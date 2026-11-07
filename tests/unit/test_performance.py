@@ -88,3 +88,12 @@ def test_the_idle_reading_comes_before_the_model_loads(monkeypatch):
     assert result.idle_vram_mb == 500
     assert result.peak_vram_mb == 9000
     assert result.idle_ram_mb == 8000
+
+
+def test_every_cold_start_loads_from_the_file_cache(monkeypatch):
+    monkeypatch.setattr(performance, "query_gpu", lambda: None)
+    llm = FakeLLM(["A reply."])
+
+    measure(llm, FakeRuntime(), "A prompt.", runs=1, max_tokens=10)
+
+    assert [parameters.max_tokens for _, parameters in llm.calls] == [1, 10, 10, 10]

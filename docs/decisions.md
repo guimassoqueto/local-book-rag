@@ -65,6 +65,12 @@ section, so it never repeats, but its number follows the page at a fixed distanc
 immutable" overwrites the heading "Tuples", the chapter disappears, and all its text is attributed
 to the chapter before it.
 
+**A heading the outline names on its page is never a running head.** At the top of a page, a
+heading sits where running heads do, and *Think Python*'s "Glossary", "Exercises" and "Debugging"
+repeat like them. 20 of them were dropped, and each glossary went to the section before it. The
+extraction benchmark had reported full coverage, because it checked each title against the set of
+headings left, and every one of those titles survived somewhere else. It counts them now.
+
 **Tokens are counted with the embedding model's tokenizer**, since that is the model whose limit
 matters. `cl100k_base` was 15% off on Portuguese.
 
@@ -192,6 +198,23 @@ The judge runs at temperature 0, where decoding is greedy, so retries that only 
 the same broken reply three times. `read_verdict` now closes a list left open when its object
 closes, and repairs nothing else: a reply cut off at its limit stays unreadable, instead of becoming
 a shorter verdict. Retries sample, at temperature 0.5.
+
+**The summary judge reads only what the model wrote.** The references after a summary quote the
+opening of each passage it cites, up to 1,900 characters of the book's own words, and both the
+rubric and coverage could credit them to the model. Coverage is also left out unless every key
+point got a verdict: a share of the rest would be a share of a different list.
+
+**Answer relevance asks for one question.** RAGAS sends its prompt three times by default, and a
+judge decoding greedily answers it three times the same: two calls per answer, for nothing.
+
+**Every cold start loads from the file cache.** Each model loads once before it is measured.
+Before, its first context size also timed the disk, so 16K looked faster to load than 8K.
+
+**A workspace is rebuilt when its index no longer matches.** The fingerprint that guards the real
+library, including the embedding model's digest, guards workspaces too. A new workspace first
+clears its prefix on the server, since one deleted by hand leaves collections that its first index
+would otherwise fill again. Code changes can't be detected: after changing ingestion, delete
+`benchmarks/workspace`.
 
 **Generation rows record how much of the evidence reached the model.** Abstention quality counts
 an abstention on an answerable question as wrong even when retrieval never brought the evidence,

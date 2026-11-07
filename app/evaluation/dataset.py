@@ -85,6 +85,8 @@ class BenchmarkQuestion(_Model):
             raise ValueError("an answerable question needs evidence and an expected answer")
         if not self.answerable and self.evidence:
             raise ValueError("an unanswerable question can't have evidence")
+        if self.category == "chapter_specific" and not self.chapter:
+            raise ValueError("a question about one chapter has to name it")
         return self
 
 
@@ -216,9 +218,12 @@ def validate_against_book(
     repeated = [key for key, count in Counter(question.id for question in dataset.questions).items() if count > 1]
     problems.extend(f"repeated id: {key}" for key in repeated)
 
+    titles = Counter(chapters)
     for question in questions:
         if question.chapter is not None and question.chapter not in chapters:
             problems.append(f"{question.id}: there is no chapter titled {question.chapter!r}")
+        if titles[question.chapter] > 1:
+            problems.append(f"{question.id}: {titles[question.chapter]} chapters are titled {question.chapter!r}")
         for quote in question.evidence:
             # Exact here, unlike when resolving evidence: half of a mistyped quote still matches.
             if " ".join(quote.split()) not in book_text:

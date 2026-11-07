@@ -44,6 +44,7 @@ def test_an_absurd_range_is_not_expanded():
         ("A claim［3］.", "A claim[3]."),
         ("A claim〔3〕.", "A claim[3]."),
         ("Two【1, 2】.", "Two[1, 2]."),
+        ("Unclosed【2 then【4】.", "Unclosed【2 then[4]."),
         ("Unchanged [3].", "Unchanged [3]."),
     ],
 )

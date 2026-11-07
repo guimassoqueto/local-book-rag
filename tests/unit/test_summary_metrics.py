@@ -1,5 +1,6 @@
 import json
 import re
+from dataclasses import replace
 
 from app.errors import ServiceUnavailableError
 from app.evaluation.summary_metrics import SummaryJudge, citation_traceability
@@ -51,10 +52,32 @@ def test_traceability_is_the_share_of_sourced_statements():
     assert citation_traceability(summary(0, 0)) == 0.0
 
 
+def test_the_judge_reads_only_what_the_model_wrote():
+    quoted = "A passage of the book, quoted in the references."
+    llm = FakeLLM(respond=lambda messages, parameters: replies(messages[-1].content))
+    cited = replace(summary(), text=f"The summary text [1].\n\n## References\n\n- [1] “{quoted}”")
+
+    SummaryJudge(llm, PARAMETERS).score(cited, ["first"], ["A passage."])
+
+    prompts = [messages[-1].content for messages, _ in llm.calls]
+    assert all("The summary text [1]." in prompt for prompt in prompts)
+    assert not any(quoted in prompt for prompt in prompts)
+
+
 def test_coverage_is_the_share_of_key_points_the_judge_finds():
     scores = judge(replies).score(summary(), ["first point", "second point"], ["A passage."])
 
     assert scores.argument_coverage == 0.5
+
+
+def test_coverage_is_left_out_when_a_point_gets_no_verdict():
+    def respond(prompt):
+        return "I am not sure." if "second point" in prompt else replies(prompt)
+
+    scores = judge(respond).score(summary(), ["first point", "second point"], ["A passage."])
+
+    assert scores.argument_coverage is None
+    assert scores.coherence == 0.0
 
 
 def test_ratings_are_scaled_from_0_to_1():

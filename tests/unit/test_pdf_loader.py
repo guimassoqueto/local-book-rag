@@ -3,9 +3,10 @@ from pathlib import Path
 import pymupdf
 import pytest
 
-from app.config.settings import PdfConfig, PdfOcrConfig
+from app.config.settings import NormalizationConfig, PdfConfig, PdfOcrConfig
 from app.errors import EmptyDocumentError, InvalidDocumentError, ScannedDocumentError
 from app.ingestion.base import BlockKind, DocumentFormat, ExtractedDocument
+from app.ingestion.normalizer import Normalizer
 from app.ingestion.pdf_loader import PdfLoader
 from tests.documents import (
     add_page_furniture,
@@ -137,6 +138,18 @@ def test_a_heading_at_the_top_of_a_page_is_still_a_heading(tmp_path):
     blocks = PdfLoader(CONFIG).load(path).blocks
 
     assert [block.text for block in blocks if block.kind is BlockKind.HEADING] == ["A Chapter Title"]
+
+
+def test_a_heading_the_outline_names_is_never_page_furniture(tmp_path):
+    # Think Python opens some pages with "Glossary": three of them looked like a running header.
+    path = write_pdf(tmp_path / "b.pdf", [[(BODY, 11)]] * 3, toc=[[1, "Glossary", number] for number in (1, 2, 3)])
+    add_page_furniture(path, header="Glossary", page_numbers=False)
+
+    document = PdfLoader(CONFIG).load(path)
+    normalized = Normalizer(NormalizationConfig(remove_repeated_margins=True)).normalize(document)
+
+    assert not any(block.margin for block in document.blocks if block.kind is BlockKind.HEADING)
+    assert headings(normalized) == [(1, "Glossary")] * 3
 
 
 def test_page_edges_are_flagged_as_margins(tmp_path):

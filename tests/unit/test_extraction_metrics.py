@@ -50,6 +50,17 @@ def test_a_lost_entry_lowers_the_coverage(settings, tmp_path):
     assert extraction_scores(path, processed).toc_coverage == 2 / 3
 
 
+def test_a_lost_heading_counts_even_when_its_title_survives_elsewhere(settings, tmp_path):
+    pages = [[("Exercises", 11), (TEXT, 11)], [("Exercises", 11), (TEXT, 11)]]
+    path = write_pdf(tmp_path / "b.pdf", pages, toc=[[1, "Exercises", 1], [1, "Exercises", 2]])
+    processed = process(settings, path, DocumentFormat.PDF)
+    with pymupdf.open(path) as document:
+        document.set_toc([[1, "Exercises", 1], [1, "Exercises", 2], [1, "Exercises", 2]])
+        document.saveIncr()
+
+    assert extraction_scores(path, processed).toc_coverage == 2 / 3
+
+
 def test_epubs_are_read_from_their_own_table_of_contents(settings, tmp_path):
     path = write_epub(tmp_path / "b.epub", [("a.xhtml", "One", f"<p>{TEXT}</p>"), ("b.xhtml", "Two", f"<p>{TEXT}</p>")])
 

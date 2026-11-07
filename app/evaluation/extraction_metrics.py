@@ -1,6 +1,7 @@
 """Document extraction quality, measured against the structure a book declares for itself."""
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,8 +50,11 @@ def _title_key(title: str) -> str:
 
 def extraction_scores(path: Path, processed: ProcessedDocument) -> ExtractionScores:
     titles = toc_titles(path)
-    headings = {_title_key(block.text) for block in processed.normalized.blocks if block.kind is BlockKind.HEADING}
-    kept = sum(1 for title in titles if _title_key(title) in headings)
+    # Counted, not just found: Think Python has 20 sections called "Glossary", and losing six of
+    # them must show even though the title survives elsewhere.
+    wanted = Counter(_title_key(title) for title in titles)
+    found = Counter(_title_key(block.text) for block in processed.normalized.blocks if block.kind is BlockKind.HEADING)
+    kept = sum((wanted & found).values())
     return ExtractionScores(
         toc_entries=len(titles),
         toc_coverage=kept / len(titles) if titles else None,

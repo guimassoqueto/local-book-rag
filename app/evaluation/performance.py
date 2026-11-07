@@ -5,7 +5,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from app.generation.base import GenerationParameters, LLMProvider, Message
@@ -121,6 +121,9 @@ def measure(
         say: told what is happening.
     """
     parameters = GenerationParameters(temperature=0.0, max_tokens=max_tokens, seed=0)
+    # Puts the weights in the system's file cache, so that every cold start reads from there.
+    # Otherwise the first context size measured for a model also timed the disk.
+    llm.generate([Message("user", "Load.")], replace(parameters, max_tokens=1))
     free_memory(runtime)
     idle_vram = _used_vram_mb()
     idle_ram = _used_ram_mb()

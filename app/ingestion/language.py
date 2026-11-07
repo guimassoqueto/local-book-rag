@@ -30,7 +30,18 @@ def question_language(text: str) -> str | None:
     return _NAMES.get(code) if confidence >= _MIN_QUESTION_CONFIDENCE else None
 
 
+def reply_language(text: str) -> str:
+    """Identify the language of a reply, among the ones a reply is asked for in.
+
+    Unrestricted, a Portuguese answer quoting a 19th-century novel can read as Galician.
+    """
+    return _identifier(restricted=True).classify(text)[0]
+
+
 @cache
-def _identifier() -> LanguageIdentifier:
-    """Unrestricted: limited to the names above, it reads a Dutch question as German."""
-    return LanguageIdentifier.from_model_file(MODEL_FILE, norm_probs=True)
+def _identifier(restricted: bool = False) -> LanguageIdentifier:
+    """Unrestricted for questions: limited to the names above, a Dutch question reads as German."""
+    identifier = LanguageIdentifier.from_model_file(MODEL_FILE, norm_probs=True)
+    if restricted:
+        identifier.set_languages(list(_NAMES))
+    return identifier
