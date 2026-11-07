@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from app.config.loader import load_settings
 from app.config.settings import EnvironmentSettings, Settings
 from app.embeddings.factory import create_embedding_provider
+from app.generation.factory import create_llm_provider
+from app.generation.question_answering import QuestionAnsweringService
+from app.generation.summarization import ChapterSummarizer
 from app.ingestion.base import DocumentFormat, DocumentLoader
 from app.ingestion.chunker import Chunker
 from app.ingestion.docling_loader import DoclingLoader
@@ -21,7 +24,7 @@ from app.services.ingestion_service import IngestionService
 from app.services.retrieval_service import RetrievalService
 from app.storage.catalog import BookCatalog
 from app.storage.chroma import ChromaServer
-from app.storage.repositories import OriginalDocuments, ProcessedDocuments
+from app.storage.repositories import OriginalDocuments, ProcessedDocuments, SummaryDocuments
 from app.utils.logging import configure_logging
 from app.utils.ollama_runtime import OllamaRuntime
 from app.utils.tokenization import create_token_counter
@@ -36,7 +39,8 @@ class Container:
     indexes: IndexService
     books: BookService
     retrieval: RetrievalService
-    reranker: CrossEncoderReranker
+    questions: QuestionAnsweringService
+    summaries: ChapterSummarizer
 
 
 def build_container(console_logs: bool = False) -> Container:
@@ -72,7 +76,9 @@ def build_container(console_logs: bool = False) -> Container:
         indexes=indexes,
         max_upload_bytes=settings.uploads.max_size_mb * 2**20,
     )
-    reranker = CrossEncoderReranker(settings.reranker)
+    retrieval = RetrievalService(settings, catalog, indexes, processed, CrossEncoderReranker(settings.reranker))
+    llm = create_llm_provider(settings, runtime)
+    summaries = SummaryDocuments(data / "summaries")
     return Container(
         settings=settings,
         environment=environment,
@@ -80,8 +86,9 @@ def build_container(console_logs: bool = False) -> Container:
         health=HealthService(settings, runtime, chroma, indexes),
         indexes=indexes,
         books=books,
-        retrieval=RetrievalService(settings, catalog, indexes, processed, reranker),
-        reranker=reranker,
+        retrieval=retrieval,
+        questions=QuestionAnsweringService(settings, retrieval, llm),
+        summaries=ChapterSummarizer(settings, llm, catalog, processed, summaries, retrieval),
     )
 
 

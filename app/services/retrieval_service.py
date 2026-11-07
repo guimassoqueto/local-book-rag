@@ -2,8 +2,10 @@
 
 from app.config.settings import RetrievalConfig, Settings
 from app.errors import NothingToSearchError
+from app.ingestion.chunker import Chunk
 from app.retrieval.base import BookScope, Reranker, RetrievalFilters
 from app.retrieval.bm25 import ChunkSource
+from app.retrieval.dense import DenseRetriever
 from app.retrieval.factory import create_pipeline
 from app.retrieval.pipeline import RetrievalPipeline, RetrievalResult
 from app.services.index_service import IndexService
@@ -14,6 +16,7 @@ logger = get_logger("services.retrieval")
 
 # A book being reindexed stays searchable: its current revision is intact until the swap.
 _SEARCHABLE = (BookStatus.INDEXED, BookStatus.REINDEXING)
+_CLOSEST_ONLY = 1
 
 
 class RetrievalService:
@@ -58,6 +61,25 @@ class RetrievalService:
                 rerank_seconds=result.rerank_seconds,
             )
         return result
+
+    def closest_chunk(self, statement: str, book_id: str, chapter_number: int) -> Chunk | None:
+        """Find a chapter's passage nearest to a statement, or None if none is close enough.
+
+        Used to trace generated text to its source, so it is plain dense search, without the
+        reranker: a summary has dozens of statements, and this has to take milliseconds each.
+        """
+        index = self._indexes.active()
+        if index is None:
+            return None
+        book = self._catalog.get(book_id)
+        retriever = DenseRetriever(self._indexes.query_embedder(index), self._indexes.store(index), _CLOSEST_ONLY)
+        scope = BookScope(
+            book.book_id, book.revision, book.language, RetrievalFilters(chapter_numbers=(chapter_number,))
+        )
+        passages = retriever.retrieve(statement, scope)
+        if not passages or (passages[0].dense_score or 0.0) < self._settings.generation.summarization.min_source_score:
+            return None
+        return passages[0].chunk
 
     def _searchable_books(self, filters: RetrievalFilters, index: IndexRecord | None) -> list[Book]:
         if index is None:

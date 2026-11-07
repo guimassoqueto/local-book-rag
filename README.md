@@ -161,6 +161,65 @@ The BM25 index is built in memory over exactly the chunks a search may return, a
 for a 1,300-chunk book. So there is no second index on disk to keep in step with ChromaDB, and
 term rarity reflects the part of the book being searched.
 
+## Questions
+
+```bash
+docker compose exec app book-rag ask "What is opportunity cost?" --book book_001
+docker compose exec app book-rag ask "Quais são os argumentos?" --book book_001 --chapter 4
+docker compose exec app book-rag ask "Compare how they treat trade." --book book_001 --book book_002
+docker compose exec app book-rag ask "What is the harm principle?" --language Portuguese
+```
+
+Answers come from the retrieved passages, with numbered citations that resolve to chapter,
+section and pages. When the passages don't hold the answer, the model is told to say so
+instead of answering from general knowledge.
+
+Passages are fitted to the context window before anything is sent, reserving room for the
+reply and `generation.context.safety_margin`. This matters: Ollama doesn't refuse a prompt
+that is too long, it silently cuts it and answers from what is left. Token counts come from
+each model's own tokenizer, set in `llm_profiles` in `config/models.yaml`, and for `gpt-oss`
+they match Ollama's count exactly.
+
+Models differ in more than quality, and none of the code above the provider depends on it:
+
+- Reasoning is set per model in `llm_profiles`, and checked against what the model supports.
+  `gpt-oss` reasons whatever it is told, so its setting is `low`.
+- Reasoning counts against `max_tokens`. If it uses all of it, the result is an error, not
+  an empty answer.
+- `gpt-oss` cites as `【3】`, however the prompt shows it. Citations are normalized, and text
+  in code is skipped: `t = [1, 2, 3]` is a list, not three sources.
+
+## Summaries
+
+```bash
+docker compose exec app book-rag summarize book_001 4 --type comprehensive --save
+```
+
+The types (`brief`, `standard`, `comprehensive`, `analytical`) and their lengths are in
+`config/generation.yaml`. A saved summary goes to `data/summaries/<book_id>/`, with a JSON
+file saying how it was made.
+
+Summaries don't use retrieval to pick their material: the top passages for "summarize this"
+would leave out most of a chapter. Every chunk goes through map-reduce instead:
+
+1. A chapter that fits in the context is summarized directly.
+2. Otherwise, consecutive chunks are grouped in batches that a reply can do justice to, far
+   smaller than what the context would hold, and each batch gets a partial summary.
+3. A reply cut off by its token limit has lost the end of its batch, so the batch is redone
+   in two halves. This is what makes the coverage figure mean something: `chunks_covered`
+   counts chunks in steps that finished.
+4. Partial summaries are sized to fit the final prompt together. Very long chapters merge
+   them first, a few at a time.
+
+Citations in a summary are computed, not claimed. Models don't carry source tags through
+several rounds of summarizing: `gpt-oss` was seen numbering them upward, `[S1] [S2] [S3]`,
+whatever they pointed at. So the model writes no citations, and each finished statement is
+looked up among the chapter's chunks through the vector index, citing the passage it
+resembles. It costs milliseconds per statement, and works the same for every model.
+Statements close to no passage stay uncited and are counted, as the first place to look
+for something the model added. The references quote each passage's opening words, because
+that is how to find it in a book without pages.
+
 ## Deployment notes
 
 - Ollama and ChromaDB are published on `127.0.0.1` only: neither has authentication, and

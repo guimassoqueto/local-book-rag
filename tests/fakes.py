@@ -3,6 +3,7 @@
 import hashlib
 import math
 
+from app.generation.base import Generation, GenerationStats, TextDelta
 from app.ingestion.chunker import Chunk
 from app.utils.ollama_runtime import ModelInfo
 
@@ -105,3 +106,53 @@ class FakeRuntime:
 
     def unload(self, model):
         self.unloaded.append(model)
+
+
+def make_stats(prompt_tokens=100, completion_tokens=20, finish_reason="stop"):
+    return GenerationStats("fake-llm", prompt_tokens, completion_tokens, 0.1, 0.0, 0.1, 0.2, 0.3, finish_reason)
+
+
+class FakeLLM:
+    """Replies from a script, or with functions of the prompt, and records what it was sent.
+
+    Args:
+        replies: the replies in order, the last one repeating.
+        respond: computes a reply from (messages, parameters), instead of `replies`.
+        context_size: the window it reports.
+        finish_reasons: why each reply stopped, in order. Then "stop".
+        finish: computes that from the prompt's last message, instead of `finish_reasons`.
+    """
+
+    model = "fake-llm"
+
+    def __init__(self, replies=None, respond=None, context_size=8192, finish_reasons=None, finish=None):
+        self.replies = list(replies or [])
+        self.respond = respond
+        self.window = context_size
+        self.finish_reasons = list(finish_reasons or [])
+        self.finish = finish
+        self.calls = []
+
+    def context_size(self):
+        return self.window
+
+    def count_tokens(self, text):
+        return len(text.split())
+
+    def stream(self, messages, parameters):
+        generation = self.generate(messages, parameters)
+        for word in generation.text.split(" "):
+            yield TextDelta(word + " ")
+        yield generation
+
+    def generate(self, messages, parameters):
+        self.calls.append((list(messages), parameters))
+        if self.respond is not None:
+            reply = self.respond(messages, parameters)
+        else:
+            reply = self.replies.pop(0) if len(self.replies) > 1 else self.replies[0]
+        if self.finish is not None:
+            reason = self.finish(messages[-1].content)
+        else:
+            reason = self.finish_reasons.pop(0) if self.finish_reasons else "stop"
+        return Generation(reply, "some reasoning", make_stats(finish_reason=reason))

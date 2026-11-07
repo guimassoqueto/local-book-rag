@@ -65,6 +65,8 @@ class OllamaRuntime:
                     f"Model '{model}' is not on the Ollama server. Download it with `book-rag pull-models`."
                 ) from exc
             raise ServiceUnavailableError(f"Ollama answered with an error: {exc.error}") from exc
+        except httpx.TimeoutException as exc:
+            raise ServiceUnavailableError(f"Ollama did not answer in time: {exc}") from exc
         except (ConnectionError, httpx.HTTPError) as exc:
             raise ServiceUnavailableError(f"Ollama is not reachable at {self.base_url}: {exc}") from exc
 

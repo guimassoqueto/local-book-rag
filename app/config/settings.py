@@ -36,12 +36,23 @@ class LoggingConfig(ConfigModel):
     inference_level: LogLevel
 
 
+class TokenizerConfig(ConfigModel):
+    kind: Literal["tiktoken", "huggingface"]
+    name: str
+
+
 class LLMConfig(ConfigModel):
     provider: Literal["ollama"]
     model: str
     context_size: PositiveInt
     temperature: float = Field(ge=0)
     max_tokens: PositiveInt
+
+
+class LLMProfile(ConfigModel):
+    """What is specific to one LLM: its tokenizer and what it accepts as a reasoning setting."""
+
+    tokenizer: TokenizerConfig
     reasoning: bool | Literal["low", "medium", "high"] | None = None
 
 
@@ -59,11 +70,6 @@ class RerankerModelConfig(ConfigModel):
     model: str
     device: Literal["cpu", "cuda"]
     batch_size: PositiveInt
-
-
-class TokenizerConfig(ConfigModel):
-    kind: Literal["tiktoken", "huggingface"]
-    name: str
 
 
 class EmbeddingProfile(ConfigModel):
@@ -151,13 +157,27 @@ class GenerationTaskConfig(ConfigModel):
     max_tokens: PositiveInt | None = None
 
 
+class SummaryTypeConfig(ConfigModel):
+    target_words: PositiveInt
+    style: str
+    max_tokens: PositiveInt | None = None
+
+
+class SummarizationConfig(GenerationTaskConfig):
+    map_max_tokens: PositiveInt
+    min_source_score: float = Field(ge=0, le=1)
+    verify_claims: bool
+    types: dict[str, SummaryTypeConfig]
+
+
 class ContextConfig(ConfigModel):
     max_size: PositiveInt
+    safety_margin: float = Field(ge=0, lt=1)
 
 
 class GenerationConfig(ConfigModel):
     question_answering: GenerationTaskConfig
-    summarization: GenerationTaskConfig
+    summarization: SummarizationConfig
     context: ContextConfig
 
 
@@ -173,6 +193,7 @@ class Settings(ConfigModel):
     embedding: EmbeddingConfig
     reranker: RerankerModelConfig
     embedding_profiles: dict[str, EmbeddingProfile]
+    llm_profiles: dict[str, LLMProfile]
     pdf: PdfConfig
     normalization: NormalizationConfig
     languages: LanguagesConfig
@@ -184,6 +205,8 @@ class Settings(ConfigModel):
     def check_rules_across_files(self) -> Self:
         if self.embedding.model not in self.embedding_profiles:
             raise ValueError(f"embedding_profiles has no entry for embedding.model '{self.embedding.model}'")
+        if self.llm.model not in self.llm_profiles:
+            raise ValueError(f"llm_profiles has no entry for llm.model '{self.llm.model}'")
         if self.chunking.overlap >= self.chunking.target_size:
             raise ValueError("chunking.overlap must be smaller than chunking.target_size")
         if self.llm.context_size > self.generation.context.max_size:
@@ -196,6 +219,10 @@ class Settings(ConfigModel):
     @property
     def embedding_profile(self) -> EmbeddingProfile:
         return self.embedding_profiles[self.embedding.model]
+
+    @property
+    def llm_profile(self) -> LLMProfile:
+        return self.llm_profiles[self.llm.model]
 
 
 class EnvironmentSettings(BaseSettings):

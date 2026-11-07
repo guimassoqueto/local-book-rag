@@ -59,3 +59,11 @@ class IndexingError(BookRagError):
 
 class NothingToSearchError(BookRagError):
     """No indexed book matches what a search asked for."""
+
+
+class GenerationError(BookRagError):
+    """The model finished without a usable answer."""
+
+
+class ChapterNotFoundError(BookRagError):
+    """A book has no chapter with the given number."""

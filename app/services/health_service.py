@@ -61,8 +61,8 @@ class HealthService:
     def _llm_model(self) -> CheckResult:
         llm = self._settings.llm
         info = self._runtime.model_info(llm.model)
-        if llm.reasoning is not None and "thinking" not in info.capabilities:
-            return CheckResult("llm model", False, f"{llm.model} has no reasoning mode, but llm.reasoning is set")
+        if self._settings.llm_profile.reasoning is not None and "thinking" not in info.capabilities:
+            return CheckResult("llm model", False, f"{llm.model} has no reasoning mode, but its profile sets one")
         if info.context_length and llm.context_size > info.context_length:
             detail = f"llm.context_size {llm.context_size} exceeds the {info.context_length} of {llm.model}"
             return CheckResult("llm model", False, detail)
@@ -105,7 +105,7 @@ class HealthService:
             response = self._runtime.client.chat(
                 model=llm.model,
                 messages=[{"role": "user", "content": _PROBE_PROMPT}],
-                think=llm.reasoning,
+                think=self._settings.llm_profile.reasoning,
                 options={"num_ctx": llm.context_size, "temperature": 0, "num_predict": llm.max_tokens},
             )
         answer = (response.message.content or "").strip()

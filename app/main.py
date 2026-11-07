@@ -6,8 +6,11 @@ from pathlib import Path
 
 from app.container import Container, build_container
 from app.errors import BookRagError
+from app.generation.base import TextDelta
+from app.generation.question_answering import Answer
 from app.retrieval.base import RetrievalFilters
 from app.utils.huggingface import local_snapshot
+from app.utils.tokenization import create_token_counter
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -49,6 +52,21 @@ def _build_parser() -> argparse.ArgumentParser:
     search.add_argument("--page-end", type=int, help="last page of a range")
     search.set_defaults(handler=_search)
 
+    ask = commands.add_parser("ask", help="answer a question from the library")
+    ask.add_argument("question")
+    ask.add_argument("--book", action="append", default=[], help="a book ID; repeat for several")
+    ask.add_argument("--chapter", action="append", type=int, default=[], help="a chapter number; repeat for several")
+    ask.add_argument("--language", help="the language to answer in, such as Portuguese")
+    ask.set_defaults(handler=_ask)
+
+    summarize = commands.add_parser("summarize", help="summarize a chapter")
+    summarize.add_argument("book", help="a book ID")
+    summarize.add_argument("chapter", type=int, help="the chapter's number")
+    summarize.add_argument("--type", default="standard", help="brief, standard, comprehensive or analytical")
+    summarize.add_argument("--language", help="the language to write in, such as Portuguese")
+    summarize.add_argument("--save", action="store_true", help="keep the summary in data/summaries")
+    summarize.set_defaults(handler=_summarize)
+
     return parser
 
 
@@ -76,10 +94,10 @@ def _pull_models(container: Container, _: argparse.Namespace) -> None:
                 print(f"  {progress.status}")
                 last_status = progress.status
 
-    tokenizer = settings.embedding_profile.tokenizer
-    repositories = [settings.reranker.model] + ([tokenizer.name] if tokenizer.kind == "huggingface" else [])
-    for repository in repositories:
-        print(f"{repository}:\n  {local_snapshot(repository)}")
+    print(f"{settings.reranker.model}:\n  {local_snapshot(settings.reranker.model)}")
+    for tokenizer in (settings.embedding_profile.tokenizer, settings.llm_profile.tokenizer):
+        create_token_counter(tokenizer).count("downloads the tokenizer once")
+        print(f"tokenizer {tokenizer.name}: ready")
 
 
 def _add_book(container: Container, arguments: argparse.Namespace) -> None:
@@ -90,6 +108,51 @@ def _add_book(container: Container, arguments: argparse.Namespace) -> None:
 def _list_books(container: Container, _: argparse.Namespace) -> None:
     for book in container.books.list_books():
         print(f"{book.book_id}  {book.status:<10} {book.format:<8} {book.chunk_count:>5} chunks  {book.title}")
+
+
+def _ask(container: Container, arguments: argparse.Namespace) -> None:
+    filters = RetrievalFilters(book_ids=tuple(arguments.book), chapter_numbers=tuple(arguments.chapter))
+    for event in container.questions.stream(arguments.question, filters, arguments.language):
+        if isinstance(event, TextDelta):
+            print(event.text, end="", flush=True)
+        elif isinstance(event, Answer):
+            _print_sources(event)
+
+
+def _print_sources(answer: Answer) -> None:
+    print("\n\nSources:")
+    for citation in answer.citations:
+        print(f"  [{citation.number}] {citation.reference}")
+    if answer.invented_citations:
+        print(f"  The model cited sources that don't exist: {list(answer.invented_citations)}")
+    if answer.insufficient_evidence:
+        print("  The model found no answer in the sources.")
+    stats = answer.generation.stats if answer.generation else None
+    timing = f"{answer.total_seconds:.1f}s in total"
+    if stats:
+        speed = f"{stats.prompt_tokens} + {stats.completion_tokens} tokens at {stats.tokens_per_second:.0f} tokens/s"
+        timing = f"{timing}, {speed}"
+    print(timing)
+
+
+def _summarize(container: Container, arguments: argparse.Namespace) -> None:
+    summaries = container.summaries
+    summary = summaries.summarize(
+        arguments.book,
+        arguments.chapter,
+        arguments.type,
+        arguments.language,
+        on_progress=lambda message: print(message, file=sys.stderr),
+    )
+    print(summary.text)
+    print(
+        f"\n{summary.strategy}: {summary.chunks_covered}/{summary.chunks_total} chunks in {summary.steps} steps, "
+        f"{len(summary.citations)} cited, {summary.statements_without_source} statements without a source, "
+        f"{summary.total_seconds:.1f}s",
+        file=sys.stderr,
+    )
+    if arguments.save:
+        print(f"Saved to {summaries.save(summary)}", file=sys.stderr)
 
 
 def _search(container: Container, arguments: argparse.Namespace) -> None:

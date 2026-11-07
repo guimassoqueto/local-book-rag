@@ -10,11 +10,6 @@ llm:
   temperature: 0.2
   max_tokens: 1500
 
-  # Sent as Ollama's `think` option, and checked against the model's capabilities before
-  # inference. gpt-oss takes low, medium or high; models that only switch reasoning on and
-  # off take true or false; null sends nothing.
-  reasoning: low
-
 
 embedding:
   provider: ollama
@@ -43,8 +38,38 @@ reranker:
   batch_size: 8
 
 
-# Model-specific behavior, by model name. Switching embedding.model selects the matching
-# entry, so that no model name has to change anywhere else.
+# Model-specific behavior, by model name. Switching llm.model or embedding.model selects the
+# matching entry, so that no model name has to change anywhere else.
+llm_profiles:
+  gpt-oss:20b:
+    # Matches Ollama's own token count exactly.
+    tokenizer:
+      kind: tiktoken
+      name: o200k_harmony
+
+    # Sent as Ollama's `think` option, and checked against the model's capabilities before
+    # the first inference. gpt-oss takes low, medium or high, and reasons whatever it is told;
+    # models that can switch it off take true or false; null sends nothing.
+    reasoning: low
+
+  gemma4:12b:
+    # Gemma's own tokenizer needs a Hugging Face login, so this is an approximation, which
+    # generation.context.safety_margin absorbs.
+    tokenizer:
+      kind: tiktoken
+      name: o200k_base
+
+  qwen3.5:9b:
+    tokenizer:
+      kind: huggingface
+      name: Qwen/Qwen3.5-9B
+
+  qwen3:14b:
+    tokenizer:
+      kind: huggingface
+      name: Qwen/Qwen3-14B
+
+
 embedding_profiles:
   qwen3-embedding:0.6b:
     tokenizer:

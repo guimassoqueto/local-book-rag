@@ -4,6 +4,7 @@ import json
 import shutil
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 from app.ingestion.base import DocumentFormat
 from app.ingestion.chunker import Chunk
@@ -74,6 +75,24 @@ class ProcessedDocuments:
 
     def delete_revision(self, book_id: str, revision: int) -> None:
         shutil.rmtree(self._directory(book_id, revision), ignore_errors=True)
+
+    def delete(self, book_id: str) -> None:
+        shutil.rmtree(self._root / book_id, ignore_errors=True)
+
+
+class SummaryDocuments:
+    """Saved chapter summaries, in Markdown, each with a JSON file saying how it was made."""
+
+    def __init__(self, root: Path) -> None:
+        self._root = root
+
+    def save(self, book_id: str, name: str, text: str, metadata: dict[str, Any]) -> Path:
+        directory = self._root / book_id
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{name}.md"
+        path.write_text(text, encoding="utf-8")
+        (directory / f"{name}.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=1), encoding="utf-8")
+        return path
 
     def delete(self, book_id: str) -> None:
         shutil.rmtree(self._root / book_id, ignore_errors=True)

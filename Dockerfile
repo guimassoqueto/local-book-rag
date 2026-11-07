@@ -32,6 +32,7 @@ RUN mkdir -p data logs .cache/huggingface && chown -R app:app data logs .cache
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     HF_HOME=/app/.cache/huggingface \
+    TIKTOKEN_CACHE_DIR=/app/.cache/huggingface/tiktoken \
     HF_HUB_DISABLE_TELEMETRY=1 \
     HF_HUB_DISABLE_PROGRESS_BARS=1 \
     TQDM_DISABLE=1 \
