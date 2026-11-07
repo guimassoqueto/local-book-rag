@@ -5,7 +5,7 @@ from app.retrieval.base import RetrievalFilters
 from app.services.retrieval_service import RetrievalService
 from app.storage.catalog import BookStatus
 from tests.fakes import FakeReranker
-from tests.unit.test_book_service import MARKDOWN, TEXT, Library, upload
+from tests.library import MARKDOWN, TEXT, Library, upload
 
 
 @pytest.fixture
@@ -19,8 +19,7 @@ def reranker():
 
 
 @pytest.fixture
-def retrieval(library, reranker, monkeypatch):
-    monkeypatch.setattr(library.indexes, "query_embedder", lambda record: library.embedder)
+def retrieval(library, reranker):
     return RetrievalService(library.settings, library.catalog, library.indexes, library.processed, reranker)
 
 

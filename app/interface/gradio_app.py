@@ -3,6 +3,8 @@
 import gradio as gr
 
 from app.container import Container
+from app.errors import BookRagError
+from app.utils.logging import get_logger, log_event
 
 
 def build_interface(container: Container) -> gr.Blocks:
@@ -21,7 +23,11 @@ def build_interface(container: Container) -> gr.Blocks:
 
 
 def serve(container: Container) -> None:
-    """Run the interface until the process stops."""
+    """Clean up after any interrupted operation, and run the interface until the process stops."""
+    try:
+        container.library.recover()
+    except BookRagError as exc:  # ChromaDB may still be starting: the next change to the library retries it
+        log_event(get_logger("interface"), "recovery postponed", reason=str(exc))
     server = container.settings.server
     build_interface(container).launch(
         server_name=server.host,

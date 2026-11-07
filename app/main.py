@@ -9,6 +9,7 @@ from app.errors import BookRagError
 from app.generation.base import TextDelta
 from app.generation.question_answering import Answer
 from app.retrieval.base import RetrievalFilters
+from app.services.reset_service import CONFIRM_RESET_EVERYTHING, CONFIRM_RESET_INDEX
 from app.utils.huggingface import local_snapshot
 from app.utils.tokenization import create_token_counter
 
@@ -41,6 +42,33 @@ def _build_parser() -> argparse.ArgumentParser:
 
     list_books = commands.add_parser("list-books", help="list the books in the library")
     list_books.set_defaults(handler=_list_books)
+
+    replace_book = commands.add_parser("replace-book", help="swap a book for a new document, keeping its ID")
+    replace_book.add_argument("book", help="a book ID")
+    replace_book.add_argument("path", type=Path, help="the new document")
+    replace_book.set_defaults(handler=_replace_book)
+
+    remove_book = commands.add_parser("remove-book", help="remove a book and everything derived from it")
+    remove_book.add_argument("book", help="a book ID")
+    remove_book.add_argument("--archive", action="store_true", help="keep the original in data/archive")
+    remove_book.add_argument("--confirm", help="the book's ID again, instead of being asked")
+    remove_book.set_defaults(handler=_remove_book)
+
+    reindex_book = commands.add_parser("reindex-book", help="process a book again from its original")
+    reindex_book.add_argument("book", help="a book ID")
+    reindex_book.set_defaults(handler=_reindex_book)
+
+    reindex_all = commands.add_parser("reindex-all", help="rebuild the index from the original documents")
+    reindex_all.add_argument("--regenerate-summaries", action="store_true", help="also write the saved summaries again")
+    reindex_all.set_defaults(handler=_reindex_all)
+
+    reset_index = commands.add_parser("reset-index", help="delete everything derived, keeping the originals")
+    reset_index.add_argument("--confirm", help=f"'{CONFIRM_RESET_INDEX}', instead of being asked")
+    reset_index.set_defaults(handler=_reset_index)
+
+    reset_everything = commands.add_parser("reset-everything", help="delete the library, originals included")
+    reset_everything.add_argument("--confirm", help=f"'{CONFIRM_RESET_EVERYTHING}', instead of being asked")
+    reset_everything.set_defaults(handler=_reset_everything)
 
     search = commands.add_parser("search", help="show the passages retrieved for a question")
     search.add_argument("question")
@@ -103,6 +131,46 @@ def _pull_models(container: Container, _: argparse.Namespace) -> None:
 def _add_book(container: Container, arguments: argparse.Namespace) -> None:
     book = container.books.add_book(arguments.path, arguments.path.name)
     print(f"{book.book_id}: {book.title} ({book.chapter_count} chapters, {book.chunk_count} chunks, {book.status})")
+
+
+def _replace_book(container: Container, arguments: argparse.Namespace) -> None:
+    book = container.books.replace_book(arguments.book, arguments.path, arguments.path.name)
+    print(f"{book.book_id}: {book.title} ({book.chapter_count} chapters, {book.chunk_count} chunks, {book.status})")
+
+
+def _remove_book(container: Container, arguments: argparse.Namespace) -> None:
+    confirmation = arguments.confirm or input(f"Type {arguments.book} to remove it: ")
+    container.books.remove_book(arguments.book, confirmation, archive_original=arguments.archive)
+    print(f"{arguments.book} removed.")
+
+
+def _reindex_book(container: Container, arguments: argparse.Namespace) -> None:
+    book = container.books.reindex_book(arguments.book)
+    print(f"{book.book_id}: {book.title} ({book.chapter_count} chapters, {book.chunk_count} chunks, {book.status})")
+
+
+def _reindex_all(container: Container, arguments: argparse.Namespace) -> None:
+    report = container.library.reindex_all(arguments.regenerate_summaries, on_progress=print)
+    print(f"Index v{report.index_version} ({report.collection}) is active, built with {report.embedding_model}:")
+    print(f"  {report.books} books, {report.chunks} chunks")
+    if report.adopted:
+        print(f"  brought back from their originals: {', '.join(report.adopted)}")
+    if report.failed:
+        print(f"  still failing: {', '.join(report.failed)}")
+    if report.summaries_regenerated:
+        print(f"  {report.summaries_regenerated} summaries written again")
+
+
+def _reset_index(container: Container, arguments: argparse.Namespace) -> None:
+    prompt = f"This deletes the index, summaries and catalog, keeping the originals. Type {CONFIRM_RESET_INDEX}: "
+    container.resets.reset_index(arguments.confirm or input(prompt))
+    print("The index is gone and the originals are kept. reindex-all rebuilds the library from them.")
+
+
+def _reset_everything(container: Container, arguments: argparse.Namespace) -> None:
+    prompt = f"This deletes the whole library, original documents included. Type {CONFIRM_RESET_EVERYTHING}: "
+    container.resets.reset_everything(arguments.confirm or input(prompt))
+    print("The library is empty.")
 
 
 def _list_books(container: Container, _: argparse.Namespace) -> None:

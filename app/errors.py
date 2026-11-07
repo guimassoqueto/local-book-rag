@@ -67,3 +67,19 @@ class GenerationError(BookRagError):
 
 class ChapterNotFoundError(BookRagError):
     """A book has no chapter with the given number."""
+
+
+class LibraryBusyError(BookRagError):
+    """Another operation is changing the library."""
+
+
+class ConfirmationRequiredError(BookRagError):
+    """A destructive operation was not confirmed with what it asks for."""
+
+
+class MissingOriginalError(BookRagError):
+    """A book's original document is no longer on disk."""
+
+
+class NothingToReindexError(BookRagError):
+    """The library has no documents to rebuild from."""

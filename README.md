@@ -100,6 +100,50 @@ Chunk sizes are measured with the embedding model's own tokenizer, set in
 `embedding_profiles` in `config/models.yaml`. Tokenizers are downloaded on first use and
 never reach the network again.
 
+### Changing the library
+
+```bash
+docker compose exec app book-rag replace-book book_001 /path/to/new.pdf
+docker compose exec app book-rag remove-book book_001 [--archive]
+docker compose exec app book-rag reindex-book book_001
+docker compose exec app book-rag reindex-all [--regenerate-summaries]
+docker compose exec app book-rag reset-index
+docker compose exec app book-rag reset-everything
+```
+
+| Operation          | Effect                                                                  |
+| ------------------ | ----------------------------------------------------------------------- |
+| `add-book`         | Adds one book. Others aren't touched. The same file twice is refused    |
+| `replace-book`     | Swaps a book for a new document, keeping its ID                         |
+| `remove-book`      | Deletes one book and what is derived from it. `--archive` keeps the original in `data/archive` |
+| `reindex-book`     | Processes a book again from its original. This retries a failed book    |
+| `reindex-all`      | Rebuilds the index from the originals with the current configuration    |
+| `reset-index`      | Empties the library, keeping the originals, which `reindex-all` brings back |
+| `reset-everything` | Deletes the whole library, originals included                           |
+
+`scripts/reset_library.sh` and `scripts/reindex_library.sh` do the same from the host. None of
+this touches the Docker volumes or the models in Ollama. The destructive operations ask for
+confirmation in the service layer, so Gradio and the commands can't differ: a book's ID to
+remove it, `RESET INDEX`, or `DELETE EVERYTHING`.
+
+How changes stay safe:
+
+- A book's chunks carry a revision. A replacement is indexed next to the live one, and stays
+  out of searches until it is verified, when one SQLite transaction moves the book over. So
+  a failure leaves the book as it was, and at no moment does a search find a mix of both.
+- `reindex-all` does the same at the scale of the library. A staging collection fills up while
+  the old index keeps answering, and every book moves in one transaction.
+- Each change is journaled in the catalog while it runs. After a crash, the next start or the
+  next change reads the journal, and either finishes the change or undoes it, depending on
+  whether the swap had happened.
+- A lock file lets one change happen at a time across the interface and the commands.
+  Searches don't wait for it. The operating system releases it when a process dies.
+- Each original has a `source.json` next to it, because `reset-index` clears the catalog: it
+  is what lets `reindex-all` bring the books back with their IDs.
+
+Index versions are never reused, even after `reset-everything`, because a running server
+identifies an index by its version and must not mistake a new one for the one it has cached.
+
 ## Index
 
 Chunks go into one ChromaDB collection per index version, `book_chunks_v1` to begin with,

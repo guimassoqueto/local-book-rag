@@ -21,6 +21,10 @@ from app.services.book_service import BookService
 from app.services.health_service import HealthService
 from app.services.index_service import IndexService
 from app.services.ingestion_service import IngestionService
+from app.services.library_data import LibraryData
+from app.services.library_service import LibraryService
+from app.services.recovery_service import LibraryGuard
+from app.services.reset_service import ResetService
 from app.services.retrieval_service import RetrievalService
 from app.storage.catalog import BookCatalog
 from app.storage.chroma import ChromaServer
@@ -38,6 +42,8 @@ class Container:
     health: HealthService
     indexes: IndexService
     books: BookService
+    library: LibraryService
+    resets: ResetService
     retrieval: RetrievalService
     questions: QuestionAnsweringService
     summaries: ChapterSummarizer
@@ -57,9 +63,17 @@ def build_container(console_logs: bool = False) -> Container:
 
     runtime = OllamaRuntime(environment.ollama_base_url, settings.ollama.request_timeout_seconds)
     chroma = ChromaServer(environment.chroma_host, environment.chroma_port)
-    data = environment.data_dir
-    catalog = BookCatalog(data / "metadata" / "catalog.db")
-    processed = ProcessedDocuments(data / "processed")
+    root = environment.data_dir
+    catalog = BookCatalog(root / "metadata" / "catalog.db")
+    processed = ProcessedDocuments(root / "processed")
+    data = LibraryData(
+        catalog=catalog,
+        originals=OriginalDocuments(root / "original_books", root / "archive"),
+        processed=processed,
+        summaries=SummaryDocuments(root / "summaries"),
+        server=chroma,
+    )
+    guard = LibraryGuard(root / "metadata" / "library.lock", data)
     indexes = IndexService(settings, catalog, chroma, runtime)
     ingestion = IngestionService(
         settings=settings,
@@ -68,27 +82,21 @@ def build_container(console_logs: bool = False) -> Container:
         embedder=create_embedding_provider(settings, runtime),
         runtime=runtime,
     )
-    books = BookService(
-        catalog=catalog,
-        originals=OriginalDocuments(data / "original_books"),
-        processed=processed,
-        ingestion=ingestion,
-        indexes=indexes,
-        max_upload_bytes=settings.uploads.max_size_mb * 2**20,
-    )
     retrieval = RetrievalService(settings, catalog, indexes, processed, CrossEncoderReranker(settings.reranker))
     llm = create_llm_provider(settings, runtime)
-    summaries = SummaryDocuments(data / "summaries")
+    summarizer = ChapterSummarizer(settings, llm, catalog, processed, data.summaries, retrieval)
     return Container(
         settings=settings,
         environment=environment,
         runtime=runtime,
         health=HealthService(settings, runtime, chroma, indexes),
         indexes=indexes,
-        books=books,
+        books=BookService(data, guard, ingestion, indexes, settings.uploads.max_size_mb * 2**20),
+        library=LibraryService(data, guard, ingestion, indexes, summarizer),
+        resets=ResetService(data, guard),
         retrieval=retrieval,
         questions=QuestionAnsweringService(settings, retrieval, llm),
-        summaries=ChapterSummarizer(settings, llm, catalog, processed, summaries, retrieval),
+        summaries=summarizer,
     )
 
 

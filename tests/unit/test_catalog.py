@@ -1,7 +1,7 @@
 import pytest
 
 from app.errors import BookNotFoundError
-from app.storage.catalog import Book, BookCatalog, BookStatus
+from app.storage.catalog import Book, BookCatalog, BookStatus, BookUpdate
 
 
 @pytest.fixture
@@ -78,16 +78,17 @@ def test_unknown_ids_are_reported(catalog):
 
 def test_chapters_are_replaced_as_a_set(catalog):
     catalog.add(book())
-    catalog.set_chapters("book_001", [(1, "One"), (2, "Two")])
+    catalog.apply(BookUpdate("book_001", [(1, "One"), (2, "Two")], {}))
 
-    catalog.set_chapters("book_001", [(1, "Only")])
+    catalog.apply(BookUpdate("book_001", [(1, "Only")], {"chunk_count": 9}))
 
     assert catalog.chapters("book_001") == [(1, "Only")]
+    assert catalog.get("book_001").chunk_count == 9
 
 
 def test_deleting_a_book_takes_its_chapters(catalog):
     catalog.add(book())
-    catalog.set_chapters("book_001", [(1, "One")])
+    catalog.apply(BookUpdate("book_001", [(1, "One")], {}))
 
     catalog.delete("book_001")
 
@@ -99,3 +100,33 @@ def test_the_catalog_survives_reopening(tmp_path):
     BookCatalog(path).add(book())
 
     assert BookCatalog(path).get("book_001").title == "Title"
+
+
+def test_operations_stay_open_until_they_end(catalog):
+    operation = catalog.begin_operation("add_book", "book_001", revision=1)
+
+    [found] = catalog.open_operations()
+    assert (found.kind, found.book_id, found.details) == ("add_book", "book_001", {"revision": 1})
+
+    catalog.end_operation(operation)
+
+    assert catalog.open_operations() == []
+
+
+def test_clearing_keeps_the_book_counter_when_originals_stay(catalog):
+    catalog.add(book(catalog.next_book_id()))
+
+    catalog.clear(keep_counters=True)
+
+    assert catalog.list_books() == []
+    assert catalog.next_book_id() == "book_002"
+
+
+def test_clearing_everything_restarts_the_book_ids_but_never_the_index_versions(catalog):
+    catalog.next_book_id()
+    catalog.next_index_version()
+
+    catalog.clear(keep_counters=False)
+
+    assert catalog.next_book_id() == "book_001"
+    assert catalog.next_index_version() == 2

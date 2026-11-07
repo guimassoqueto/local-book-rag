@@ -1,9 +1,7 @@
 import json
 
-import chromadb
 import pytest
 
-from app.config.settings import Settings
 from app.errors import (
     DuplicateBookError,
     InvalidDocumentError,
@@ -11,60 +9,12 @@ from app.errors import (
     ServiceUnavailableError,
     UnsupportedLanguageError,
 )
-from app.ingestion.base import DocumentFormat
-from app.ingestion.chunker import Chunker
-from app.ingestion.epub_loader import EpubLoader
-from app.ingestion.markdown_loader import MarkdownLoader
-from app.ingestion.normalizer import Normalizer
-from app.ingestion.pdf_loader import PdfLoader
-from app.ingestion.pipeline import IngestionPipeline
-from app.services.book_service import BookService
-from app.services.index_service import IndexService
-from app.services.ingestion_service import IngestionService
-from app.storage.catalog import BookCatalog, BookStatus
-from app.storage.chroma import ChromaServer, revision_filter, revision_key
-from app.storage.repositories import OriginalDocuments, ProcessedDocuments
+from app.storage.catalog import BookStatus
+from app.storage.chroma import revision_filter, revision_key
+from app.storage.repositories import ProcessedDocuments
 from tests.documents import write_epub, write_pdf
-from tests.fakes import FakeEmbedder, FakeRuntime, WordCounter
-
-TEXT = "The quick brown fox jumps over the lazy dog, and then it goes back to the forest to rest for the day."
-MARKDOWN = f"# One\n\n{TEXT}\n\n## Sub\n\n{TEXT}\n\n# Two\n\n{TEXT}\n"
-
-
-class Library:
-    """A book service over real files, a real catalog and an embedded ChromaDB."""
-
-    def __init__(self, settings: Settings, data, embedder=None):
-        self.data = data
-        self.settings = settings
-        self.runtime = FakeRuntime()
-        self.embedder = embedder or FakeEmbedder()
-        self.server = ChromaServer("embedded", 0, client=chromadb.PersistentClient(path=str(data / "chroma")))
-        self.catalog = BookCatalog(data / "metadata" / "catalog.db")
-        self.processed = ProcessedDocuments(data / "processed")
-        self.indexes = IndexService(settings, self.catalog, self.server, self.runtime)
-        pipeline = IngestionPipeline(
-            loaders={
-                DocumentFormat.PDF: PdfLoader(settings.pdf),
-                DocumentFormat.EPUB: EpubLoader(),
-                DocumentFormat.MARKDOWN: MarkdownLoader(),
-            },
-            normalizer=Normalizer(settings.normalization),
-            chunker=Chunker(settings.chunking, WordCounter()),
-            supported_languages=("en", "pt"),
-        )
-        ingestion = IngestionService(settings, pipeline, self.processed, self.embedder, self.runtime)
-        self.books = BookService(
-            catalog=self.catalog,
-            originals=OriginalDocuments(data / "original_books"),
-            processed=self.processed,
-            ingestion=ingestion,
-            indexes=self.indexes,
-            max_upload_bytes=2**20,
-        )
-
-    def store(self):
-        return self.indexes.store(self.indexes.active())
+from tests.fakes import FakeEmbedder
+from tests.library import MARKDOWN, TEXT, Library, upload
 
 
 @pytest.fixture
@@ -80,12 +30,6 @@ def library(settings, data):
 @pytest.fixture
 def service(library):
     return library.books
-
-
-def upload(tmp_path, name="book.md", text=MARKDOWN):
-    path = tmp_path / name
-    path.write_text(text, encoding="utf-8")
-    return path
 
 
 def test_adding_a_book_records_it(service, tmp_path):

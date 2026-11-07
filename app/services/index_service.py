@@ -93,6 +93,10 @@ class IndexService:
             )
         return active
 
+    def create_staging(self) -> IndexRecord:
+        """Create the index that a rebuild fills, which queries ignore until the rebuild swaps it in."""
+        return self._create(self.current_configuration(), active=False)
+
     def needs_reindex(self) -> bool:
         active = self._catalog.active_index()
         return active is not None and active.fingerprint != self.current_configuration().fingerprint
@@ -104,7 +108,7 @@ class IndexService:
         """The embedder for questions against an index: the model that built it, not the configured one."""
         return create_embedding_provider(self._settings, self._runtime, record.embedding_model)
 
-    def _create(self, configuration: IndexConfiguration) -> IndexRecord:
+    def _create(self, configuration: IndexConfiguration, active: bool = True) -> IndexRecord:
         version = self._catalog.next_index_version()
         record = IndexRecord(
             version=version,
@@ -114,7 +118,7 @@ class IndexService:
             dimensions=configuration.dimensions,
             configuration=configuration.configuration,
             fingerprint=configuration.fingerprint,
-            active=True,
+            active=active,
             created_at=utc_now(),
         )
         self._server.create_collection(

@@ -85,6 +85,12 @@ class ChromaServer:
             if name in self.collection_names():
                 self.client.delete_collection(name)
 
+    def delete_collections(self, prefix: str) -> None:
+        """Delete every collection with a prefix. Nothing else on the server is touched."""
+        for name in self.collection_names():
+            if name.startswith(prefix):
+                self.delete_collection(name)
+
     def collection_names(self) -> list[str]:
         with self.translate_errors():
             return [collection.name for collection in self.client.list_collections()]
