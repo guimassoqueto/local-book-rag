@@ -314,6 +314,14 @@ without: the digest and quantization of each model, the Ollama and package versi
 the full configuration and the checksum of the dataset. A sampled run says so in `complete: false`.
 `rows.jsonl` grows as rows complete, so a run that dies after hours keeps what it did.
 
+```bash
+docker compose exec app book-rag benchmark-report benchmarks/results/<run> --baseline <variant>
+```
+
+shows a run as Markdown tables, with each variant compared to the baseline, question by question
+or chapter by chapter. The dataset is small, and this paired bootstrap tells which differences are
+more than noise. The full runs, and what they suggest, are in `docs/benchmark-results.md`.
+
 An experiment is a YAML file: variants that are the normal configuration plus overrides, checked
 by the same validation as `config/`. It runs in `benchmarks/workspace`, on separate files and
 `bench_*` collections, so it can't touch the real library. Variants that index the same way

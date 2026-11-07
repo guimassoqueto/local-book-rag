@@ -1,6 +1,7 @@
 """Command line entry point. Gradio and these commands call the same service layer."""
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -106,6 +107,11 @@ def _build_parser() -> argparse.ArgumentParser:
     benchmark.add_argument("experiment", type=Path, help="the experiment's YAML file")
     benchmark.add_argument("--limit", type=int, help="questions per book and category, for a quick pass")
     benchmark.set_defaults(handler=_benchmark)
+
+    report = commands.add_parser("benchmark-report", help="show a benchmark run's results as Markdown")
+    report.add_argument("results", type=Path, help="the run's directory, in benchmarks/results")
+    report.add_argument("--baseline", help="a variant to compare the others with, item by item")
+    report.set_defaults(handler=_benchmark_report)
 
     return parser
 
@@ -264,6 +270,15 @@ def _benchmark(container: Container, arguments: argparse.Namespace) -> None:
 
     runner = BenchmarkRunner(container.settings, container.environment)
     print(f"Results: {runner.run(load_experiment(arguments.experiment), arguments.limit)}")
+
+
+def _benchmark_report(_: Container, arguments: argparse.Namespace) -> None:
+    from app.evaluation.report import render  # needs nothing the other commands load
+
+    path = arguments.results / "results.json"
+    if not path.is_file():
+        sys.exit(f"error: {arguments.results} holds no results.json")
+    print(render(json.loads(path.read_text(encoding="utf-8")), arguments.baseline), end="")
 
 
 def _search(container: Container, arguments: argparse.Namespace) -> None:
