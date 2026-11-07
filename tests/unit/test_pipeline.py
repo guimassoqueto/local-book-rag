@@ -8,14 +8,10 @@ from app.ingestion.language import detect_language, normalize_language
 from app.ingestion.markdown_loader import MarkdownLoader
 from app.ingestion.normalizer import Normalizer
 from app.ingestion.pipeline import IngestionPipeline
+from tests.fakes import WordCounter
 
 ENGLISH = "The quick brown fox jumps over the lazy dog, and then it goes back to the forest to rest for the day."
 PORTUGUESE = "O rato roeu a roupa do rei de Roma, e depois voltou para casa porque já não tinha mais nada para fazer."
-
-
-class WordCounter:
-    def count(self, text):
-        return len(text.split())
 
 
 @pytest.fixture

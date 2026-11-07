@@ -54,6 +54,32 @@ def test_table_of_contents_entries_become_headings(tmp_path):
     assert [b.page_start for b in document.blocks if b.kind is BlockKind.HEADING] == [1, 3]
 
 
+def test_a_chapter_and_a_section_sharing_a_word_are_both_kept(tmp_path):
+    pages = [[("Tuples", 20), ("Tuples are immutable", 14), (BODY, 11), ("Tuple assignment", 14), (BODY, 11)]]
+    toc = [[1, "Tuples", 1], [2, "Tuples are immutable", 1], [2, "Tuple assignment", 1]]
+    path = write_pdf(tmp_path / "b.pdf", pages, toc=toc)
+
+    assert headings(PdfLoader(CONFIG).load(path)) == [
+        (1, "Tuples"),
+        (2, "Tuples are immutable"),
+        (2, "Tuple assignment"),
+    ]
+
+
+def test_a_section_named_like_a_chapter_on_the_same_page_keeps_its_place(tmp_path):
+    pages = [[("Debugging", 20), (BODY, 11), ("Debugging", 14), (BODY, 11)]]
+    path = write_pdf(tmp_path / "b.pdf", pages, toc=[[1, "Debugging", 1], [2, "Debugging", 1]])
+
+    assert headings(PdfLoader(CONFIG).load(path)) == [(1, "Debugging"), (2, "Debugging")]
+
+
+def test_a_title_printed_across_two_lines_becomes_one_heading(tmp_path):
+    pages = [[("Chapter 4", 20), ("Opportunity Cost", 20), (BODY, 11)]]
+    path = write_pdf(tmp_path / "b.pdf", pages, toc=[[1, "Chapter 4 Opportunity Cost", 1]])
+
+    assert headings(PdfLoader(CONFIG).load(path)) == [(1, "Chapter 4 Opportunity Cost")]
+
+
 def test_a_toc_entry_missing_from_the_page_is_added_at_its_top(tmp_path):
     path = write_pdf(tmp_path / "b.pdf", [[(BODY, 11)]], toc=[[1, "Not printed", 1]])
 

@@ -64,6 +64,7 @@ class _Item:
     margin: bool
     kind: BlockKind = BlockKind.PARAGRAPH
     level: int | None = None
+    named_by_toc: bool = False
 
 
 @dataclass
@@ -252,25 +253,32 @@ def _apply_toc(pages: list[_Page], toc: list[list[Any]]) -> None:
                 item.level = deepest + 1
 
     for level, title, page_number in toc:
-        page = pages[page_number - 1]
-        wanted = comparable_text(title)
-        matches = [item for item in page.items if _names_entry(item, wanted)]
-        if matches:
-            matches[0].kind = BlockKind.HEADING
-            matches[0].level = level
-            matches[0].text = " ".join(title.split())
-            page.items = [item for item in page.items if item not in matches[1:]]
-        else:
-            heading = _Item(" ".join(title.split()), 0, 0, False, False, BlockKind.HEADING, level)
-            page.items.insert(0, heading)
+        _place_entry(pages[page_number - 1], level, " ".join(title.split()))
 
 
-def _names_entry(item: _Item, wanted: str) -> bool:
-    if item.kind is BlockKind.TABLE or item.level == 0:
-        return False
+def _place_entry(page: _Page, level: int, title: str) -> None:
+    """Find the heading an entry names on its page, each heading answering to one entry only.
+
+    A chapter and its first section can share a page and a word ("Tuples" and "Tuples are
+    immutable"), so exact matches go first. A partial match is a title printed across
+    several lines, whose fragments become one heading. With no match at all, the entry
+    becomes a heading at the top of the page.
+    """
+    wanted = comparable_text(title)
+    free = [item for item in page.items if not item.named_by_toc and item.kind is not BlockKind.TABLE]
+    exact = [item for item in free if comparable_text(item.text) == wanted]
+    matches = exact[:1] or [item for item in free if _is_fragment(item, wanted)]
+    if not matches:
+        page.items.insert(0, _Item(title, 0, 0, False, False, BlockKind.HEADING, level, True))
+        return
+
+    first, *fragments = matches
+    first.kind, first.level, first.text, first.named_by_toc = BlockKind.HEADING, level, title, True
+    page.items = [item for item in page.items if not any(item is fragment for fragment in fragments)]
+
+
+def _is_fragment(item: _Item, wanted: str) -> bool:
     text = comparable_text(item.text)
-    if text == wanted:
-        return True
     return item.kind is BlockKind.HEADING and bool(text) and (text in wanted or wanted in text)
 
 

@@ -24,6 +24,14 @@ embedding:
   dimensions: 1024
   batch_size: 16
 
+  # Measured with qwen3-embedding:0.6b on the RTX 5060 Ti and the Ryzen 9 9950X3D.
+  # Indexing is 12 times faster on the GPU: 59 chunks per second against 5.
+  document_device: gpu
+
+  # A query takes 16 ms on the CPU, and the LLM keeps the GPU to itself. On the GPU it
+  # takes 6 ms, but it loads the embedding model next to the LLM.
+  query_device: cpu
+
 
 reranker:
   provider: transformers

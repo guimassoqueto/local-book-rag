@@ -115,41 +115,50 @@ def _apply_toc(
     Returns:
         The blocks with their final levels, and the depth of the last entry applied.
     """
-    placed: dict[int, _TocEntry] = {}
+    promoted: dict[int, _TocEntry] = {}
+    added: dict[int, list[_TocEntry]] = defaultdict(list)
     for entry in entries:
         position = positions.get(entry.fragment, 0) if entry.fragment else 0
-        placed.setdefault(_heading_near(blocks, position, entry.title), entry)
+        heading = _heading_near(blocks, position, entry.title, promoted)
+        if heading is None:
+            added[position].append(entry)
+        else:
+            promoted[heading] = entry
+
+    def toc_heading(entry: _TocEntry) -> Block:
+        return Block(BlockKind.HEADING, entry.title, level=entry.depth + 1)
 
     result: list[Block] = []
     depth = depth_before_file
     for index, block in enumerate(blocks):
-        entry = placed.pop(index, None)
-        if entry is not None:
+        for entry in added.pop(index, ()):
             depth = entry.depth
-            heading = Block(BlockKind.HEADING, entry.title, level=entry.depth + 1)
-            if block.kind is BlockKind.HEADING:
-                result.append(heading)
-                continue
-            result.append(heading)
-        if block.kind is BlockKind.HEADING:
+            result.append(toc_heading(entry))
+        if index in promoted:
+            depth = promoted[index].depth
+            result.append(toc_heading(promoted[index]))
+        elif block.kind is BlockKind.HEADING:
             result.append(replace(block, level=depth + 2))
         else:
             result.append(block)
 
-    for entry in placed.values():  # an entry that points past the last block
-        depth = entry.depth
-        result.append(Block(BlockKind.HEADING, entry.title, level=entry.depth + 1))
+    for entries_past_the_end in added.values():
+        for entry in entries_past_the_end:
+            depth = entry.depth
+            result.append(toc_heading(entry))
     return result, depth
 
 
-def _heading_near(blocks: list[Block], position: int, title: str) -> int:
+def _heading_near(blocks: list[Block], position: int, title: str, taken: dict[int, _TocEntry]) -> int | None:
+    """Find the heading an entry points at, each heading answering to one entry only.
+
+    A chapter and its first section can share a word ("Tuples" and "Tuples are immutable"),
+    so exact matches go first.
+    """
     wanted = comparable_text(title)
-    window = blocks[position : position + _NEAR_HEADING_WINDOW]
-    for offset, block in enumerate(window):
-        if block.kind is BlockKind.HEADING and _matches(comparable_text(block.text), wanted):
-            return position + offset
-    return position
-
-
-def _matches(heading: str, title: str) -> bool:
-    return bool(heading) and (heading == title or heading in title or title in heading)
+    window = range(position, min(position + _NEAR_HEADING_WINDOW, len(blocks)))
+    candidates = [i for i in window if blocks[i].kind is BlockKind.HEADING and i not in taken]
+    texts = {i: comparable_text(blocks[i].text) for i in candidates}
+    exact = [i for i in candidates if texts[i] == wanted]
+    partial = [i for i in candidates if texts[i] and (texts[i] in wanted or wanted in texts[i])]
+    return next(iter(exact + partial), None)

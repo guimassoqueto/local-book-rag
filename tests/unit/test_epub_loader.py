@@ -77,6 +77,24 @@ def test_nested_toc_entries_become_deeper_headings(tmp_path):
     assert headings(EpubLoader().load(path)) == [(1, "One"), (2, "Section")]
 
 
+def test_a_chapter_and_a_section_sharing_a_word_are_both_kept(tmp_path):
+    chapters = [("a.xhtml", "Tuples", "<h1>Tuples</h1><p>Intro.</p><h2>Tuples are immutable</h2><p>Body.</p>")]
+    toc = [(epub.Section("Tuples", "a.xhtml"), [epub.Link("a.xhtml", "Tuples are immutable", "s1")])]
+    path = write_epub(tmp_path / "b.epub", chapters, toc=toc)
+
+    assert headings(EpubLoader().load(path)) == [(1, "Tuples"), (2, "Tuples are immutable")]
+
+
+def test_several_entries_without_a_heading_all_survive(tmp_path):
+    chapters = [("a.xhtml", "One", "<p>Text only.</p>")]
+    toc = [
+        (epub.Section("One", "a.xhtml"), [epub.Link("a.xhtml", "First", "s1"), epub.Link("a.xhtml", "Second", "s2")])
+    ]
+    path = write_epub(tmp_path / "b.epub", chapters, toc=toc)
+
+    assert headings(EpubLoader().load(path)) == [(1, "One"), (2, "First"), (2, "Second")]
+
+
 def test_an_entry_with_nothing_to_promote_adds_a_heading(tmp_path):
     path = write_epub(tmp_path / "b.epub", [("a.xhtml", "One", "<p>No heading in the text.</p>")])
 

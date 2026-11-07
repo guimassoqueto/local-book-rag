@@ -57,8 +57,22 @@ class FakeChroma:
 GPU = GpuStatus("NVIDIA GeForce RTX 5060 Ti", 500, 16311)
 
 
-def run_checks(settings, runtime=None, chroma=None, gpu=GPU, inference=False):
-    service = HealthService(settings, runtime or FakeRuntime(settings), chroma or FakeChroma(), lambda: gpu)
+class FakeIndexes:
+    def __init__(self, record=None, stale=False):
+        self.record = record
+        self.stale = stale
+
+    def active(self):
+        return self.record
+
+    def needs_reindex(self):
+        return self.stale
+
+
+def run_checks(settings, runtime=None, chroma=None, gpu=GPU, inference=False, indexes=None):
+    service = HealthService(
+        settings, runtime or FakeRuntime(settings), chroma or FakeChroma(), indexes or FakeIndexes(), lambda: gpu
+    )
     return {result.name: result for result in service.run(inference=inference)}
 
 
@@ -115,6 +129,19 @@ def test_embedding_dimensions_are_verified_against_the_model(settings):
 
     assert not results["embedding model"].ok
     assert "768" in results["embedding model"].detail
+
+
+def test_a_library_without_an_index_is_fine(settings):
+    assert run_checks(settings)["index"].ok
+
+
+def test_a_stale_index_is_reported(settings):
+    record = SimpleNamespace(version=3, collection="book_chunks_v3", embedding_model="old-model")
+
+    result = run_checks(settings, indexes=FakeIndexes(record, stale=True))["index"]
+
+    assert not result.ok
+    assert "reindex-all" in result.detail
 
 
 def test_a_missing_gpu_is_reported(settings):

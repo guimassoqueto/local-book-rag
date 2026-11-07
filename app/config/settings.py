@@ -50,6 +50,8 @@ class EmbeddingConfig(ConfigModel):
     model: str
     dimensions: PositiveInt
     batch_size: PositiveInt
+    document_device: Literal["cpu", "gpu"]
+    query_device: Literal["cpu", "gpu"]
 
 
 class RerankerModelConfig(ConfigModel):

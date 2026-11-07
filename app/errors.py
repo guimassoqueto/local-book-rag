@@ -43,3 +43,15 @@ class DuplicateBookError(BookRagError):
 
 class BookNotFoundError(BookRagError):
     """No book in the catalog has the given ID."""
+
+
+class EmbeddingDimensionError(BookRagError):
+    """A model produced vectors of a size other than the configured or indexed one."""
+
+
+class ReindexRequiredError(BookRagError):
+    """The embedding or chunking configuration no longer matches the index."""
+
+
+class IndexingError(BookRagError):
+    """Vectors could not be stored, or the stored ones failed verification."""

@@ -43,6 +43,33 @@ class Book:
     indexed_at: str | None
 
 
+@dataclass(frozen=True)
+class IndexRecord:
+    """One version of the vector index, and everything that shaped its vectors.
+
+    Attributes:
+        version: increases with every rebuild.
+        collection: the ChromaDB collection that holds it.
+        embedding_model: the model that produced its vectors.
+        embedding_digest: that model's exact weights.
+        dimensions: the size of its vectors, as read from the model.
+        configuration: the settings it was built with, as JSON.
+        fingerprint: tells whether a configuration is compatible with this index.
+        active: whether queries use it. Exactly one version is active at a time.
+        created_at: when it was created.
+    """
+
+    version: int
+    collection: str
+    embedding_model: str
+    embedding_digest: str | None
+    dimensions: int
+    configuration: str
+    fingerprint: str
+    active: bool
+    created_at: str
+
+
 class _Base(DeclarativeBase):
     pass
 
@@ -88,8 +115,24 @@ class _CounterRow(_Base):
     value: Mapped[int]
 
 
+class _IndexRow(_Base):
+    __tablename__ = "indexes"
+
+    version: Mapped[int] = mapped_column(primary_key=True)
+    collection: Mapped[str]
+    embedding_model: Mapped[str]
+    embedding_digest: Mapped[str | None]
+    dimensions: Mapped[int]
+    configuration: Mapped[str]
+    fingerprint: Mapped[str]
+    active: Mapped[bool]
+    created_at: Mapped[str]
+
+
 _BOOK_COUNTER = "book"
+_INDEX_COUNTER = "index"
 _BOOK_FIELDS = tuple(field.name for field in fields(Book))
+_INDEX_FIELDS = tuple(field.name for field in fields(IndexRecord))
 
 
 def utc_now() -> str:
@@ -98,6 +141,10 @@ def utc_now() -> str:
 
 def _enable_foreign_keys(connection: Any, _: Any) -> None:
     connection.execute("PRAGMA foreign_keys=ON")
+
+
+def _to_index(row: _IndexRow) -> IndexRecord:
+    return IndexRecord(**{name: getattr(row, name) for name in _INDEX_FIELDS})
 
 
 def _to_book(row: _BookRow) -> Book:
@@ -113,13 +160,28 @@ class BookCatalog:
         _Base.metadata.create_all(self._engine)
 
     def next_book_id(self) -> str:
+        return f"book_{self._next(_BOOK_COUNTER):03d}"
+
+    def next_index_version(self) -> int:
+        return self._next(_INDEX_COUNTER)
+
+    def _next(self, name: str) -> int:
         with Session(self._engine) as session, session.begin():
-            counter = session.get(_CounterRow, _BOOK_COUNTER)
+            counter = session.get(_CounterRow, name)
             if counter is None:
-                counter = _CounterRow(name=_BOOK_COUNTER, value=0)
+                counter = _CounterRow(name=name, value=0)
                 session.add(counter)
             counter.value += 1
-            return f"book_{counter.value:03d}"
+            return counter.value
+
+    def add_index(self, record: IndexRecord) -> None:
+        with Session(self._engine) as session, session.begin():
+            session.add(_IndexRow(**{name: getattr(record, name) for name in _INDEX_FIELDS}))
+
+    def active_index(self) -> IndexRecord | None:
+        with Session(self._engine) as session:
+            row = session.scalars(select(_IndexRow).where(_IndexRow.active)).first()
+            return _to_index(row) if row else None
 
     def add(self, book: Book) -> None:
         with Session(self._engine) as session, session.begin():

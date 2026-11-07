@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from app.config.settings import Settings
 from app.errors import BookRagError
+from app.services.index_service import IndexService
 from app.storage.chroma import ChromaServer
 from app.utils.gpu import GpuStatus, query_gpu
 from app.utils.ollama_runtime import ModelInfo, OllamaRuntime
@@ -25,11 +26,13 @@ class HealthService:
         settings: Settings,
         runtime: OllamaRuntime,
         chroma: ChromaServer,
+        indexes: IndexService,
         gpu_probe: Callable[[], GpuStatus | None] = query_gpu,
     ) -> None:
         self._settings = settings
         self._runtime = runtime
         self._chroma = chroma
+        self._indexes = indexes
         self._gpu_probe = gpu_probe
 
     def run(self, inference: bool = False) -> list[CheckResult]:
@@ -38,7 +41,7 @@ class HealthService:
         Args:
             inference: also run both models for real, which loads them into memory.
         """
-        checks = [self._ollama, self._chromadb, self._llm_model, self._embedding_model, self._gpu]
+        checks = [self._ollama, self._chromadb, self._llm_model, self._embedding_model, self._gpu, self._index]
         if inference:
             checks += [self._embedding_inference, self._llm_inference]
         return [self._guarded(check) for check in checks]
@@ -79,6 +82,15 @@ class HealthService:
             return CheckResult("gpu", False, "no GPU visible to the application: reranking and Docling stay on CPU")
         memory = f"{status.memory_used_mb}/{status.memory_total_mb} MiB used"
         return CheckResult("gpu", True, f"{status.name}, {memory}")
+
+    def _index(self) -> CheckResult:
+        active = self._indexes.active()
+        if active is None:
+            return CheckResult("index", True, "no index yet: the first book creates it")
+        detail = f"v{active.version} in {active.collection}, built with {active.embedding_model}"
+        if self._indexes.needs_reindex():
+            return CheckResult("index", False, f"{detail}, which the configuration no longer matches: run reindex-all")
+        return CheckResult("index", True, detail)
 
     def _embedding_inference(self) -> CheckResult:
         embedding = self._settings.embedding

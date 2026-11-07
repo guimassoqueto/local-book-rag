@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from app.config.loader import load_settings
 from app.config.settings import EnvironmentSettings, Settings
+from app.embeddings.factory import create_embedding_provider
 from app.ingestion.base import DocumentFormat, DocumentLoader
 from app.ingestion.chunker import Chunker
 from app.ingestion.docling_loader import DoclingLoader
@@ -14,6 +15,8 @@ from app.ingestion.pdf_loader import PdfLoader
 from app.ingestion.pipeline import IngestionPipeline
 from app.services.book_service import BookService
 from app.services.health_service import HealthService
+from app.services.index_service import IndexService
+from app.services.ingestion_service import IngestionService
 from app.storage.catalog import BookCatalog
 from app.storage.chroma import ChromaServer
 from app.storage.repositories import OriginalDocuments, ProcessedDocuments
@@ -28,6 +31,7 @@ class Container:
     environment: EnvironmentSettings
     runtime: OllamaRuntime
     health: HealthService
+    indexes: IndexService
     books: BookService
 
 
@@ -46,18 +50,30 @@ def build_container(console_logs: bool = False) -> Container:
     runtime = OllamaRuntime(environment.ollama_base_url, settings.ollama.request_timeout_seconds)
     chroma = ChromaServer(environment.chroma_host, environment.chroma_port)
     data = environment.data_dir
-    books = BookService(
-        catalog=BookCatalog(data / "metadata" / "catalog.db"),
-        originals=OriginalDocuments(data / "original_books"),
-        processed=ProcessedDocuments(data / "processed"),
+    catalog = BookCatalog(data / "metadata" / "catalog.db")
+    processed = ProcessedDocuments(data / "processed")
+    indexes = IndexService(settings, catalog, chroma, runtime)
+    ingestion = IngestionService(
+        settings=settings,
         pipeline=build_pipeline(settings),
+        processed=processed,
+        embedder=create_embedding_provider(settings, runtime),
+        runtime=runtime,
+    )
+    books = BookService(
+        catalog=catalog,
+        originals=OriginalDocuments(data / "original_books"),
+        processed=processed,
+        ingestion=ingestion,
+        indexes=indexes,
         max_upload_bytes=settings.uploads.max_size_mb * 2**20,
     )
     return Container(
         settings=settings,
         environment=environment,
         runtime=runtime,
-        health=HealthService(settings, runtime, chroma),
+        health=HealthService(settings, runtime, chroma, indexes),
+        indexes=indexes,
         books=books,
     )
 

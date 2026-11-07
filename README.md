@@ -100,6 +100,39 @@ Chunk sizes are measured with the embedding model's own tokenizer, set in
 `embedding_profiles` in `config/models.yaml`. Tokenizers are downloaded on first use and
 never reach the network again.
 
+## Index
+
+Chunks go into one ChromaDB collection per index version, `book_chunks_v1` to begin with,
+where every record carries its book, chapter, section, pages, language, embedding model and
+index version. Which index is active is recorded in the catalog, along with everything that
+shaped it: the embedding model and the digest of its weights, its dimensions, as read from
+the model, and the chunking settings.
+
+Vectors from different models never meet. When any of that changes, even when a tag is
+pulled again and brings new weights, `doctor` reports it, new books are refused, and the
+index stays as it is until an explicit `reindex-all`. Questions keep working meanwhile,
+because they are embedded with the model that built the index, not the configured one. The
+query template is the exception: it changes how questions are embedded, not what is stored,
+so it can be tuned freely.
+
+Embedding runs on different devices depending on the work, set in `config/models.yaml`:
+
+| Work                  | On the GPU                 | On the CPU                 |
+| --------------------- | -------------------------- | -------------------------- |
+| Indexing              | 59 chunks/s, batches of 64 | 5 chunks/s                 |
+| A query, model loaded | 6 ms                       | 16 ms                      |
+| A query, cold start   | 9.2 s                      | 0.5 s                      |
+
+So indexing uses the GPU, unloading the LLM first, and queries use the CPU, which leaves the
+LLM alone in VRAM. `embedding.batch_size` is 16, which gives 32 chunks/s; 64 is nearly twice
+as fast.
+
+Each request names its device. Left unset, Ollama keeps whatever runner is already loaded,
+so a model that a query placed on the CPU would stay there for a whole book.
+
+Both models return unit vectors, and input longer than the model's context is refused rather
+than truncated, which is what Ollama would do silently by default.
+
 ## Deployment notes
 
 - Ollama and ChromaDB are published on `127.0.0.1` only: neither has authentication, and

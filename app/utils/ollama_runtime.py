@@ -108,6 +108,11 @@ class OllamaRuntime:
             for entry in running.models
         ]
 
+    def unload(self, model: str) -> None:
+        """Free the memory a model holds, if it is loaded at all."""
+        with self.translate_errors():
+            self.client.generate(model=model, keep_alive=0)
+
     def pull(self, model: str) -> Iterator[PullProgress]:
         with self.translate_errors(model):
             for update in self.client.pull(model, stream=True):
