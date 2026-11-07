@@ -120,6 +120,8 @@ version_scheme = "semver"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+# pytest-asyncio arrives through llama-index-embeddings-ollama and warns when this is unset.
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "integration: needs the running Compose stack (Ollama and ChromaDB)",
 ]

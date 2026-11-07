@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+from pathlib import Path
 
 from app.container import Container, build_container
 from app.errors import BookRagError
@@ -10,7 +11,7 @@ from app.errors import BookRagError
 def main(argv: list[str] | None = None) -> None:
     arguments = _build_parser().parse_args(argv)
     try:
-        arguments.handler(build_container(), arguments)
+        arguments.handler(build_container(console_logs=arguments.handler is _serve), arguments)
     except BookRagError as exc:
         sys.exit(f"error: {exc}")
 
@@ -28,6 +29,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
     pull = commands.add_parser("pull-models", help="download the configured models into Ollama")
     pull.set_defaults(handler=_pull_models)
+
+    add_book = commands.add_parser("add-book", help="add a PDF, EPUB or Markdown file to the library")
+    add_book.add_argument("path", type=Path, help="the file to add")
+    add_book.set_defaults(handler=_add_book)
+
+    list_books = commands.add_parser("list-books", help="list the books in the library")
+    list_books.set_defaults(handler=_list_books)
 
     return parser
 
@@ -55,6 +63,16 @@ def _pull_models(container: Container, _: argparse.Namespace) -> None:
             if progress.status != last_status:
                 print(f"  {progress.status}")
                 last_status = progress.status
+
+
+def _add_book(container: Container, arguments: argparse.Namespace) -> None:
+    book = container.books.add_book(arguments.path, arguments.path.name)
+    print(f"{book.book_id}: {book.title} ({book.chapter_count} chapters, {book.chunk_count} chunks, {book.status})")
+
+
+def _list_books(container: Container, _: argparse.Namespace) -> None:
+    for book in container.books.list_books():
+        print(f"{book.book_id}  {book.status:<10} {book.format:<8} {book.chunk_count:>5} chunks  {book.title}")
 
 
 if __name__ == "__main__":

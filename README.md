@@ -64,6 +64,42 @@ The interface is at <http://localhost:7860>. `docker compose exec app book-rag d
 `docker compose down -v` is not a reset: it deletes the named volumes, with the downloaded
 models and the vector database in them.
 
+## Library
+
+```bash
+docker compose exec app book-rag add-book /path/inside/the/container/book.pdf
+docker compose exec app book-rag list-books
+```
+
+Books go through extraction, normalization, structure detection and chunking. Each stage's
+output stays in `data/processed/<book_id>/r<revision>/` for debugging, and the original file
+in `data/original_books/<book_id>/`, from which everything else can be rebuilt. The catalog
+in `data/metadata/catalog.db` is the source of truth for what the library holds. A file is
+identified by its checksum, so uploading it twice under different names is detected.
+
+How each format is read:
+
+- **PDF**: PyMuPDF. The book's table of contents decides what a chapter is, and font sizes
+  find the headings below it, or all of them when there is no table of contents. Running
+  headers are recognized by repeating, or by carrying a number that follows the page. Page
+  numbers are physical: 1 is the first page of the file, which is what a viewer jumps to.
+  `pdf.extractor: docling` in `config/ingestion.yaml` runs layout models instead, for
+  complex layouts.
+- **Scanned PDFs** have no text to extract. They are rejected unless `pdf.ocr.enabled` is
+  on, which sends them through Docling's OCR.
+- **EPUB**: EbookLib, in spine order, with chapters taken from the table of contents.
+  EPUBs have no pages, so `page_start` and `page_end` are null.
+- **Markdown**: headings mark chapters and sections. Front matter can set `title`, `author`
+  and `language`.
+
+A chapter's `number` is its position in the book, which is unique where printed numbers are
+not (a preface has none). The printed number stays in its title. Text before the first
+chapter goes to chapter 0, "Front matter".
+
+Chunk sizes are measured with the embedding model's own tokenizer, set in
+`embedding_profiles` in `config/models.yaml`. Tokenizers are downloaded on first use and
+never reach the network again.
+
 ## Deployment notes
 
 - Ollama and ChromaDB are published on `127.0.0.1` only: neither has authentication, and

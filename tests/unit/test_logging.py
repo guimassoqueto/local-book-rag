@@ -56,6 +56,15 @@ def test_lines_after_an_operation_are_not_tagged(logs_dir):
     assert "execution_id" not in read_entries(logs_dir / "app.jsonl")[-1]
 
 
+def test_commands_keep_their_output_clean(tmp_path, capsys):
+    configure_logging("INFO", "INFO", tmp_path / "quiet", console=False)
+
+    log_event(get_logger("test"), "goes to the file only")
+
+    assert capsys.readouterr().out == ""
+    assert read_entries(tmp_path / "quiet" / "app.jsonl")[0]["message"] == "goes to the file only"
+
+
 def test_inference_logs_have_their_own_file_and_level(logs_dir):
     inference = logging.getLogger(INFERENCE_LOGGER)
 

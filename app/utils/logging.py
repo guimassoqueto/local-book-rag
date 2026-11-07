@@ -39,13 +39,15 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(entry, ensure_ascii=False, default=str)
 
 
-def configure_logging(level: str, inference_level: str, logs_dir: Path) -> None:
-    """Send application logs to stdout and logs/app.jsonl, and inference logs to logs/inference.jsonl.
+def configure_logging(level: str, inference_level: str, logs_dir: Path, console: bool = True) -> None:
+    """Send application logs to logs/app.jsonl, and inference logs to logs/inference.jsonl.
 
     Args:
         level: threshold for application logs.
         inference_level: threshold for inference logs, independent from `level`.
         logs_dir: created if needed.
+        console: also write application logs to stdout, which `docker compose logs` shows.
+            Off for commands, whose output is meant for a person.
     """
     logs_dir.mkdir(parents=True, exist_ok=True)
     formatter = JsonFormatter()
@@ -55,11 +57,14 @@ def configure_logging(level: str, inference_level: str, logs_dir: Path) -> None:
         handler.setFormatter(formatter)
         return handler
 
-    console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(formatter)
+    handlers = [file_handler("app.jsonl")]
+    if console:
+        stream = logging.StreamHandler(sys.stdout)
+        stream.setFormatter(formatter)
+        handlers.append(stream)
 
     root = logging.getLogger(ROOT_LOGGER)
-    root.handlers[:] = [console, file_handler("app.jsonl")]
+    root.handlers[:] = handlers
     root.setLevel(level)
     root.propagate = False
 
