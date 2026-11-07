@@ -15,7 +15,7 @@ from llama_index.core.schema import BaseNode, TextNode
 from llama_index.core.vector_stores import FilterOperator, MetadataFilter, MetadataFilters, VectorStoreQuery
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
-from app.errors import EmbeddingDimensionError, IndexingError, ServiceUnavailableError
+from app.errors import BookRagError, EmbeddingDimensionError, ServiceUnavailableError
 from app.ingestion.chunker import Chunk
 
 _CHUNK_FIELDS = tuple(field.name for field in fields(Chunk) if field.name != "text")
@@ -58,7 +58,7 @@ class ChromaServer:
         """Turn the client's exceptions, which share no base class, into the application's own."""
         try:
             yield
-        except (EmbeddingDimensionError, IndexingError):
+        except BookRagError:
             raise
         except Exception as exc:
             self.__dict__.pop("client", None)  # reconnect next time: the server may have restarted

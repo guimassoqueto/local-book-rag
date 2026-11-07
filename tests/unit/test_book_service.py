@@ -131,6 +131,24 @@ def test_uploading_a_failed_book_again_retries_it(settings, data, tmp_path):
     assert library.books.list_books() == [book]
 
 
+def test_a_failed_book_survives_a_retry_that_cant_go_ahead(settings, data, tmp_path, monkeypatch):
+    library = Library(settings, data, FakeEmbedder(failure=ServiceUnavailableError("Ollama is down")))
+    with pytest.raises(ServiceUnavailableError):
+        library.books.add_book(upload(tmp_path), "book.md")
+    [failed] = library.books.list_books()
+
+    def unavailable(model):
+        raise ServiceUnavailableError("Ollama is down")
+
+    monkeypatch.setattr(library.runtime, "model_info", unavailable)
+
+    with pytest.raises(ServiceUnavailableError):
+        library.books.add_book(upload(tmp_path), "book.md")
+
+    assert library.books.list_books() == [failed]
+    assert (data / "original_books" / failed.book_id / "original.md").exists()
+
+
 def test_a_changed_configuration_stops_new_books_until_a_reindex(settings, data, tmp_path):
     Library(settings, data).books.add_book(upload(tmp_path), "one.md")
 

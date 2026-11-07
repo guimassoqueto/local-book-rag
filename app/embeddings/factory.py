@@ -8,7 +8,7 @@ from app.utils.ollama_runtime import OllamaRuntime
 
 
 def create_embedding_provider(
-    settings: Settings, runtime: OllamaRuntime, model: str | None = None
+    settings: Settings, runtime: OllamaRuntime, model: str | None = None, dimensions: int | None = None
 ) -> EmbeddingProvider:
     """Create a provider.
 
@@ -17,11 +17,15 @@ def create_embedding_provider(
         runtime: the Ollama server.
         model: a model other than embedding.model. Queries need the one the active index
             was built with, even after the configuration moved on to another.
+        dimensions: that model's vector size, which embedding.dimensions no longer describes.
 
     Raises:
         ConfigurationError: embedding_profiles has no entry for the model.
     """
-    config = settings.embedding if model is None else settings.embedding.model_copy(update={"model": model})
+    config = settings.embedding
+    if model is not None:
+        size = dimensions if dimensions is not None else config.dimensions
+        config = config.model_copy(update={"model": model, "dimensions": size})
     profile = settings.embedding_profiles.get(config.model)
     if profile is None:
         raise ConfigurationError(f"embedding_profiles has no entry for '{config.model}', which the index uses.")

@@ -34,11 +34,19 @@ class IndexConfiguration:
 
 
 class IndexService:
-    def __init__(self, settings: Settings, catalog: BookCatalog, server: ChromaServer, runtime: OllamaRuntime) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        catalog: BookCatalog,
+        server: ChromaServer,
+        runtime: OllamaRuntime,
+        collection_prefix: str = COLLECTION_PREFIX,
+    ) -> None:
         self._settings = settings
         self._catalog = catalog
         self._server = server
         self._runtime = runtime
+        self._collection_prefix = collection_prefix
 
     def current_configuration(self) -> IndexConfiguration:
         """Describe the index the configuration asks for, reading the model's identity from Ollama.
@@ -106,13 +114,13 @@ class IndexService:
 
     def query_embedder(self, record: IndexRecord) -> EmbeddingProvider:
         """The embedder for questions against an index: the model that built it, not the configured one."""
-        return create_embedding_provider(self._settings, self._runtime, record.embedding_model)
+        return create_embedding_provider(self._settings, self._runtime, record.embedding_model, record.dimensions)
 
     def _create(self, configuration: IndexConfiguration, active: bool = True) -> IndexRecord:
         version = self._catalog.next_index_version()
         record = IndexRecord(
             version=version,
-            collection=f"{COLLECTION_PREFIX}{version}",
+            collection=f"{self._collection_prefix}{version}",
             embedding_model=configuration.embedding_model,
             embedding_digest=configuration.embedding_digest,
             dimensions=configuration.dimensions,

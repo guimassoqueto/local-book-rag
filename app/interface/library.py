@@ -119,6 +119,8 @@ def build_library_tab(container: Container) -> LibraryTab:
         gr.Info(" ".join(notes))
         if report.failed:
             gr.Warning(f"Still failing: {', '.join(report.failed)}.")
+        for failure in report.summaries_failed:
+            gr.Warning(f"Summary not written: {failure}")
 
     @reports_errors
     def on_reset_index(confirmation: str) -> str:

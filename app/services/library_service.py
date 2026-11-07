@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.errors import MissingOriginalError, NothingToReindexError
+from app.errors import BookRagError, MissingOriginalError, NothingToReindexError
 from app.generation.summarization import ChapterSummarizer
 from app.ingestion.base import DocumentFormat
 from app.services.book_service import indexed_update
@@ -20,6 +20,8 @@ from app.utils.logging import get_logger, log_event, operation
 logger = get_logger("services.library")
 
 _NO_REVISION = 0
+# Books with no working revision to protect: they must not stand in the way of the rest.
+_NOTHING_TO_LOSE = (BookStatus.FAILED, BookStatus.PENDING)
 
 
 @dataclass(frozen=True)
@@ -33,8 +35,9 @@ class ReindexReport:
         books: how many books it holds.
         chunks: how many chunks they came to.
         adopted: books brought back from preserved originals.
-        failed: books that were already failed and stayed that way, with the reason.
+        failed: books with no working revision that still can't be indexed.
         summaries_regenerated: saved summaries written again.
+        summaries_failed: saved summaries that couldn't be, and why. The index is live anyway.
     """
 
     index_version: int
@@ -45,6 +48,7 @@ class ReindexReport:
     adopted: tuple[str, ...]
     failed: tuple[str, ...]
     summaries_regenerated: int
+    summaries_failed: tuple[str, ...]
 
 
 class LibraryService:
@@ -127,6 +131,7 @@ class LibraryService:
             self._drop_previous(previous, books, changes)
             self._catalog.end_operation(journal)
 
+            regenerated, summaries_failed = self._regenerate_summaries(report) if regenerate_summaries else (0, [])
             result = ReindexReport(
                 index_version=staging.version,
                 collection=staging.collection,
@@ -135,7 +140,8 @@ class LibraryService:
                 chunks=sum(change.fields["chunk_count"] for change in changes),
                 adopted=tuple(adopted),
                 failed=tuple(failed),
-                summaries_regenerated=self._regenerate_summaries(report) if regenerate_summaries else 0,
+                summaries_regenerated=regenerated,
+                summaries_failed=tuple(summaries_failed),
             )
             log_event(logger, "library rebuilt", books=result.books, chunks=result.chunks)
             return result
@@ -160,8 +166,8 @@ class LibraryService:
         """Index one book into the staging index.
 
         Returns:
-            What to record for it, or None for a book that was failing already: a book that
-            never worked must not stand in the way of the rest of the library.
+            What to record for it, or None for a book with no working revision that still
+            fails: a book that never worked must not stand in the way of the rest of the library.
         """
         self._catalog.update(book.book_id, status=BookStatus.REINDEXING)
         try:
@@ -175,7 +181,7 @@ class LibraryService:
                 store,
             )
         except Exception as exc:
-            if book.status is not BookStatus.FAILED:
+            if book.status not in _NOTHING_TO_LOSE:
                 raise
             store.delete_revision(book.book_id, revision)
             self._data.processed.delete_revision(book.book_id, revision)
@@ -198,16 +204,29 @@ class LibraryService:
             if book.book_id in rebuilt and book.revision != _NO_REVISION:
                 self._data.processed.delete_revision(book.book_id, book.revision)
 
-    def _regenerate_summaries(self, report: Callable[[str], None]) -> int:
-        """Write saved summaries again, skipping any whose chapter no longer exists."""
-        count = 0
+    def _regenerate_summaries(self, report: Callable[[str], None]) -> tuple[int, list[str]]:
+        """Write saved summaries again, in the language they were saved in.
+
+        The rebuild is live by now, so a summary that fails is reported, not raised, and a
+        summary whose chapter no longer exists is left alone.
+
+        Returns:
+            How many were written, and a description of each that failed.
+        """
+        written = 0
+        failed: list[str] = []
         for book_id, path in self._data.summaries.saved():
             number, summary_type = _parse_summary_name(path)
-            if number in {chapter for chapter, _ in self._catalog.chapters(book_id)}:
-                report(f"Summarizing {book_id}, chapter {number} again")
-                self._summarizer.save(self._summarizer.summarize(book_id, number, summary_type))
-                count += 1
-        return count
+            if number not in {chapter for chapter, _ in self._catalog.chapters(book_id)}:
+                continue
+            report(f"Summarizing {book_id}, chapter {number} again")
+            language = self._data.summaries.metadata(path).get("language")
+            try:
+                self._summarizer.save(self._summarizer.summarize(book_id, number, summary_type, language))
+                written += 1
+            except BookRagError as exc:
+                failed.append(f"{book_id}, {path.stem}: {exc}")
+        return written, failed
 
 
 def _require_originals(books: list[Book]) -> None:

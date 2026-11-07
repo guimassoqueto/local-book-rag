@@ -4,10 +4,12 @@ import pytest
 
 from app.errors import (
     ConfirmationRequiredError,
+    GenerationError,
     MissingOriginalError,
     NothingToReindexError,
     ReindexRequiredError,
     ServiceUnavailableError,
+    UnsupportedLanguageError,
 )
 from app.retrieval.base import RetrievalFilters
 from app.storage.catalog import BookStatus
@@ -193,6 +195,32 @@ def test_saved_summaries_can_be_written_again(library, tmp_path):
     assert len(library.llm.calls) > calls
 
 
+def test_a_summary_keeps_its_language_when_written_again(library, tmp_path):
+    book = library.add(tmp_path)
+    saved = library.summarizer.summarize(book.book_id, 1, "brief", language="Portuguese")
+    library.summarizer.save(saved)
+
+    library.library.reindex_all(regenerate_summaries=True)
+
+    assert "Write in Portuguese" in library.llm.calls[-1][0][0].content
+
+
+def test_a_summary_that_fails_doesnt_turn_a_finished_rebuild_into_an_error(library, tmp_path, monkeypatch):
+    book = library.add(tmp_path)
+    library.summarizer.save(library.summarizer.summarize(book.book_id, 1, "brief"))
+
+    def fail(*args, **kwargs):
+        raise GenerationError("The model finished without an answer.")
+
+    monkeypatch.setattr(library.summarizer, "summarize", fail)
+
+    report = library.library.reindex_all(regenerate_summaries=True)
+
+    assert report.index_version == 2
+    assert report.summaries_regenerated == 0
+    assert "without an answer" in report.summaries_failed[0]
+
+
 def test_summaries_are_left_alone_by_default(library, tmp_path):
     book = library.add(tmp_path)
     library.summarizer.save(library.summarizer.summarize(book.book_id, 1, "brief"))
@@ -281,6 +309,35 @@ def test_new_books_after_a_reset_dont_take_the_ids_of_preserved_originals(librar
     assert added.book_id != book.book_id
 
 
+def test_a_book_that_never_worked_doesnt_block_a_rebuild_after_a_reset(library, tmp_path):
+    finnish = "Nopea ruskea kettu hyppää laiskan koiran yli ja palaa sitten takaisin metsään lepäämään."
+    good = library.add(tmp_path, "good.md")
+    with pytest.raises(UnsupportedLanguageError):
+        library.add(tmp_path, "bad.md", f"# Yksi\n\n{finnish}\n\n# Kaksi\n\n{finnish} Mehiläiset keräävät.\n")
+    bad = next(book for book in library.books.list_books() if book.status is BookStatus.FAILED)
+    library.resets.reset_index("RESET INDEX")
+
+    report = library.library.reindex_all()
+
+    assert report.books == 1
+    assert report.failed == (bad.book_id,)
+    assert library.books.get_book(good.book_id).status is BookStatus.INDEXED
+    assert library.books.get_book(bad.book_id).status is BookStatus.FAILED
+    assert found(library)
+
+
+def test_a_book_that_worked_still_stops_a_rebuild_if_it_fails(library, tmp_path, monkeypatch):
+    library.add(tmp_path)
+
+    def fail(*args, **kwargs):
+        raise ServiceUnavailableError("Ollama is down")
+
+    monkeypatch.setattr(library.embedder, "embed_documents", fail)
+
+    with pytest.raises(ServiceUnavailableError):
+        library.library.reindex_all()
+
+
 def test_a_preserved_original_uploaded_again_is_not_rebuilt_twice(library, tmp_path):
     library.add(tmp_path)
     library.resets.reset_index("RESET INDEX")
@@ -356,13 +413,16 @@ def test_a_reset_keeps_the_tracked_directories(library, tmp_path):
     assert keep.exists()
 
 
-def test_a_reset_with_chromadb_down_changes_nothing(library, tmp_path, monkeypatch):
-    book = library.add(tmp_path)
-
-    def unavailable(prefix):
+def chromadb_down(monkeypatch, library):
+    def unavailable():
         raise ServiceUnavailableError("ChromaDB is down")
 
-    monkeypatch.setattr(library.server, "delete_collections", unavailable)
+    monkeypatch.setattr(library.server, "version", unavailable)
+
+
+def test_a_reset_with_chromadb_down_changes_nothing(library, tmp_path, monkeypatch):
+    book = library.add(tmp_path)
+    chromadb_down(monkeypatch, library)
 
     with pytest.raises(ServiceUnavailableError):
         library.resets.reset_index("RESET INDEX")
@@ -370,3 +430,18 @@ def test_a_reset_with_chromadb_down_changes_nothing(library, tmp_path, monkeypat
     monkeypatch.undo()
     assert library.books.list_books() == [book]
     assert (library.root / "processed" / book.book_id).exists()
+
+
+def test_a_refused_reset_never_happens_later_on_its_own(library, tmp_path, monkeypatch):
+    """The user saw an error and believes nothing changed, so a restart must not reset anything."""
+    book = library.add(tmp_path)
+    chromadb_down(monkeypatch, library)
+    with pytest.raises(ServiceUnavailableError):
+        library.resets.reset_index("RESET INDEX")
+    monkeypatch.undo()
+
+    restarted = Library(library.settings, library.root)
+    assert restarted.library.recover() == []
+
+    assert restarted.books.list_books() == [book]
+    assert restarted.store().count_revision(book.book_id, book.revision) == book.chunk_count

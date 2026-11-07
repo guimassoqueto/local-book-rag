@@ -119,6 +119,18 @@ def test_queries_use_the_model_that_built_the_index(settings, catalog, server):
     assert service.query_embedder(record).model == settings.embedding.model
 
 
+def test_questions_keep_the_dimensions_of_the_index_when_the_configuration_moves_on(settings, catalog, server):
+    record = indexes(settings, catalog, server).require_writable()
+    moved = settings.model_copy(
+        update={"embedding": settings.embedding.model_copy(update={"model": "bge-m3", "dimensions": 768})}
+    )
+
+    embedder = indexes(moved, catalog, server).query_embedder(record)
+
+    assert embedder.model == settings.embedding.model
+    assert embedder._config.dimensions == 1024
+
+
 def test_the_index_survives_reopening_the_catalog(settings, catalog, server, tmp_path):
     record = indexes(settings, catalog, server).require_writable()
 

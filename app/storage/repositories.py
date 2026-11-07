@@ -153,6 +153,10 @@ class SummaryDocuments:
         """List every saved summary, as (book ID, path of its Markdown file)."""
         return [(path.parent.name, path) for path in sorted(self._root.glob("*/*.md"))]
 
+    def metadata(self, path: Path) -> dict[str, Any]:
+        """Read how a saved summary was made."""
+        return json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+
     def delete(self, book_id: str) -> None:
         shutil.rmtree(self._root / book_id, ignore_errors=True)
 

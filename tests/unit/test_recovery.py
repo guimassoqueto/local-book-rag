@@ -126,6 +126,35 @@ def test_a_replacement_interrupted_after_the_swap_is_finished(library, tmp_path)
     assert any("the new text" in passage.chunk.text for passage in found(restarted, book.book_id))
 
 
+def test_a_replacement_finished_by_recovery_also_finishes_what_comes_after_the_swap(library, tmp_path):
+    book = library.add(tmp_path)
+    library.summarizer.save(library.summarizer.summarize(book.book_id, 1, "brief"))
+    die_at(library.data, "record_source")
+    with pytest.raises(ProcessDied):
+        library.books.replace_book(book.book_id, upload(tmp_path, "n.md", other_text("the new text")), "n.md")
+
+    restarted = restart(library)
+    restarted.library.recover()
+
+    assert restarted.summary_documents.saved() == []
+    [record] = restarted.originals.discover()
+    assert record.original_path.endswith("original_r2.md")
+    assert record.original_filename == "n.md"
+
+
+def test_a_summary_survives_recovery_of_a_reindex_of_the_same_document(library, tmp_path):
+    book = library.add(tmp_path)
+    library.summarizer.save(library.summarizer.summarize(book.book_id, 1, "brief"))
+    die_at(library.data, "drop_replaced_revision")
+    with pytest.raises(ProcessDied):
+        library.books.reindex_book(book.book_id)
+
+    restarted = restart(library)
+    restarted.library.recover()
+
+    assert len(restarted.summary_documents.saved()) == 1
+
+
 def test_a_reindex_interrupted_before_the_swap_is_undone(library, tmp_path):
     book = library.add(tmp_path)
     die_during_embedding(library)
@@ -273,3 +302,84 @@ def test_recovery_retries_later_if_chromadb_is_down(library, tmp_path, monkeypat
     assert len(restarted.catalog.open_operations()) == 1
     restarted.library.recover()
     assert restarted.catalog.open_operations() == []
+
+
+def lose_chromadb_during(monkeypatch, method):
+    """ChromaDB answers when a change starts, and goes away in the middle of it."""
+
+    def unavailable(*args, **kwargs):
+        raise ServiceUnavailableError("ChromaDB is down")
+
+    monkeypatch.setattr(f"app.storage.chroma.ChunkStore.{method}", unavailable)
+
+
+def test_changes_are_refused_up_front_while_chromadb_is_down(library, tmp_path, monkeypatch):
+    book = library.add(tmp_path)
+
+    def unavailable():
+        raise ServiceUnavailableError("ChromaDB is down")
+
+    monkeypatch.setattr(library.server, "version", unavailable)
+
+    for change in (
+        lambda: library.add(tmp_path, "two.md", other_text("refused")),
+        lambda: library.books.reindex_book(book.book_id),
+        lambda: library.books.remove_book(book.book_id, confirmation=book.book_id),
+        lambda: library.library.reindex_all(),
+    ):
+        with pytest.raises(ServiceUnavailableError):
+            change()
+
+    monkeypatch.undo()
+    assert library.books.list_books() == [book]
+    assert library.catalog.open_operations() == []
+
+
+def test_a_book_that_loses_chromadb_halfway_is_failed_not_stuck(library, tmp_path, monkeypatch):
+    lose_chromadb_during(monkeypatch, "add")
+    lose_chromadb_during(monkeypatch, "delete_revision")
+
+    with pytest.raises(ServiceUnavailableError):
+        library.add(tmp_path)
+
+    [book] = library.books.list_books()
+    assert book.status is BookStatus.FAILED
+    assert "ChromaDB is down" in book.status_detail
+    assert len(library.catalog.open_operations()) == 1
+
+    monkeypatch.undo()
+    library.library.recover()
+
+    assert library.catalog.open_operations() == []
+    assert library.books.get_book(book.book_id).status is BookStatus.FAILED
+    assert library.store().count_revision(book.book_id, 1) == 0
+
+
+def test_a_replacement_that_loses_chromadb_halfway_is_undone_when_it_returns(library, tmp_path, monkeypatch):
+    book = library.add(tmp_path)
+    lose_chromadb_during(monkeypatch, "add")
+    lose_chromadb_during(monkeypatch, "delete_revision")
+
+    with pytest.raises(ServiceUnavailableError):
+        library.books.replace_book(book.book_id, upload(tmp_path, "n.md", other_text("new")), "n.md")
+
+    assert library.books.get_book(book.book_id) == book
+    monkeypatch.undo()
+    library.library.recover()
+
+    assert library.catalog.open_operations() == []
+    assert not (library.root / "original_books" / book.book_id / "original_r2.md").exists()
+    assert found(library, book.book_id)
+
+
+def test_a_finished_book_survives_losing_the_end_of_its_journal(library, tmp_path):
+    die_at(library.catalog, "end_operation")
+    with pytest.raises(ProcessDied):
+        library.add(tmp_path)
+
+    restarted = restart(library)
+    restarted.library.recover()
+
+    [book] = restarted.books.list_books()
+    assert book.status is BookStatus.INDEXED
+    assert found(restarted, book.book_id)

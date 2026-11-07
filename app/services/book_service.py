@@ -8,6 +8,7 @@ from typing import Any
 
 from app.errors import ConfirmationRequiredError, DuplicateBookError, MissingOriginalError
 from app.ingestion.base import DocumentFormat
+from app.ingestion.chunker import Chunk
 from app.ingestion.pipeline import ProcessedDocument
 from app.ingestion.validation import safe_filename, validate_upload
 from app.services.index_service import IndexService
@@ -81,6 +82,10 @@ class BookService:
     def chapters(self, book_id: str) -> list[tuple[int, str]]:
         return self._catalog.chapters(book_id)
 
+    def chunks(self, book_id: str) -> list[Chunk]:
+        book = self._catalog.get(book_id)
+        return self._data.processed.load_chunks(book_id, book.revision)
+
     def add_book(self, upload: Path, filename: str) -> Book:
         """Add a document to the library, leaving every other book as it was.
 
@@ -101,14 +106,18 @@ class BookService:
         """
         with self._guard.exclusive():
             document = self._read_upload(upload, filename)
-            if (existing := self._catalog.find_by_checksum(document.checksum)) is not None:
-                if existing.status is not BookStatus.FAILED:
-                    raise DuplicateBookError(existing.book_id, existing.title)
-                self._data.delete_book(existing.book_id, archive=False)
+            existing = self._catalog.find_by_checksum(document.checksum)
+            if existing is not None and existing.status is not BookStatus.FAILED:
+                raise DuplicateBookError(existing.book_id, existing.title)
 
+            # Checked first: a failed book must not vanish because its retry can't go ahead.
             index = self._indexes.require_writable()
+            if existing is not None:
+                with self._journal(REMOVE_BOOK, existing.book_id, archive=False):
+                    self._data.delete_book(existing.book_id, archive=False)
+
             book_id = self._catalog.next_book_id()
-            with operation(logger, ADD_BOOK, book_id=book_id), self._journal(ADD_BOOK, book_id):
+            with operation(logger, ADD_BOOK, book_id=book_id), self._journal(ADD_BOOK, book_id) as journal:
                 original = self._data.originals.store(document.path, book_id, document.format, _FIRST_REVISION)
                 book = self._new_book(book_id, document, original)
                 self._catalog.add(book)
@@ -116,8 +125,9 @@ class BookService:
                 try:
                     processed = self._ingest(book, original, _FIRST_REVISION, index)
                 except Exception as exc:
-                    self._data.discard_revision(book_id, _FIRST_REVISION)
                     self._catalog.update(book_id, status=BookStatus.FAILED, status_detail=str(exc))
+                    self._data.discard_revision(book_id, _FIRST_REVISION)
+                    self._catalog.end_operation(journal)
                     raise
                 log_event(logger, "book added", chunks=len(processed.chunks))
                 return self._catalog.apply(indexed_update(book, _FIRST_REVISION, processed, index))
@@ -144,9 +154,13 @@ class BookService:
             index = self._indexes.require_writable()
             revision = book.revision + 1
             staged_path = self._data.originals.path_for(book_id, document.format, revision)
-            with operation(logger, REPLACE_BOOK, book_id=book_id), self._swap_journal(book, revision, staged_path):
+            with (
+                operation(logger, REPLACE_BOOK, book_id=book_id),
+                self._swap_journal(book, revision, staged_path) as journal,
+            ):
                 staged = self._data.originals.store(document.path, book_id, document.format, revision)
-                processed = self._index_revision(book, _replaced(book, document, staged), revision, index, staged)
+                replacement = _replaced(book, document, staged)
+                processed = self._index_revision(book, replacement, revision, index, staged, journal)
                 extra = {
                     "original_filename": document.name,
                     "original_path": str(staged),
@@ -178,8 +192,11 @@ class BookService:
 
             index = self._indexes.require_writable()
             revision = book.revision + 1
-            with operation(logger, "reindex_book", book_id=book_id), self._swap_journal(book, revision, None):
-                processed = self._index_revision(book, book, revision, index, None)
+            with (
+                operation(logger, "reindex_book", book_id=book_id),
+                self._swap_journal(book, revision, None) as journal,
+            ):
+                processed = self._index_revision(book, book, revision, index, None, journal)
                 updated = self._catalog.apply(indexed_update(book, revision, processed, index))
                 self._data.drop_replaced_revision(book.book_id, book.revision, None)
                 return updated
@@ -242,15 +259,16 @@ class BookService:
         )
 
     def _index_revision(
-        self, book: Book, source: Book, revision: int, index: IndexRecord, staged: Path | None
+        self, book: Book, source: Book, revision: int, index: IndexRecord, staged: Path | None, journal: int
     ) -> ProcessedDocument:
         """Index a new revision next to the live one, undoing it completely if anything fails."""
         self._catalog.update(book.book_id, status=BookStatus.REINDEXING)
         try:
             return self._ingest(source, Path(source.original_path), revision, index)
         except Exception:
-            self._data.discard_revision(book.book_id, revision, str(staged) if staged else None)
             self._catalog.update(book.book_id, status=book.status)
+            self._data.discard_revision(book.book_id, revision, str(staged) if staged else None)
+            self._catalog.end_operation(journal)
             raise
 
     def _swap_journal(self, book: Book, revision: int, staged: Path | None) -> Any:
@@ -266,14 +284,15 @@ class BookService:
         )
 
     @contextmanager
-    def _journal(self, kind: str, book_id: str, **details: Any) -> Iterator[None]:
-        """Record an operation while it runs. If the process dies inside, the record stays."""
+    def _journal(self, kind: str, book_id: str, **details: Any) -> Iterator[int]:
+        """Record an operation while it runs.
+
+        The record only goes when the work is done, or when a handler has undone all of it and
+        ends the operation itself. Anything else leaves the record for recovery: an error in
+        the middle of a cleanup is no different from a crash.
+        """
         operation_id = self._catalog.begin_operation(kind, book_id, **details)
-        try:
-            yield
-        except Exception:
-            self._catalog.end_operation(operation_id)  # handled by the caller, not interrupted
-            raise
+        yield operation_id
         self._catalog.end_operation(operation_id)
 
 

@@ -20,12 +20,14 @@ class LibraryData:
         processed: ProcessedDocuments,
         summaries: SummaryDocuments,
         server: ChromaServer,
+        collection_prefix: str = COLLECTION_PREFIX,
     ) -> None:
         self.catalog = catalog
         self.originals = originals
         self.processed = processed
         self.summaries = summaries
         self.server = server
+        self._collection_prefix = collection_prefix
 
     def record_source(self, book: Book) -> None:
         """Write down what a rebuild needs to bring a book back, should a reset clear the catalog."""
@@ -74,7 +76,7 @@ class LibraryData:
 
     def clear(self, keep_originals: bool) -> None:
         """Return the library to empty. ChromaDB goes first: if it is down, nothing has changed."""
-        self.server.delete_collections(COLLECTION_PREFIX)
+        self.server.delete_collections(self._collection_prefix)
         self.processed.delete_all()
         self.summaries.delete_all()
         if keep_originals:

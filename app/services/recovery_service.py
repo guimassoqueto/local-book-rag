@@ -43,12 +43,15 @@ class LibraryGuard:
 
         Raises:
             LibraryBusyError: another operation is running.
+            ServiceUnavailableError: ChromaDB is down. Every change needs it, and finding that
+                out now leaves the library untouched, instead of halfway through a change.
         """
         try:
             self._lock.acquire(timeout=0)
         except Timeout as exc:
             raise LibraryBusyError("Another operation is changing the library. Try again when it finishes.") from exc
         try:
+            self._data.server.version()
             self._recover()
             yield
         finally:
@@ -98,15 +101,21 @@ class LibraryGuard:
         except BookNotFoundError:
             data.originals.delete(book_id)  # it died before the book existed
             return
+        if book.status is BookStatus.INDEXED:
+            return  # it finished, and only the closing of the journal was lost
+        data.discard_revision(book_id, book.revision)
         if book.status is BookStatus.PROCESSING:
-            data.discard_revision(book_id, book.revision)
             data.catalog.update(book_id, status=BookStatus.FAILED, status_detail=INTERRUPTED)
 
     def _repair_swap(self, book_id: str, details: dict[str, Any]) -> None:
         """Finish a swap that happened, or undo one that didn't: the catalog says which."""
         data = self._data
-        if data.catalog.get(book_id).revision == details["revision"]:
+        book = data.catalog.get(book_id)
+        if book.revision == details["revision"]:
             data.drop_replaced_revision(book_id, details["previous_revision"], details["previous_original"])
+            if details["staged_original"]:  # a new document, and not the same one processed again
+                data.record_source(book)
+                data.summaries.delete(book_id)
             return
         data.discard_revision(book_id, details["revision"], details["staged_original"])
         data.catalog.update(book_id, status=BookStatus(details["previous_status"]))
