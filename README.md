@@ -133,6 +133,34 @@ so a model that a query placed on the CPU would stay there for a whole book.
 Both models return unit vectors, and input longer than the model's context is refused rather
 than truncated, which is what Ollama would do silently by default.
 
+## Retrieval
+
+```bash
+docker compose exec app book-rag search "What is opportunity cost?" --book book_001 --chapter 4
+```
+
+`search` shows what the system retrieves, with each stage's score. It accepts filters by
+book, chapter, section, language and page range. `config/retrieval.yaml` picks the strategy:
+
+| `strategy` | Finds passages through                                                 |
+| ---------- | ---------------------------------------------------------------------- |
+| `dense`    | Nearest neighbors in ChromaDB                                          |
+| `bm25`     | Term matching, stemmed in the book's language and ignoring accents     |
+| `hybrid`   | Both, merged by `fusion.method`: `rrf` on ranks, `weighted` on scores  |
+
+Reranking is a separate stage on top of any of them, in `retrieval.reranker.enabled`. It runs
+inside the app through sentence-transformers, since Ollama has no reranking API. Both
+candidates load the same way, so switching is a matter of `reranker.model` in
+`config/models.yaml`. On the CPU, the default, it takes 4 s for the 24 passages of a typical
+search, and 0.6 s with `device: cuda`.
+
+Every book is searched on its own and the results are taken in turns. With one global
+top-k, a question comparing two books could come back with passages from only one of them.
+
+The BM25 index is built in memory over exactly the chunks a search may return, about 60 ms
+for a 1,300-chunk book. So there is no second index on disk to keep in step with ChromaDB, and
+term rarity reflects the part of the book being searched.
+
 ## Deployment notes
 
 - Ollama and ChromaDB are published on `127.0.0.1` only: neither has authentication, and

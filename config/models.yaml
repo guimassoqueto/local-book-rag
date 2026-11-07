@@ -37,7 +37,10 @@ reranker:
   provider: transformers
   model: Qwen/Qwen3-Reranker-0.6B
 
+  # Scoring the 24 passages of a typical search takes 4 s on the CPU and 0.6 s on the GPU
+  # (cuda), where the model only stays in VRAM while it scores.
   device: cpu
+  batch_size: 8
 
 
 # Model-specific behavior, by model name. Switching embedding.model selects the matching

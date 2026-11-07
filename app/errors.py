@@ -55,3 +55,7 @@ class ReindexRequiredError(BookRagError):
 
 class IndexingError(BookRagError):
     """Vectors could not be stored, or the stored ones failed verification."""
+
+
+class NothingToSearchError(BookRagError):
+    """No indexed book matches what a search asked for."""

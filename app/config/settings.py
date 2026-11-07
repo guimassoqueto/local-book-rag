@@ -58,6 +58,7 @@ class RerankerModelConfig(ConfigModel):
     provider: Literal["transformers"]
     model: str
     device: Literal["cpu", "cuda"]
+    batch_size: PositiveInt
 
 
 class TokenizerConfig(ConfigModel):
@@ -113,12 +114,21 @@ class LanguagesConfig(ConfigModel):
     supported: tuple[str, ...]
 
 
-class TopKConfig(ConfigModel):
+class DenseConfig(ConfigModel):
     top_k: PositiveInt
 
 
+class BM25Config(ConfigModel):
+    top_k: PositiveInt
+    k1: PositiveFloat
+    b: float = Field(ge=0, le=1)
+    stemming: bool
+
+
 class FusionConfig(ConfigModel):
-    method: Literal["rrf"]
+    method: Literal["rrf", "weighted"]
+    rrf_k: PositiveInt
+    dense_weight: float = Field(ge=0, le=1)
 
 
 class RerankingConfig(ConfigModel):
@@ -128,8 +138,8 @@ class RerankingConfig(ConfigModel):
 
 class RetrievalConfig(ConfigModel):
     strategy: Literal["dense", "bm25", "hybrid"]
-    dense: TopKConfig
-    bm25: TopKConfig
+    dense: DenseConfig
+    bm25: BM25Config
     fusion: FusionConfig
     reranker: RerankingConfig
 

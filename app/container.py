@@ -13,10 +13,12 @@ from app.ingestion.markdown_loader import MarkdownLoader
 from app.ingestion.normalizer import Normalizer
 from app.ingestion.pdf_loader import PdfLoader
 from app.ingestion.pipeline import IngestionPipeline
+from app.retrieval.reranker import CrossEncoderReranker
 from app.services.book_service import BookService
 from app.services.health_service import HealthService
 from app.services.index_service import IndexService
 from app.services.ingestion_service import IngestionService
+from app.services.retrieval_service import RetrievalService
 from app.storage.catalog import BookCatalog
 from app.storage.chroma import ChromaServer
 from app.storage.repositories import OriginalDocuments, ProcessedDocuments
@@ -33,6 +35,8 @@ class Container:
     health: HealthService
     indexes: IndexService
     books: BookService
+    retrieval: RetrievalService
+    reranker: CrossEncoderReranker
 
 
 def build_container(console_logs: bool = False) -> Container:
@@ -68,6 +72,7 @@ def build_container(console_logs: bool = False) -> Container:
         indexes=indexes,
         max_upload_bytes=settings.uploads.max_size_mb * 2**20,
     )
+    reranker = CrossEncoderReranker(settings.reranker)
     return Container(
         settings=settings,
         environment=environment,
@@ -75,6 +80,8 @@ def build_container(console_logs: bool = False) -> Container:
         health=HealthService(settings, runtime, chroma, indexes),
         indexes=indexes,
         books=books,
+        retrieval=RetrievalService(settings, catalog, indexes, processed, reranker),
+        reranker=reranker,
     )
 
 

@@ -3,12 +3,64 @@
 import hashlib
 import math
 
+from app.ingestion.chunker import Chunk
 from app.utils.ollama_runtime import ModelInfo
+
+
+def make_chunk(
+    text="Some text.",
+    book_id="book_001",
+    index=0,
+    chapter=1,
+    section="Section",
+    page_start=None,
+    page_end=None,
+    language="en",
+):
+    return Chunk(
+        chunk_id=f"{book_id}_chapter_{chapter:02d}_chunk_{index:04d}",
+        book_id=book_id,
+        book_title="Title",
+        chapter_number=chapter,
+        chapter_title=f"Chapter {chapter}",
+        section_title=section,
+        page_start=page_start,
+        page_end=page_end if page_end is not None else page_start,
+        chunk_index=index,
+        language=language,
+        text=text,
+    )
 
 
 class WordCounter:
     def count(self, text):
         return len(text.split())
+
+
+class FakeChunks:
+    """A chunk source that counts how often it is read."""
+
+    def __init__(self, chunks):
+        self.chunks = chunks
+        self.loads = 0
+
+    def load_chunks(self, book_id, revision):
+        self.loads += 1
+        return [chunk for chunk in self.chunks if chunk.book_id == book_id]
+
+
+class FakeReranker:
+    """Scores a text by how often the query's words appear in it."""
+
+    model = "fake-reranker"
+
+    def __init__(self):
+        self.calls = 0
+
+    def score(self, query, texts):
+        self.calls += 1
+        words = query.casefold().split()
+        return [min(1.0, sum(text.casefold().count(word) for word in words) / 10) for text in texts]
 
 
 class FakeEmbedder:
