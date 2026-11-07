@@ -78,6 +78,10 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(f"{ROOT_LOGGER}.{name}")
 
 
+def new_execution_id() -> str:
+    return uuid.uuid4().hex[:12]
+
+
 def log_event(logger: logging.Logger, message: str, level: int = logging.INFO, **fields: Any) -> None:
     """Log a message with structured fields next to it."""
     logger.log(level, message, extra={"fields": fields})
@@ -95,7 +99,7 @@ def operation(logger: logging.Logger, name: str, **fields: Any) -> Iterator[str]
     Yields:
         The execution ID.
     """
-    execution_id = uuid.uuid4().hex[:12]
+    execution_id = new_execution_id()
     token = _operation_fields.set({"execution_id": execution_id, "operation": name, **fields})
     started = perf_counter()
     log_event(logger, "operation started")

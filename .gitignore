@@ -233,5 +233,7 @@ data/**
 !data/**/.gitkeep
 logs/*
 !logs/.gitkeep
+benchmarks/books/
+benchmarks/workspace/
 benchmarks/results/*
 !benchmarks/results/.gitkeep

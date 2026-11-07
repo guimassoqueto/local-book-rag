@@ -94,6 +94,9 @@ class OllamaLLMProvider:
         raise AssertionError("stream() always ends with a Generation")
 
     def _llm(self, parameters: GenerationParameters) -> Ollama:
+        options: dict[str, Any] = {"num_predict": parameters.max_tokens}
+        if parameters.seed is not None:
+            options["seed"] = parameters.seed
         return Ollama(
             model=self.model,
             base_url=self._runtime.base_url,
@@ -101,7 +104,7 @@ class OllamaLLMProvider:
             context_window=self.context_size(),
             request_timeout=self._timeout,
             thinking=self._profile.reasoning,
-            additional_kwargs={"num_predict": parameters.max_tokens},
+            additional_kwargs=options,
         )
 
 

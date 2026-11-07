@@ -59,15 +59,23 @@ llm_profiles:
       kind: tiktoken
       name: o200k_base
 
+    # Left to themselves, this model and the two below reason at length, and reasoning counts
+    # against max_tokens: qwen3.5:9b spent 566 tokens on a one-sentence question.
+    reasoning: false
+
   qwen3.5:9b:
     tokenizer:
       kind: huggingface
       name: Qwen/Qwen3.5-9B
 
+    reasoning: false
+
   qwen3:14b:
     tokenizer:
       kind: huggingface
       name: Qwen/Qwen3-14B
+
+    reasoning: false
 
 
 embedding_profiles:

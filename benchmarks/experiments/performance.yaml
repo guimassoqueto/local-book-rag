@@ -1,0 +1,43 @@
+name: performance
+kind: performance
+description: >-
+  Measures inference speed and memory for each candidate LLM, at the initial 8K context window
+  and at 16K: a cold start, a warm-up, then the median of the runs.
+
+runs: 3
+max_tokens: 256
+
+prompt_book: on_liberty
+
+variants:
+  - name: gpt_oss_20b_8k
+    overrides:
+      llm: {model: "gpt-oss:20b", context_size: 8192}
+
+  - name: gpt_oss_20b_16k
+    overrides:
+      llm: {model: "gpt-oss:20b", context_size: 16384}
+
+  - name: gemma4_12b_8k
+    overrides:
+      llm: {model: "gemma4:12b", context_size: 8192}
+
+  - name: gemma4_12b_16k
+    overrides:
+      llm: {model: "gemma4:12b", context_size: 16384}
+
+  - name: qwen3_5_9b_8k
+    overrides:
+      llm: {model: "qwen3.5:9b", context_size: 8192}
+
+  - name: qwen3_5_9b_16k
+    overrides:
+      llm: {model: "qwen3.5:9b", context_size: 16384}
+
+  - name: qwen3_14b_8k
+    overrides:
+      llm: {model: "qwen3:14b", context_size: 8192}
+
+  - name: qwen3_14b_16k
+    overrides:
+      llm: {model: "qwen3:14b", context_size: 16384}

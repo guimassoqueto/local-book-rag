@@ -99,13 +99,21 @@ class FakeRuntime:
     def __init__(self, dimensions=1024, digest="digest-1"):
         self.dimensions = dimensions
         self.digest = digest
+        self.loaded = []
         self.unloaded = []
+
+    def version(self):
+        return "0.0.test"
 
     def model_info(self, name):
         return ModelInfo(name, self.digest, "family", "1B", "Q8", 32768, self.dimensions, ("embedding",))
 
+    def loaded_models(self):
+        return list(self.loaded)
+
     def unload(self, model):
         self.unloaded.append(model)
+        self.loaded = [entry for entry in self.loaded if entry.name != model]
 
 
 def make_stats(prompt_tokens=100, completion_tokens=20, finish_reason="stop"):

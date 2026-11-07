@@ -27,6 +27,9 @@ make env        # copy devtools/.env.sample to .env (won't overwrite an existing
 make install    # create .venv with the locked dependencies and install the git hooks
 ```
 
+Set `APP_UID` and `APP_GID` in `.env` if your user isn't 1000, so that the files the app writes
+to `./data` stay yours.
+
 On commit, the pre-commit hook fixes the staged files (trailing whitespace, final
 newline, `ruff check --fix`, `ruff format`) and re-stages the fixes, so the commit only
 fails on issues that cannot be fixed automatically. The commit message must be a
@@ -248,6 +251,9 @@ Models differ in more than quality, and none of the code above the provider depe
   an empty answer.
 - `gpt-oss` cites as `【3】`, however the prompt shows it. Citations are normalized, and text
   in code is skipped: `t = [1, 2, 3]` is a list, not three sources.
+- Told to answer "in the language of the question", `gpt-oss` answered some English questions
+  in Spanish. The question's language is identified and named in the prompt instead, unless
+  the question is too short to tell, and `--language` overrides it.
 
 ## Summaries
 
@@ -280,6 +286,65 @@ Statements close to no passage stay uncited and are counted, as the first place 
 for something the model added. The references quote each passage's opening words, because
 that is how to find it in a book without pages.
 
+## Benchmarks
+
+Comparing configurations under controlled conditions is the point of this project, so the
+benchmarks are a first-class part of it.
+
+```bash
+docker compose exec app book-rag pull-models --all          # every candidate model, about 40 GB
+docker compose exec app book-rag fetch-benchmark-books      # verified against their checksums
+docker compose exec app book-rag validate-benchmark         # every question, against the real text
+
+make benchmark EXPERIMENT=retrieval                         # the whole dataset
+make benchmark EXPERIMENT=generation LIMIT=2                # a sample, per book and category
+```
+
+| Experiment      | Compares                                                               | Measures                                                                                  |
+| --------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `extraction`    | PDF extractors                                                         | How much of each book's own structure survives                                            |
+| `retrieval`     | Embedding models, strategies, fusion, rerankers, chunk sizes           | Recall@5, Recall@10, MRR, nDCG@10, context precision and recall                           |
+| `generation`    | The four LLMs, on identical retrieved contexts                         | Faithfulness, correctness, relevance, citation accuracy, language, abstention             |
+| `summarization` | The four LLMs, on chapters with known key points                       | Argument coverage, concepts, consistency, coherence, completeness, citation traceability  |
+| `performance`   | The four LLMs, at 8K and 16K of context                                | Load time, time to first token, speeds, peak memory: the median of 3 runs after a warm-up |
+
+Results go to `benchmarks/results/<experiment>_<time>/`: `summary.csv`, `rows.csv` with every
+question, answer and summary, and `results.json`, which also records what a result means nothing
+without: the digest and quantization of each model, the Ollama and package versions, the hardware,
+the full configuration and the checksum of the dataset. A sampled run says so in `complete: false`.
+`rows.jsonl` grows as rows complete, so a run that dies after hours keeps what it did.
+
+An experiment is a YAML file: variants that are the normal configuration plus overrides, checked
+by the same validation as `config/`. It runs in `benchmarks/workspace`, on separate files and
+`bench_*` collections, so it can't touch the real library. Variants that index the same way
+share a workspace.
+
+The dataset is three books: *Quincas Borba* in Portuguese, *Think Python* in English from a PDF,
+and *On Liberty* for its complex arguments. Each has 30 questions: 10 factual, 5 conceptual, 5
+across sections, 5 about one chapter, and 5 that the book can't answer, some of them traps that
+name a detail the text leaves out. All three books can be redistributed, so anyone can reproduce
+the results, and their checksums guarantee the same files.
+
+Relevance is stored as verbatim evidence quotes, not chunk IDs. IDs change with every chunk size,
+and comparing chunk sizes is one of the experiments, while a quote finds its chunks under any
+configuration. Each result row lists the chapters, pages and chunks the evidence resolved to.
+
+Automated scores are a first signal, not a verdict. RAGAS and the summary rubric rely on a model
+as judge, the same one for every candidate, so they compare candidates with each other rather
+than measure anything absolute. Read the answers in `rows.csv` before concluding anything: in one
+reviewed chapter the rubric gave full marks to a summary that misattributed who said what, and
+that only coverage and a human reader caught.
+
+The judge runs at the widest context window (`generation.context.max_size`), with each experiment
+setting its reasoning. A metric the judge can't produce is left out and counted, in the
+`<metric>_samples` columns, instead of being scored as zero. If you change a judge, its prompts or
+its reasoning, check first that it can still separate cases whose answer is known: see "A judge has
+to prove itself" in `docs/decisions.md`.
+
+Scoring is slow: about 30 s per answer for the three RAGAS metrics, and about a minute per
+chapter for the rubric and key points. A full `generation` run takes hours, so `LIMIT` exists for a
+first look.
+
 ## Deployment notes
 
 - Ollama and ChromaDB are published on `127.0.0.1` only: neither has authentication, and
@@ -309,3 +374,26 @@ that is how to find it in a book without pages.
 Unknown keys are errors, so a typo stops the app at startup instead of being ignored.
 Addresses and directories come from the environment; their defaults are the Compose
 service names.
+
+## Layout
+
+```
+app/
+  main.py          # the commands, and the entry point
+  container.py     # builds the object graph: the only place that knows what is concrete
+  config/          # typed settings, validated at startup
+  ingestion/       # from a file to chunks: loaders, normalization, structure, chunking
+  embeddings/      # the embedding provider interface and Ollama behind it
+  retrieval/       # dense, BM25, fusion, reranking and the pipeline around them
+  generation/      # the LLM provider, questions, summaries, prompts and citations
+  storage/         # the catalog in SQLite, ChromaDB, and the library's files
+  services/        # the operations: what both Gradio and the commands call
+  interface/       # the Gradio tabs, as thin as they can be
+  evaluation/      # the dataset, the metrics and the experiment runner
+config/            # everything that can change without touching code
+benchmarks/        # datasets and experiments. Books, workspaces and results stay untracked
+data/              # the library: originals, processed files, summaries and the catalog
+docs/              # what was decided and why, and what the benchmarks found
+tests/unit/        # no services needed: real files, real SQLite, embedded ChromaDB, fake models
+tests/integration/ # against the running stack and the real models
+```

@@ -81,6 +81,7 @@ def summary(**overrides):
         "chunks_total": 10,
         "chunks_covered": 10,
         "strategy": "map_reduce",
+        "statements": 12,
         "statements_without_source": 0,
         "steps": 4,
         "incomplete_steps": 0,

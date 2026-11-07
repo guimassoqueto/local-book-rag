@@ -1,3 +1,6 @@
+import json
+import logging
+
 import pytest
 
 from app.errors import GenerationError
@@ -6,6 +9,7 @@ from app.generation.prompts import NO_EVIDENCE_MARKER
 from app.generation.question_answering import NOTHING_RETRIEVED, Answer, QuestionAnsweringService
 from app.retrieval.base import Passage, RetrievalFilters
 from app.retrieval.pipeline import RetrievalResult
+from app.utils.logging import configure_logging
 from tests.fakes import FakeLLM, make_chunk
 
 PASSAGE = ("Opportunity cost is what you give up.",)
@@ -110,10 +114,18 @@ def test_formats_without_pages_leave_them_out(settings):
     assert "Section" not in user_message(llm)
 
 
-def test_the_language_follows_the_question_by_default(settings):
+def test_the_answer_is_asked_for_in_the_language_of_the_question(settings):
+    llm = FakeLLM(["Resposta [1]."])
+
+    ask(settings, llm, question="O que é o custo de oportunidade, segundo o autor?")
+
+    assert "Write your reply in Portuguese" in system_message(llm)
+
+
+def test_a_question_in_no_clear_language_gets_the_general_rule(settings):
     llm = FakeLLM(["Answer [1]."])
 
-    ask(settings, llm)
+    ask(settings, llm, question="Why?")
 
     assert "language of the question" in system_message(llm)
 
@@ -134,6 +146,15 @@ def test_a_model_without_evidence_says_so(settings):
     assert NO_EVIDENCE_MARKER not in answer.text
 
 
+def test_the_marker_is_recognized_whatever_dash_it_is_written_with(settings):
+    marker = NO_EVIDENCE_MARKER.replace("-", "\u2011")  # as gpt-oss writes it, at times
+
+    answer = ask(settings, FakeLLM([f"{marker} The source does not cover this."]))
+
+    assert answer.insufficient_evidence
+    assert answer.text == "The source does not cover this."
+
+
 def test_the_marker_never_reaches_the_reader_while_streaming(settings):
     llm = FakeLLM([f"{NO_EVIDENCE_MARKER} The source does not cover this."])
 
@@ -142,6 +163,35 @@ def test_the_marker_never_reaches_the_reader_while_streaming(settings):
 
     assert NO_EVIDENCE_MARKER not in text
     assert "The source does not cover this." in text
+
+
+def test_a_marker_written_with_another_dash_is_held_back_too(settings):
+    llm = FakeLLM([f"{NO_EVIDENCE_MARKER.replace('-', '\u2011')} The source does not cover this."])
+
+    events = service(settings, llm).stream("Q?", RetrievalFilters())
+    text = "".join(event.text for event in events if isinstance(event, TextDelta))
+
+    assert text.strip() == "The source does not cover this."
+
+
+def streamed(settings, reply):
+    events = service(settings, FakeLLM([reply])).stream("Q?", RetrievalFilters())
+    return [event.text for event in events if isinstance(event, TextDelta)]
+
+
+def test_citations_are_streamed_the_way_the_answer_writes_them(settings):
+    assert "".join(streamed(settings, "It is what you give up【 1】, twice【2†L3】.")).strip() == (
+        "It is what you give up[1], twice[2]."
+    )
+
+
+def test_a_bracket_that_never_closes_is_not_held_back_to_the_end(settings):
+    reply = "A【 bracket that never closes, in an answer that goes on for a while after it."
+
+    deltas = streamed(settings, reply)
+
+    assert "".join(deltas).strip() == reply
+    assert "【" in "".join(deltas[:-1])
 
 
 def test_an_answer_starting_like_the_marker_is_streamed_whole(settings):
@@ -237,6 +287,24 @@ def test_a_context_too_small_for_any_passage_needs_no_model(settings):
     answer = ask(settings, llm, found=(" ".join(["word"] * 500),))
 
     assert answer.text == NOTHING_RETRIEVED
+
+
+def test_an_answer_is_logged_with_its_numbers_and_never_its_text(settings, tmp_path):
+    configure_logging("INFO", "INFO", tmp_path / "logs", console=False)
+    secret = "A question whose text must stay out of the logs"
+
+    ask(settings, FakeLLM(["The answer text, also private [1]."]), question=secret)
+
+    entries = [json.loads(line) for line in (tmp_path / "logs" / "app.jsonl").read_text().splitlines()]
+    [event] = [entry for entry in entries if entry["message"] == "question answered"]
+    assert event["operation"] == "answer_question"
+    assert event["execution_id"]
+    assert event["prompt_tokens"] == 100
+    assert event["context_passages"] == 1
+    logged = (tmp_path / "logs" / "app.jsonl").read_text()
+    assert secret not in logged
+    assert "also private" not in logged
+    logging.getLogger("book_rag").handlers.clear()
 
 
 def test_reasoning_that_consumes_the_limit_is_an_error_not_an_empty_answer(settings):

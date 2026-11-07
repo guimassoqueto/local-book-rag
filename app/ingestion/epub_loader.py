@@ -17,7 +17,7 @@ _NEAR_HEADING_WINDOW = 4  # blocks after a TOC target in which its printed headi
 
 
 @dataclass(frozen=True)
-class _TocEntry:
+class TocEntry:
     file: str
     fragment: str | None
     title: str
@@ -27,8 +27,8 @@ class _TocEntry:
 class EpubLoader:
     def load(self, path: Path) -> ExtractedDocument:
         book = _read(path)
-        entries = _flatten_toc(book.toc)
-        by_file: dict[str, list[_TocEntry]] = defaultdict(list)
+        entries = flatten_toc(book.toc)
+        by_file: dict[str, list[TocEntry]] = defaultdict(list)
         for entry in entries:
             by_file[entry.file].append(entry)
 
@@ -70,33 +70,33 @@ def _first_metadata(book: epub.EpubBook, name: str) -> str | None:
     return values[0][0].strip() or None if values else None
 
 
-def _flatten_toc(toc: object, depth: int = 0) -> list[_TocEntry]:
-    entries: list[_TocEntry] = []
+def flatten_toc(toc: object, depth: int = 0) -> list[TocEntry]:
+    entries: list[TocEntry] = []
     for node in toc if isinstance(toc, list | tuple) else [toc]:
         if isinstance(node, tuple | list) and len(node) == 2 and not isinstance(node[0], list | tuple):
             parent, children = node
             entries.extend(_entry(parent, depth))
-            entries.extend(_flatten_toc(children, depth + 1))
+            entries.extend(flatten_toc(children, depth + 1))
         elif isinstance(node, list | tuple):
-            entries.extend(_flatten_toc(node, depth))
+            entries.extend(flatten_toc(node, depth))
         else:
             entries.extend(_entry(node, depth))
     return entries
 
 
-def _entry(node: object, depth: int) -> list[_TocEntry]:
+def _entry(node: object, depth: int) -> list[TocEntry]:
     href = getattr(node, "href", None) or getattr(node, "file_name", None)
     title = getattr(node, "title", None)
     if not href or not title:
         return []
     file, _, fragment = href.partition("#")
-    return [_TocEntry(unquote(file), fragment or None, " ".join(title.split()), depth)]
+    return [TocEntry(unquote(file), fragment or None, " ".join(title.split()), depth)]
 
 
 def _apply_toc(
     blocks: list[Block],
     positions: dict[str, int],
-    entries: list[_TocEntry],
+    entries: list[TocEntry],
     depth_before_file: int,
 ) -> tuple[list[Block], int]:
     """Make the table of contents decide the heading levels of one spine document.
@@ -115,8 +115,8 @@ def _apply_toc(
     Returns:
         The blocks with their final levels, and the depth of the last entry applied.
     """
-    promoted: dict[int, _TocEntry] = {}
-    added: dict[int, list[_TocEntry]] = defaultdict(list)
+    promoted: dict[int, TocEntry] = {}
+    added: dict[int, list[TocEntry]] = defaultdict(list)
     for entry in entries:
         position = positions.get(entry.fragment, 0) if entry.fragment else 0
         heading = _heading_near(blocks, position, entry.title, promoted)
@@ -125,7 +125,7 @@ def _apply_toc(
         else:
             promoted[heading] = entry
 
-    def toc_heading(entry: _TocEntry) -> Block:
+    def toc_heading(entry: TocEntry) -> Block:
         return Block(BlockKind.HEADING, entry.title, level=entry.depth + 1)
 
     result: list[Block] = []
@@ -149,7 +149,7 @@ def _apply_toc(
     return result, depth
 
 
-def _heading_near(blocks: list[Block], position: int, title: str, taken: dict[int, _TocEntry]) -> int | None:
+def _heading_near(blocks: list[Block], position: int, title: str, taken: dict[int, TocEntry]) -> int | None:
     """Find the heading an entry points at, each heading answering to one entry only.
 
     A chapter and its first section can share a word ("Tuples" and "Tuples are immutable"),

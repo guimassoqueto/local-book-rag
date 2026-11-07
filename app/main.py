@@ -33,7 +33,8 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--inference", action="store_true", help="also run the models, which loads them into memory")
     doctor.set_defaults(handler=_doctor)
 
-    pull = commands.add_parser("pull-models", help="download the configured models into Ollama")
+    pull = commands.add_parser("pull-models", help="download the configured models")
+    pull.add_argument("--all", action="store_true", help="also every model with a profile, for benchmarks")
     pull.set_defaults(handler=_pull_models)
 
     add_book = commands.add_parser("add-book", help="add a PDF, EPUB or Markdown file to the library")
@@ -95,6 +96,17 @@ def _build_parser() -> argparse.ArgumentParser:
     summarize.add_argument("--save", action="store_true", help="keep the summary in data/summaries")
     summarize.set_defaults(handler=_summarize)
 
+    fetch = commands.add_parser("fetch-benchmark-books", help="download the benchmark's books")
+    fetch.set_defaults(handler=_fetch_benchmark_books)
+
+    validate = commands.add_parser("validate-benchmark", help="check the benchmark's questions against its books")
+    validate.set_defaults(handler=_validate_benchmark)
+
+    benchmark = commands.add_parser("benchmark", help="run an experiment from benchmarks/experiments")
+    benchmark.add_argument("experiment", type=Path, help="the experiment's YAML file")
+    benchmark.add_argument("--limit", type=int, help="questions per book and category, for a quick pass")
+    benchmark.set_defaults(handler=_benchmark)
+
     return parser
 
 
@@ -112,9 +124,12 @@ def _doctor(container: Container, arguments: argparse.Namespace) -> None:
         sys.exit(1)
 
 
-def _pull_models(container: Container, _: argparse.Namespace) -> None:
+def _pull_models(container: Container, arguments: argparse.Namespace) -> None:
     settings = container.settings
-    for model in (settings.llm.model, settings.embedding.model):
+    models = {settings.llm.model, settings.embedding.model}
+    if arguments.all:
+        models |= set(settings.llm_profiles) | set(settings.embedding_profiles)
+    for model in sorted(models):
         print(f"{model}:")
         last_status = None
         for progress in container.runtime.pull(model):
@@ -159,6 +174,8 @@ def _reindex_all(container: Container, arguments: argparse.Namespace) -> None:
         print(f"  still failing: {', '.join(report.failed)}")
     if report.summaries_regenerated:
         print(f"  {report.summaries_regenerated} summaries written again")
+    for failure in report.summaries_failed:
+        print(f"  summary not written: {failure}")
 
 
 def _reset_index(container: Container, arguments: argparse.Namespace) -> None:
@@ -221,6 +238,32 @@ def _summarize(container: Container, arguments: argparse.Namespace) -> None:
     )
     if arguments.save:
         print(f"Saved to {summaries.save(summary)}", file=sys.stderr)
+
+
+def _fetch_benchmark_books(container: Container, _: argparse.Namespace) -> None:
+    from app.evaluation.dataset import fetch_books, load_dataset  # needs nothing the other commands load
+
+    root = container.environment.benchmarks_dir
+    for line in fetch_books(load_dataset(root / "datasets"), root / "books"):
+        print(line)
+
+
+def _validate_benchmark(container: Container, _: argparse.Namespace) -> None:
+    from app.evaluation.benchmark import BenchmarkRunner  # loads the evaluation stack
+
+    problems = BenchmarkRunner(container.settings, container.environment).validate()
+    for problem in problems:
+        print(problem)
+    print(f"{len(problems)} problems")
+    if problems:
+        sys.exit(1)
+
+
+def _benchmark(container: Container, arguments: argparse.Namespace) -> None:
+    from app.evaluation.benchmark import BenchmarkRunner, load_experiment  # loads the evaluation stack
+
+    runner = BenchmarkRunner(container.settings, container.environment)
+    print(f"Results: {runner.run(load_experiment(arguments.experiment), arguments.limit)}")
 
 
 def _search(container: Container, arguments: argparse.Namespace) -> None:

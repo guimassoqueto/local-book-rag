@@ -15,8 +15,15 @@ class Message:
 
 @dataclass(frozen=True)
 class GenerationParameters:
+    """Attributes:
+    temperature: how far replies may vary.
+    max_tokens: the limit for a reply, reasoning included.
+    seed: fixes the sampling, for benchmarks to repeat a run.
+    """
+
     temperature: float
     max_tokens: int
+    seed: int | None = None
 
 
 @dataclass(frozen=True)

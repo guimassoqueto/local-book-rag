@@ -182,6 +182,22 @@ class GenerationConfig(ConfigModel):
     response_languages: tuple[str, ...]
 
 
+class JudgeConfig(ConfigModel):
+    """The model that scores answers in benchmarks. The same one judges every candidate.
+
+    Attributes:
+        model: the model. Needs an entry in llm_profiles.
+        embedding_model: for the RAGAS metrics that compare by similarity.
+        max_tokens: its limit for a reply, reasoning included.
+        reasoning: replaces its profile's setting. A judge should read before it rates.
+    """
+
+    model: str
+    embedding_model: str
+    max_tokens: PositiveInt
+    reasoning: Literal["low", "medium", "high"] | None = None
+
+
 class Settings(ConfigModel):
     """Everything in config/, merged: each top-level key lives in exactly one file."""
 
@@ -240,4 +256,5 @@ class EnvironmentSettings(BaseSettings):
     config_dir: Path = Path("config")
     data_dir: Path = Path("data")
     logs_dir: Path = Path("logs")
+    benchmarks_dir: Path = Path("benchmarks")
     log_level: LogLevel = "INFO"

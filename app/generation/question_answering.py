@@ -1,6 +1,6 @@
 """Answers questions from retrieved passages, with every claim traceable to its source."""
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from time import perf_counter
 
@@ -16,11 +16,22 @@ from app.generation.base import (
 )
 from app.generation.citations import Citation, normalize_citations, resolve_citations
 from app.generation.prompts import NO_EVIDENCE_MARKER, format_passage, question_answering_messages
+from app.ingestion.chunker import Chunk
 from app.retrieval.base import Passage, RetrievalFilters
 from app.retrieval.pipeline import RetrievalResult
 from app.services.retrieval_service import RetrievalService
+from app.utils.logging import get_logger, log_event, new_execution_id
+
+logger = get_logger("generation.questions")
 
 NOTHING_RETRIEVED = "The selected sources hold no passage that could answer this question."
+
+# gpt-oss can write the marker's hyphen as a non-breaking one (U+2011), or as another dash.
+_DASHES = str.maketrans(dict.fromkeys("\u2010\u2011\u2012\u2013\u2014\u2212", "-"))
+
+_OPENING_BRACKETS = "【［〔"
+_CLOSING_BRACKETS = "】］〕"
+_MAX_CITATION_LENGTH = 40  # a bracket still open after this many characters isn't a citation
 
 
 @dataclass(frozen=True)
@@ -52,6 +63,27 @@ class Answer:
     thinking: str
     generation: Generation | None
     total_seconds: float
+
+
+@dataclass(frozen=True)
+class Reply:
+    """What a model's reply says, whichever way that model writes it."""
+
+    text: str
+    citations: tuple[Citation, ...]
+    invented_citations: tuple[int, ...]
+    insufficient_evidence: bool
+
+
+def read_reply(generation: Generation | None, chunks: Sequence[Chunk]) -> Reply:
+    """Read a finished generation against the passages it was given.
+
+    Raises:
+        GenerationError: the model produced no answer.
+    """
+    text, insufficient = _read_marker(normalize_citations(_usable_text(generation)))
+    citations, invented = resolve_citations(text, chunks)
+    return Reply(text, tuple(citations), tuple(invented), insufficient)
 
 
 class QuestionAnsweringService:
@@ -119,22 +151,38 @@ class QuestionAnsweringService:
         messages = question_answering_messages(question, chunks, language)
         generation: Generation | None = None
         marker = _MarkerFilter()
+        citations = _CitationFilter()
         for event in self._llm.stream(messages, self._parameters()):
             if isinstance(event, Generation):
                 generation = event
-            elif visible := marker.feed(event.text):
+            elif visible := citations.feed(marker.feed(event.text)):
                 yield TextDelta(visible)
-        if leftover := marker.flush():
+        if leftover := citations.feed(marker.flush()) + citations.flush():
             yield TextDelta(leftover)
 
-        text, insufficient = _read_marker(normalize_citations(_usable_text(generation)))
-        citations, invented = resolve_citations(text, chunks)
+        reply = read_reply(generation, chunks)
+        # One event at the end: Gradio resumes this generator from different contexts, which rules
+        # out the `operation` context manager. It never carries the text of a book or a question.
+        log_event(
+            logger,
+            "question answered",
+            execution_id=new_execution_id(),
+            operation="answer_question",
+            books=sorted({chunk.book_id for chunk in chunks}),
+            model=self._llm.model,
+            retrieved_passages=len(result.candidates),
+            context_passages=len(passages),
+            prompt_tokens=generation.stats.prompt_tokens,
+            completion_tokens=generation.stats.completion_tokens,
+            insufficient_evidence=reply.insufficient_evidence,
+            duration_seconds=perf_counter() - started,
+        )
         yield Answer(
             question=question,
-            text=text,
-            citations=tuple(citations),
-            invented_citations=tuple(invented),
-            insufficient_evidence=insufficient,
+            text=reply.text,
+            citations=reply.citations,
+            invented_citations=reply.invented_citations,
+            insufficient_evidence=reply.insufficient_evidence,
             retrieval=result,
             passages=tuple(passages),
             messages=tuple(messages),
@@ -183,16 +231,41 @@ class _MarkerFilter:
             return text
         self._held += text
         reply = self._held.lstrip()
-        if reply.startswith(NO_EVIDENCE_MARKER):
+        if _starts_with_marker(reply):
             self._decided = True
-            return reply.removeprefix(NO_EVIDENCE_MARKER).lstrip()
-        if NO_EVIDENCE_MARKER.startswith(reply):
+            return reply[len(NO_EVIDENCE_MARKER) :].lstrip()
+        if NO_EVIDENCE_MARKER.startswith(reply.translate(_DASHES)):
             return ""
         self._decided = True
         return self._held
 
     def flush(self) -> str:
         return "" if self._decided else self._held
+
+
+class _CitationFilter:
+    """Normalizes citations as they stream, holding one back until it closes.
+
+    `gpt-oss` cites as `【3】`, and the parts can arrive in separate pieces. Without this, the text
+    streamed to a reader would cite differently from the finished answer and its list of sources.
+    """
+
+    def __init__(self) -> None:
+        self._held = ""
+
+    def feed(self, text: str) -> str:
+        self._held += text
+        opening = max(self._held.rfind(bracket) for bracket in _OPENING_BRACKETS)
+        unclosed = opening >= 0 and not any(bracket in self._held[opening:] for bracket in _CLOSING_BRACKETS)
+        if unclosed and len(self._held) - opening < _MAX_CITATION_LENGTH:
+            ready, self._held = self._held[:opening], self._held[opening:]
+        else:
+            ready, self._held = self._held, ""
+        return normalize_citations(ready)
+
+    def flush(self) -> str:
+        held, self._held = self._held, ""
+        return normalize_citations(held)
 
 
 def _usable_text(generation: Generation | None) -> str:
@@ -209,6 +282,10 @@ def _usable_text(generation: Generation | None) -> str:
 
 def _read_marker(text: str) -> tuple[str, bool]:
     stripped = text.strip()
-    if stripped.startswith(NO_EVIDENCE_MARKER):
-        return stripped.removeprefix(NO_EVIDENCE_MARKER).strip(), True
+    if _starts_with_marker(stripped):
+        return stripped[len(NO_EVIDENCE_MARKER) :].strip(), True
     return stripped, False
+
+
+def _starts_with_marker(reply: str) -> bool:
+    return reply[: len(NO_EVIDENCE_MARKER)].translate(_DASHES) == NO_EVIDENCE_MARKER

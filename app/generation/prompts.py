@@ -4,6 +4,7 @@ from collections.abc import Sequence
 
 from app.generation.base import Message
 from app.ingestion.chunker import Chunk
+from app.ingestion.language import question_language
 
 NO_EVIDENCE_MARKER = "[NO-EVIDENCE]"
 
@@ -107,10 +108,12 @@ def question_answering_messages(question: str, passages: Sequence[Chunk], langua
     Args:
         question: what the user asked.
         passages: the context, numbered from 1 in this order.
-        language: the language to answer in. None means the question's.
+        language: the language to answer in. None means the question's, named when it can be
+            identified: told only "the language of the question", gpt-oss answered some English
+            questions in Spanish.
     """
     context = "\n\n".join(format_passage(number, chunk) for number, chunk in enumerate(passages, start=1))
-    system = _QUESTION_ANSWERING_SYSTEM.format(language_rule=_language_rule(language))
+    system = _QUESTION_ANSWERING_SYSTEM.format(language_rule=_language_rule(language or question_language(question)))
     return [
         Message("system", system),
         Message("user", f"Passages:\n\n{context}\n\nQuestion: {question}"),

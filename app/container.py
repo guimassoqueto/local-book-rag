@@ -19,7 +19,7 @@ from app.ingestion.pipeline import IngestionPipeline
 from app.retrieval.reranker import CrossEncoderReranker
 from app.services.book_service import BookService
 from app.services.health_service import HealthService
-from app.services.index_service import IndexService
+from app.services.index_service import COLLECTION_PREFIX, IndexService
 from app.services.ingestion_service import IngestionService
 from app.services.library_data import LibraryData
 from app.services.library_service import LibraryService
@@ -60,7 +60,22 @@ def build_container(console_logs: bool = False) -> Container:
     configure_logging(
         environment.log_level, settings.logging.inference_level, environment.logs_dir, console=console_logs
     )
+    return assemble(settings, environment)
 
+
+def assemble(
+    settings: Settings, environment: EnvironmentSettings, collection_prefix: str = COLLECTION_PREFIX
+) -> Container:
+    """Wire the application together for given settings.
+
+    Benchmarks build several of these, each over its own data directory and collection prefix,
+    so that nothing they do can reach the real library.
+
+    Args:
+        settings: the configuration.
+        environment: the services and directories.
+        collection_prefix: what this library's ChromaDB collections start with.
+    """
     runtime = OllamaRuntime(environment.ollama_base_url, settings.ollama.request_timeout_seconds)
     chroma = ChromaServer(environment.chroma_host, environment.chroma_port)
     root = environment.data_dir
@@ -72,9 +87,10 @@ def build_container(console_logs: bool = False) -> Container:
         processed=processed,
         summaries=SummaryDocuments(root / "summaries"),
         server=chroma,
+        collection_prefix=collection_prefix,
     )
     guard = LibraryGuard(root / "metadata" / "library.lock", data)
-    indexes = IndexService(settings, catalog, chroma, runtime)
+    indexes = IndexService(settings, catalog, chroma, runtime, collection_prefix)
     ingestion = IngestionService(
         settings=settings,
         pipeline=build_pipeline(settings),

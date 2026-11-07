@@ -83,3 +83,11 @@ class MissingOriginalError(BookRagError):
 
 class NothingToReindexError(BookRagError):
     """The library has no documents to rebuild from."""
+
+
+class BenchmarkDatasetError(BookRagError):
+    """The benchmark dataset is malformed, or doesn't match its books."""
+
+
+class BenchmarkJudgeError(BookRagError):
+    """A benchmark's judge can't give a verdict it could be trusted on."""

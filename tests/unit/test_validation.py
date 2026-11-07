@@ -86,6 +86,11 @@ def test_rejects_markdown_that_is_not_utf8(tmp_path):
         validate_upload(path, "book.md", MEGABYTE)
 
 
+def test_rejects_a_path_with_no_file(tmp_path):
+    with pytest.raises(InvalidDocumentError, match="book.pdf doesn't exist"):
+        validate_upload(tmp_path / "book.pdf", "book.pdf", MEGABYTE)
+
+
 def test_rejects_empty_files(tmp_path):
     path = write(tmp_path / "upload", b"")
 

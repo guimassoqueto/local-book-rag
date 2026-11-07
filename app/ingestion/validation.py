@@ -37,8 +37,8 @@ def validate_upload(path: Path, filename: str, max_bytes: int) -> DocumentFormat
         The document's format.
 
     Raises:
-        InvalidDocumentError: the file is too large, has an unsupported extension, or
-            is not what its extension claims.
+        InvalidDocumentError: the file is missing or too large, has an unsupported extension,
+            or is not what its extension claims.
     """
     extension = Path(safe_filename(filename)).suffix.lower()
     document_format = _FORMATS_BY_EXTENSION.get(extension)
@@ -46,6 +46,8 @@ def validate_upload(path: Path, filename: str, max_bytes: int) -> DocumentFormat
         supported = ", ".join(sorted(_FORMATS_BY_EXTENSION))
         raise InvalidDocumentError(f"Unsupported file type '{extension}'. Supported types: {supported}.")
 
+    if not path.is_file():  # a path typed at the command line, never an upload
+        raise InvalidDocumentError(f"The file {safe_filename(filename)} doesn't exist.")
     size = path.stat().st_size
     if size == 0:
         raise InvalidDocumentError("The file is empty.")

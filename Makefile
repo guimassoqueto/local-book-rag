@@ -4,7 +4,7 @@
 export UV_PYTHON := $(shell awk '$$1 == "python" {print $$2}' .tool-versions)
 
 .PHONY: env install reinstall update check-updates hooks update-hooks lint lint-check commit \
-	test test-integration up down restart logs pull-models doctor
+	test test-integration up down restart logs pull-models doctor benchmark
 
 env:
 	@test -f .env && echo ".env already exists, leaving it untouched." || cp devtools/.env.sample .env
@@ -68,3 +68,9 @@ pull-models:
 
 doctor:
 	@docker compose exec app book-rag doctor
+
+# Run one experiment from benchmarks/experiments, as in `make benchmark EXPERIMENT=retrieval`.
+# LIMIT=2 takes a sample, of that many questions per book and category.
+benchmark:
+	@test -n "$(EXPERIMENT)" || { echo "usage: make benchmark EXPERIMENT=<name> [LIMIT=<n>]"; exit 1; }
+	@docker compose exec app book-rag benchmark benchmarks/experiments/$(EXPERIMENT).yaml $(if $(LIMIT),--limit $(LIMIT))

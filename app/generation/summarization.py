@@ -30,6 +30,9 @@ from app.ingestion.chunker import Chunk, split_sentences
 from app.retrieval.bm25 import ChunkSource
 from app.storage.catalog import BookCatalog
 from app.storage.repositories import SummaryDocuments
+from app.utils.logging import get_logger, log_event, operation
+
+logger = get_logger("generation.summaries")
 
 _BOLD_HEADING = re.compile(r"^\s*\*\*\s*(#{1,6}\s[^*\n]+?)\s*\*\*[ \t]*(.*)$", re.MULTILINE)
 _COLLAPSE_FAN_IN = 3  # merging everything at once would squeeze a long chapter into one reply
@@ -64,8 +67,9 @@ class ChapterSummary:
         chunks_covered: the chunks in steps that finished, rather than being cut off by their
             token limit and losing the end of what they were given.
         strategy: direct, when the chapter fit in the context, or map_reduce.
-        statements_without_source: statements close to no passage of the chapter, which is
-            where to look first for anything the model added.
+        statements: the statements looked up.
+        statements_without_source: those close to no passage of the chapter, which is where to
+            look first for anything the model added.
         steps: how many inferences it took.
         incomplete_steps: steps cut off by their token limit, which may have lost content.
         verification: the verification step's report, if enabled.
@@ -84,6 +88,7 @@ class ChapterSummary:
     chunks_total: int
     chunks_covered: int
     strategy: str
+    statements: int
     statements_without_source: int
     steps: int
     incomplete_steps: int
@@ -136,6 +141,17 @@ class ChapterSummarizer:
             ConfigurationError: the summary type doesn't exist.
             GenerationError: the model produced no text at some step.
         """
+        with operation(logger, "summarize_chapter", book_id=book_id, chapter=chapter_number, model=self._llm.model):
+            return self._summarize(book_id, chapter_number, summary_type, language, on_progress)
+
+    def _summarize(
+        self,
+        book_id: str,
+        chapter_number: int,
+        summary_type: str,
+        language: str | None,
+        on_progress: Callable[[str], None] | None,
+    ) -> ChapterSummary:
         started = perf_counter()
         report = on_progress or (lambda message: None)
         style = self._config.types.get(summary_type)
@@ -181,13 +197,23 @@ class ChapterSummarizer:
         final = run.step(final_messages(material), self._parameters(final_tokens))
 
         report("Finding the sources of each statement")
-        cited_text, citations, unsourced = self._cite(_clean_headings(final.text), book_id, chapter_number, chunks)
+        text = _clean_headings(final.text)
+        cited_text, citations, statements, unsourced = self._cite(text, book_id, chapter_number, chunks)
 
         verification = None
         if self._config.verify_claims and citations:
             report("Checking the claims against the sources")
             verification = self._verify(run, final.text, citations, chunks)
 
+        log_event(
+            logger,
+            "chapter summarized",
+            chunks=len(chunks),
+            lost_chunks=run.lost_sources,
+            strategy=strategy,
+            steps=run.steps,
+            citations=len(citations),
+        )
         return ChapterSummary(
             book_id=book_id,
             book_title=book.title,
@@ -200,6 +226,7 @@ class ChapterSummarizer:
             chunks_total=len(chunks),
             chunks_covered=len(chunks) - run.lost_sources,
             strategy=strategy,
+            statements=statements,
             statements_without_source=unsourced,
             steps=run.steps,
             incomplete_steps=run.incomplete_steps,
@@ -218,6 +245,7 @@ class ChapterSummarizer:
             "language": summary.language,
             "model": summary.model,
             "strategy": summary.strategy,
+            "statements": summary.statements,
             "statements_without_source": summary.statements_without_source,
             "chunks_total": summary.chunks_total,
             "chunks_covered": summary.chunks_covered,
@@ -316,20 +344,23 @@ class ChapterSummarizer:
 
     def _cite(
         self, summary: str, book_id: str, chapter_number: int, chunks: list[Chunk]
-    ) -> tuple[str, list[Citation], int]:
+    ) -> tuple[str, list[Citation], int, int]:
         """Look each statement up among the chapter's chunks, and cite the passage it resembles.
 
         Returns:
-            The text with its citations, the sources cited, and how many statements have none.
+            The text with its citations, the sources cited, how many statements were looked
+            up, and how many of them have no source.
         """
         numbers = {chunk.chunk_id: number for number, chunk in enumerate(chunks, start=1)}
         cited: dict[int, Citation] = {}
+        statements = 0
         unsourced = 0
 
         def cite(statement: str) -> str:
-            nonlocal unsourced
+            nonlocal statements, unsourced
             if len(statement.split()) < _MIN_STATEMENT_WORDS:
                 return statement
+            statements += 1
             chunk = self._locator.closest_chunk(statement, book_id, chapter_number)
             if chunk is None:
                 unsourced += 1
@@ -339,7 +370,7 @@ class ChapterSummarizer:
             return f"{statement} [{number}]"
 
         lines = [_cite_line(line, cite) for line in summary.splitlines()]
-        return "\n".join(lines), [cited[number] for number in sorted(cited)], unsourced
+        return "\n".join(lines), [cited[number] for number in sorted(cited)], statements, unsourced
 
     def _verify(self, run: "_Run", summary: str, citations: list[Citation], chunks: list[Chunk]) -> str:
         """Check the summary against the passages it cites, as many of them as fit."""
