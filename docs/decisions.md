@@ -242,6 +242,16 @@ model holding 9.1 GB). Without waiting, one model's memory was reported as the n
 reads the whole machine, since Ollama is in another container, so `idle_*` records what was already
 in use: a model's cost is its peak minus that.
 
+**A novel's key points state one event each.** The first key points for *Quincas Borba* packed
+three or four details into each event, and the coverage judge rejected a point for any one of them
+missing, although its prompt says secondary details may be: "Sofia covers his mouth" sank a point
+whose debt confession was there. A summary that, read closely, covered about 7 of 10 points scored
+0.2, the same as one written in the wrong language that got the chapter's main event wrong. With
+one event per point, condensed from the same points without adding to them, the two scored 0.6 and
+0.3, and each chapter's summary still scored 0.0 against the other chapter's points. The points
+use the book's spelling now (Sophia, Maria Benedicta), although spelling alone changed nothing.
+Questions keep the modern one, as a reader would type it.
+
 **Context recall equals Recall@5 here, by construction.** Both ask how much of the evidence is in
 the same five passages. They would differ only with a final context of another size, so the
 duplicate column is expected, not a bug.
