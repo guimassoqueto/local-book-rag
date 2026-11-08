@@ -134,7 +134,11 @@ named, so the headings are listed already translated, for the six languages the 
 
 **The no-evidence marker is matched with any dash.** `gpt-oss` writes some hyphens as the
 non-breaking hyphen, U+2011, and did so in the marker in 2 of 360 answers. Unrecognized, the
-abstention was shown as an answer, with the marker in its first line.
+abstention was shown as an answer, with the marker in its first line. `gemma4` translated the
+marker instead, as `[NO-EVIDÊNCIA]`, on the same question in both of its runs, with the same
+result. A bracket that opens with `[NO-EVID` and closes within a word counts as the marker now.
+The prompt still asks for it in English: changing the prompt would have changed what the
+generation benchmark measured.
 
 ## Library lifecycle
 

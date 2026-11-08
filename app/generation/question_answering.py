@@ -1,5 +1,6 @@
 """Answers questions from retrieved passages, with every claim traceable to its source."""
 
+import re
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from time import perf_counter
@@ -26,8 +27,12 @@ logger = get_logger("generation.questions")
 
 NOTHING_RETRIEVED = "The selected sources hold no passage that could answer this question."
 
-# gpt-oss can write the marker's hyphen as a non-breaking one (U+2011), or as another dash.
+# gpt-oss can write the marker's hyphen as a non-breaking one (U+2011), or as another dash, and
+# gemma4 translated the marker itself, as [NO-EVIDÊNCIA]. Both read as the marker.
 _DASHES = str.maketrans(dict.fromkeys("\u2010\u2011\u2012\u2013\u2014\u2212", "-"))
+_MARKER_START = NO_EVIDENCE_MARKER[: NO_EVIDENCE_MARKER.index("EVID") + len("EVID")]
+_MARKER = re.compile(re.escape(_MARKER_START) + r"\w{0,12}\]", re.IGNORECASE)
+_MAX_MARKER_LENGTH = 30  # held back no longer than this while it could still be the marker
 
 _OPENING_BRACKETS = "【［〔"
 _CLOSING_BRACKETS = "】］〕"
@@ -231,10 +236,10 @@ class _MarkerFilter:
             return text
         self._held += text
         reply = self._held.lstrip()
-        if _starts_with_marker(reply):
+        if length := _marker_length(reply):
             self._decided = True
-            return reply[len(NO_EVIDENCE_MARKER) :].lstrip()
-        if NO_EVIDENCE_MARKER.startswith(reply.translate(_DASHES)):
+            return reply[length:].lstrip()
+        if _could_become_marker(reply):
             return ""
         self._decided = True
         return self._held
@@ -282,10 +287,20 @@ def _usable_text(generation: Generation | None) -> str:
 
 def _read_marker(text: str) -> tuple[str, bool]:
     stripped = text.strip()
-    if _starts_with_marker(stripped):
-        return stripped[len(NO_EVIDENCE_MARKER) :].strip(), True
+    if length := _marker_length(stripped):
+        return stripped[length:].strip(), True
     return stripped, False
 
 
-def _starts_with_marker(reply: str) -> bool:
-    return reply[: len(NO_EVIDENCE_MARKER)].translate(_DASHES) == NO_EVIDENCE_MARKER
+def _marker_length(reply: str) -> int:
+    """How long the marker that opens a reply is, or 0 if none does. Dashes map one to one."""
+    match = _MARKER.match(reply.translate(_DASHES))
+    return match.end() if match else 0
+
+
+def _could_become_marker(reply: str) -> bool:
+    """Whether more text could still make this the marker: the start of it, or its bracket still open."""
+    start = reply.translate(_DASHES).upper()
+    if len(start) <= len(_MARKER_START):
+        return _MARKER_START.startswith(start)
+    return start.startswith(_MARKER_START) and "]" not in start and len(start) < _MAX_MARKER_LENGTH

@@ -6,7 +6,7 @@ import pytest
 from app.errors import GenerationError
 from app.generation.base import FINISHED_BY_LENGTH, TextDelta
 from app.generation.prompts import NO_EVIDENCE_MARKER
-from app.generation.question_answering import NOTHING_RETRIEVED, Answer, QuestionAnsweringService
+from app.generation.question_answering import NOTHING_RETRIEVED, Answer, QuestionAnsweringService, _MarkerFilter
 from app.retrieval.base import Passage, RetrievalFilters
 from app.retrieval.pipeline import RetrievalResult
 from app.utils.logging import configure_logging
@@ -172,6 +172,34 @@ def test_a_marker_written_with_another_dash_is_held_back_too(settings):
     text = "".join(event.text for event in events if isinstance(event, TextDelta))
 
     assert text.strip() == "The source does not cover this."
+
+
+@pytest.mark.parametrize("marker", ["[NO-EVIDÊNCIA]", "[NO-EVIDENCIA]", "[no-evidence]", "[NO\u2011EVIDÊNCIA]"])
+def test_a_translated_marker_is_recognized(settings, marker):
+    # gemma4 wrote [NO-EVIDÊNCIA] in a Portuguese answer, and the reader saw it as an answer.
+    answer = ask(settings, FakeLLM([f"{marker} O texto não contém essa informação."]))
+
+    assert answer.insufficient_evidence
+    assert answer.text == "O texto não contém essa informação."
+
+
+def test_a_translated_marker_arriving_in_pieces_is_held_back(settings):
+    pieces = ["[NO", "-EVID", "ÊN", "CIA]", " O texto", " não diz."]
+    filter_ = _MarkerFilter()
+
+    held = [filter_.feed(piece) for piece in pieces[:4]]
+    text = "".join(held) + "".join(filter_.feed(piece) for piece in pieces[4:]) + filter_.flush()
+
+    assert held == ["", "", "", ""]
+    assert text.strip() == "O texto não diz."
+
+
+def test_a_bracket_that_only_starts_like_the_marker_is_streamed(settings):
+    filter_ = _MarkerFilter()
+
+    text = "".join(filter_.feed(piece) for piece in ["[NO", "TE] a note", " follows."]) + filter_.flush()
+
+    assert text == "[NOTE] a note follows."
 
 
 def streamed(settings, reply):
