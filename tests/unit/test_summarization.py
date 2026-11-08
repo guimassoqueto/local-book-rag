@@ -1,10 +1,11 @@
 import json
+import re
 
 import pytest
 
 from app.errors import ChapterNotFoundError, ConfigurationError, GenerationError
 from app.generation.base import FINISHED_BY_LENGTH
-from app.generation.summarization import ChapterSummarizer
+from app.generation.summarization import ChapterSummarizer, _Run
 from app.storage.catalog import Book, BookCatalog, BookStatus
 from app.storage.repositories import SummaryDocuments
 from tests.fakes import FakeChunks, FakeLLM, make_chunk
@@ -222,6 +223,90 @@ def test_a_cut_off_merge_keeps_its_parts_instead_of_losing_the_last(settings, ca
 
     assert len(merges) > 1
     assert summary.incomplete_steps == 0
+
+
+def test_parts_that_no_merge_can_hold_are_condensed_one_by_one(settings, catalog, tmp_path):
+    # gpt-oss merged three parts into a text as long as all three, and hit its limit every time.
+    chunks = chapter(80)
+    partial = " ".join(["partial"] * 600)
+
+    def several_parts(prompt):
+        return prompt.startswith("Merge") and "\n---\n" in prompt
+
+    def respond(messages, parameters):
+        prompt = messages[-1].content
+        if prompt.startswith("Merge"):
+            return " ".join(["merged"] * 3000) if several_parts(prompt) else "A condensed part."
+        return partial if "Summarize" in prompt else FINAL
+
+    llm = FakeLLM(respond=respond, finish=lambda prompt: FINISHED_BY_LENGTH if several_parts(prompt) else "stop")
+
+    summary = summarizer(settings, llm, catalog, chunks, tmp_path).summarize("book_001", 4, "standard")
+
+    assert summary.strategy == "map_reduce"
+    assert any(prompt.startswith("Merge") and not several_parts(prompt) for prompt in prompts(llm))
+
+
+def test_a_merge_prompt_leaves_room_for_its_reply(settings, catalog, tmp_path):
+    llm = FakeLLM(["Unused."])
+    partials = [" ".join(["partial"] * 2000)] * 5
+
+    groups = summarizer(settings, llm, catalog, chapter(1), tmp_path)._groups(partials)
+
+    reply = settings.generation.summarization.map_max_tokens * 2
+    assert [len(group) for group in groups] == [2, 2, 1]
+    assert all(sum(llm.count_tokens(part) for part in group) + reply < llm.context_size() for group in groups)
+
+
+def test_merges_that_barely_condense_end_in_an_error_instead_of_endless_rounds(settings, catalog, tmp_path):
+    chunks = chapter(80)
+    partial = " ".join(["partial"] * 600)
+
+    def respond(messages, parameters):
+        prompt = messages[-1].content
+        if prompt.startswith("Merge"):
+            return " ".join(["merged"] * (len(prompt.split()) - 60))  # a little shorter than what it read
+        return partial if "Summarize" in prompt else FINAL
+
+    llm = FakeLLM(respond=respond)
+
+    with pytest.raises(GenerationError, match="too long"):
+        summarizer(settings, llm, catalog, chunks, tmp_path).summarize("book_001", 4, "standard")
+
+    assert sum(prompt.startswith("Merge") for prompt in prompts(llm)) < 20
+
+
+def test_merges_that_overrun_their_length_are_asked_for_less(settings, catalog, tmp_path):
+    # Asked for 540 words, gpt-oss merged two parts into 1,200: no shorter than the parts.
+    chunks = chapter(80)
+    partial = " ".join(["partial"] * 600)
+
+    def asked(prompt):
+        return int(re.search(r"at most (\d+) words", prompt).group(1))
+
+    def respond(messages, parameters):
+        prompt = messages[-1].content
+        if prompt.startswith("Merge"):
+            return " ".join(["merged"] * asked(prompt) * 4)
+        return partial if "Summarize" in prompt else FINAL
+
+    llm = FakeLLM(respond=respond)
+
+    summary = summarizer(settings, llm, catalog, chunks, tmp_path).summarize("book_001", 4, "standard")
+
+    lengths = [asked(prompt) for prompt in prompts(llm) if prompt.startswith("Merge")]
+    assert summary.strategy == "map_reduce"
+    assert min(lengths) < max(lengths)
+
+
+def test_a_merge_no_shorter_than_its_parts_keeps_them(settings, catalog, tmp_path):
+    llm = FakeLLM(["word " * 3000])
+    parts = ["first part " * 200, "second part " * 200]
+    run = _Run(llm, "en", "en", "A chapter")
+
+    merged = summarizer(settings, llm, catalog, chapter(1), tmp_path)._merge(run, parts, 300)
+
+    assert merged == parts
 
 
 def test_partials_that_cannot_shrink_end_in_an_error(settings, catalog, tmp_path):

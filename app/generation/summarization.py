@@ -42,6 +42,7 @@ _MAP_INPUT_RATIO = 4  # how many tokens of text a reply of one token can do just
 _WORDS_PER_TOKEN = 0.6  # leaves part of the limit to reasoning, and stays well within the rest
 _MIN_PARTIAL_WORDS = 150  # below this, a part can't say anything: better to combine partials later
 _MERGE_LIMIT_RATIO = 2  # models overrun word targets, and a merge cut off at the limit gains nothing
+_MIN_ROUND_SHRINK = 0.9  # what a round of merges has to leave, at most, of what it was given
 _MIN_STATEMENT_WORDS = 5  # shorter lines are labels, with nothing to look up
 
 
@@ -311,37 +312,63 @@ class ChapterSummarizer:
         return self._map(run, batch[:middle], max_words) + self._map(run, batch[middle:], max_words)
 
     def _collapse(self, run: "_Run", partials: list[str], budget: int, report: Callable[[str], None]) -> str:
-        """Merge partial summaries until they fit in the final prompt."""
+        """Merge partial summaries until they fit in the final prompt.
+
+        A model can merge three parts into a text as long as all three, so progress is measured in
+        tokens, and a part left on its own is condensed. A round that doesn't take a tenth off what
+        is left halves the length the next one asks for: models overrun it, some by twice. When
+        rounds at the shortest length stop condensing too, the summary ends: more would only take time.
+        """
         material = _PARTS_SEPARATOR.join(partials)
-        while self._llm.count_tokens(material) > budget:
+        size = self._llm.count_tokens(material)
+        share = 1.0  # of the length the parts could have, what the merges ask for
+        while size > budget:
             report(f"Combining {len(partials)} partial summaries")
-            merged: list[str] = []
-            for start in range(0, len(partials), _COLLAPSE_FAN_IN):
-                merged.extend(self._merge(run, partials[start : start + _COLLAPSE_FAN_IN]))
-            if len(merged) >= len(partials):
-                raise GenerationError("The partial summaries are too long to combine in this context window.")
-            partials = merged
+            groups = self._groups(partials)
+            words = max(_MIN_PARTIAL_WORDS, int(self._partial_words(budget, len(groups)) * share))
+            partials = [merged for group in groups for merged in self._merge(run, group, words)]
             material = _PARTS_SEPARATOR.join(partials)
+            previous, size = size, self._llm.count_tokens(material)
+            if size > budget and size > previous * _MIN_ROUND_SHRINK:
+                if words <= _MIN_PARTIAL_WORDS:
+                    raise GenerationError("The partial summaries are too long to combine in this context window.")
+                share /= 2
         return material
 
-    def _merge(self, run: "_Run", partials: list[str]) -> list[str]:
-        """Merge a few partial summaries. A reply that gets cut off would lose the last of them."""
+    def _groups(self, partials: list[str]) -> list[list[str]]:
+        """Consecutive partials, a few at a time, as many as one prompt holds with room for the reply."""
+        budget = self._budget(self._merge_limit()) - self._frame_tokens(collapse_messages("", "", 0, None, None))
+        groups: list[list[str]] = []
+        tokens = 0
+        for partial in partials:
+            cost = self._llm.count_tokens(partial)
+            if groups and len(groups[-1]) < _COLLAPSE_FAN_IN and tokens + cost <= budget:
+                groups[-1].append(partial)
+                tokens += cost
+            else:
+                groups.append([partial])
+                tokens = cost
+        return groups
+
+    def _merge(self, run: "_Run", partials: list[str], words: int) -> list[str]:
+        """Merge a few partials, or condense one. A reply cut off at its limit would lose their end.
+
+        A reply no shorter than what it was given gains nothing, and only rewords: the parts stay.
+        """
+        merged = _PARTS_SEPARATOR.join(partials)
+        messages = collapse_messages(run.chapter, merged, words, run.language, run.book_language)
+        generation = run.step(messages, self._parameters(self._merge_limit()), retried_if_cut_off=True)
+        if generation.stats.finish_reason != FINISHED_BY_LENGTH:
+            if self._llm.count_tokens(generation.text) >= self._llm.count_tokens(merged):
+                return partials
+            return [generation.text]
         if len(partials) == 1:
             return partials
-        max_tokens = self._config.map_max_tokens
-        messages = collapse_messages(
-            run.chapter,
-            _PARTS_SEPARATOR.join(partials),
-            int(max_tokens * _WORDS_PER_TOKEN),
-            run.language,
-            run.book_language,
-        )
-        parameters = self._parameters(max_tokens * _MERGE_LIMIT_RATIO)
-        generation = run.step(messages, parameters, retried_if_cut_off=True)
-        if generation.stats.finish_reason != FINISHED_BY_LENGTH:
-            return [generation.text]
         middle = len(partials) // 2
-        return self._merge(run, partials[:middle]) + self._merge(run, partials[middle:])
+        return self._merge(run, partials[:middle], words) + self._merge(run, partials[middle:], words)
+
+    def _merge_limit(self) -> int:
+        return self._config.map_max_tokens * _MERGE_LIMIT_RATIO
 
     def _cite(
         self, summary: str, book_id: str, chapter_number: int, chunks: list[Chunk]

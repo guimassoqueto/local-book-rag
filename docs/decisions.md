@@ -104,6 +104,16 @@ no citations now: each statement is looked up in the chapter's chunks.
 cut off after 6 of 14 passages, and the end of each batch silently vanished, while the report said
 51 of 51 chunks. Batches are now sized to what a reply can hold.
 
+**Merges that don't condense ask for less.** Asked for 540 words, `gpt-oss` merged two partial
+summaries into 1,200, hardly shorter than the two. A merge of three hit its limit, was split, and
+the rounds stopped making progress: 2 of the benchmark's 6 chapters ended in "too long to combine".
+Merge prompts now put the limit first, and leave room for the reply in the context. A merge that
+comes back no shorter than its parts keeps the parts, and a round that doesn't take a tenth off
+halves the length the next one asks for. Only rounds at the shortest length that still don't
+condense end the summary. Without that halving, one of the two chapters still failed 2 times in
+7. With it, both completed 7 times in 7, and a round asked for 270 words brought 2,500 tokens
+down to 500.
+
 **Reranking on CPU stays in `bfloat16`.** A library warning says it may be slow. Here it is three
 times faster than `float32`, thanks to AVX-512.
 

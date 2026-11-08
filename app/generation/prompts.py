@@ -36,8 +36,9 @@ section per passage, in at most {max_words} words. Cover all the passages, up to
 {sources}"""
 
 _COLLAPSE_INSTRUCTIONS = """Merge the partial summaries below, which cover consecutive parts of the chapter "{chapter}",
-into one summary of at most {max_words} words. Keep every argument, definition, example and
-conclusion, from the first part to the last.
+into one summary of at most {max_words} words. Together they are too long for the next step, so
+the limit comes first: keep every argument and conclusion, from the first part to the last, and
+cut examples and details until it fits.
 
 {summaries}"""
 
