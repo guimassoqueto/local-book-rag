@@ -1,0 +1,18 @@
+application:
+  name: Local Book RAG
+
+server:
+  # The container interface. docker-compose.yml decides what the host publishes.
+  host: 0.0.0.0
+  port: 7860
+
+uploads:
+  max_size_mb: 512
+
+ollama:
+  # Long enough for a large model to load and answer on CPU offload.
+  request_timeout_seconds: 600
+
+logging:
+  # Inference logs have their own level so that they can be silenced or expanded alone.
+  inference_level: INFO

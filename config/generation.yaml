@@ -1,0 +1,54 @@
+generation:
+  question_answering:
+    temperature: 0.2
+
+    # Reasoning counts against this limit, so it has to leave room for the answer too.
+    max_tokens: 1500
+
+  summarization:
+    temperature: 0.2
+
+    # The limit for the final summary.
+    max_tokens: 3000
+
+    # The limit for each intermediate summary of the map-reduce steps.
+    map_max_tokens: 900
+
+    # How close a passage has to be to a statement to be cited as its source, in the score of
+    # dense retrieval. Statements with no such passage stay uncited, and are counted.
+    min_source_score: 0.6
+
+    # Have the model check the final summary against the passages it cites.
+    verify_claims: false
+
+    types:
+      brief:
+        target_words: 200
+        style: Keep to the essentials. One or two sentences per section are enough.
+
+      standard:
+        target_words: 500
+        style: Cover the main points of each section.
+
+      comprehensive:
+        target_words: 1200
+        style: Cover every argument and concept of the chapter.
+
+      analytical:
+        target_words: 2000
+        max_tokens: 4000
+        style: >-
+          Go beyond listing the content: explain how the arguments build on each other, what
+          they assume, and how the concepts depend on each other, while staying within what
+          the chapter says.
+
+  context:
+    # Upper bound for llm.context_size in models.yaml, which sets the active window.
+    max_size: 16384
+
+    # Share of the window left unused, to absorb the error of approximate tokenizers. Ollama
+    # silently cuts a prompt that doesn't fit, and answers from what remains.
+    safety_margin: 0.1
+
+  # Offered in the interface. Any language a model can write in works here.
+  response_languages: [English, Portuguese, Spanish, French, German, Italian]

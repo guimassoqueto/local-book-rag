@@ -1,0 +1,140 @@
+"""Composition root: the one place that builds the application's object graph."""
+
+from dataclasses import dataclass
+
+from app.config.loader import load_settings
+from app.config.settings import EnvironmentSettings, Settings
+from app.embeddings.factory import create_embedding_provider
+from app.generation.factory import create_llm_provider
+from app.generation.question_answering import QuestionAnsweringService
+from app.generation.summarization import ChapterSummarizer
+from app.ingestion.base import DocumentFormat, DocumentLoader
+from app.ingestion.chunker import Chunker
+from app.ingestion.docling_loader import DoclingLoader
+from app.ingestion.epub_loader import EpubLoader
+from app.ingestion.markdown_loader import MarkdownLoader
+from app.ingestion.normalizer import Normalizer
+from app.ingestion.pdf_loader import PdfLoader
+from app.ingestion.pipeline import IngestionPipeline
+from app.retrieval.reranker import CrossEncoderReranker
+from app.services.book_service import BookService
+from app.services.health_service import HealthService
+from app.services.index_service import COLLECTION_PREFIX, IndexService
+from app.services.ingestion_service import IngestionService
+from app.services.library_data import LibraryData
+from app.services.library_service import LibraryService
+from app.services.recovery_service import LibraryGuard
+from app.services.reset_service import ResetService
+from app.services.retrieval_service import RetrievalService
+from app.storage.catalog import BookCatalog
+from app.storage.chroma import ChromaServer
+from app.storage.repositories import OriginalDocuments, ProcessedDocuments, SummaryDocuments
+from app.utils.logging import configure_logging
+from app.utils.ollama_runtime import OllamaRuntime
+from app.utils.tokenization import create_token_counter
+
+
+@dataclass(frozen=True)
+class Container:
+    settings: Settings
+    environment: EnvironmentSettings
+    runtime: OllamaRuntime
+    health: HealthService
+    indexes: IndexService
+    books: BookService
+    library: LibraryService
+    resets: ResetService
+    retrieval: RetrievalService
+    questions: QuestionAnsweringService
+    summaries: ChapterSummarizer
+
+
+def build_container(console_logs: bool = False) -> Container:
+    """Validate the configuration and wire the application together.
+
+    Args:
+        console_logs: also log to stdout, for a long-running server.
+    """
+    environment = EnvironmentSettings()
+    settings = load_settings(environment.config_dir)
+    configure_logging(
+        environment.log_level, settings.logging.inference_level, environment.logs_dir, console=console_logs
+    )
+    return assemble(settings, environment)
+
+
+def assemble(
+    settings: Settings, environment: EnvironmentSettings, collection_prefix: str = COLLECTION_PREFIX
+) -> Container:
+    """Wire the application together for given settings.
+
+    Benchmarks build several of these, each over its own data directory and collection prefix,
+    so that nothing they do can reach the real library.
+
+    Args:
+        settings: the configuration.
+        environment: the services and directories.
+        collection_prefix: what this library's ChromaDB collections start with.
+    """
+    runtime = OllamaRuntime(environment.ollama_base_url, settings.ollama.request_timeout_seconds)
+    chroma = ChromaServer(environment.chroma_host, environment.chroma_port)
+    root = environment.data_dir
+    catalog = BookCatalog(root / "metadata" / "catalog.db")
+    processed = ProcessedDocuments(root / "processed")
+    data = LibraryData(
+        catalog=catalog,
+        originals=OriginalDocuments(root / "original_books", root / "archive"),
+        processed=processed,
+        summaries=SummaryDocuments(root / "summaries"),
+        server=chroma,
+        collection_prefix=collection_prefix,
+    )
+    guard = LibraryGuard(root / "metadata" / "library.lock", data)
+    indexes = IndexService(settings, catalog, chroma, runtime, collection_prefix)
+    ingestion = IngestionService(
+        settings=settings,
+        pipeline=build_pipeline(settings),
+        processed=processed,
+        embedder=create_embedding_provider(settings, runtime),
+        runtime=runtime,
+    )
+    retrieval = RetrievalService(settings, catalog, indexes, processed, CrossEncoderReranker(settings.reranker))
+    llm = create_llm_provider(settings, runtime)
+    summarizer = ChapterSummarizer(settings, llm, catalog, processed, data.summaries, retrieval)
+    return Container(
+        settings=settings,
+        environment=environment,
+        runtime=runtime,
+        health=HealthService(settings, runtime, chroma, indexes),
+        indexes=indexes,
+        books=BookService(data, guard, ingestion, indexes, settings.uploads.max_size_mb * 2**20),
+        library=LibraryService(data, guard, ingestion, indexes, summarizer),
+        resets=ResetService(data, guard),
+        retrieval=retrieval,
+        questions=QuestionAnsweringService(settings, retrieval, llm),
+        summaries=summarizer,
+    )
+
+
+def build_pipeline(settings: Settings) -> IngestionPipeline:
+    """Build the ingestion pipeline the configuration describes."""
+    counter = create_token_counter(settings.embedding_profile.tokenizer)
+    return IngestionPipeline(
+        loaders=_build_loaders(settings),
+        normalizer=Normalizer(settings.normalization),
+        chunker=Chunker(settings.chunking, counter),
+        supported_languages=settings.languages.supported,
+    )
+
+
+def _build_loaders(settings: Settings) -> dict[DocumentFormat, DocumentLoader]:
+    pdf = settings.pdf
+    if pdf.extractor == "docling":
+        pdf_loader: DocumentLoader = DoclingLoader(ocr=pdf.ocr.enabled)
+    else:
+        pdf_loader = PdfLoader(pdf, ocr_loader=DoclingLoader(ocr=True) if pdf.ocr.enabled else None)
+    return {
+        DocumentFormat.PDF: pdf_loader,
+        DocumentFormat.EPUB: EpubLoader(),
+        DocumentFormat.MARKDOWN: MarkdownLoader(),
+    }

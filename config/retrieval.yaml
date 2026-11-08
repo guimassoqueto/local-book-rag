@@ -1,0 +1,25 @@
+retrieval:
+  # dense, bm25 or hybrid
+  strategy: hybrid
+
+  dense:
+    top_k: 15
+
+  bm25:
+    top_k: 15
+    k1: 1.5
+    b: 0.75
+    stemming: true
+
+  fusion:
+    # rrf merges ranks. weighted merges scores normalized within each list, by dense_weight.
+    method: rrf
+    rrf_k: 60
+    dense_weight: 0.5
+
+  # The reranker's model and device are in models.yaml.
+  reranker:
+    enabled: true
+
+    # Also how many passages a search returns when reranking is off.
+    top_k: 5
