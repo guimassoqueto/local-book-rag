@@ -263,7 +263,9 @@ docker compose exec app book-rag summarize book_001 4 --type comprehensive --sav
 
 The types (`brief`, `standard`, `comprehensive`, `analytical`) and their lengths are in
 `config/generation.yaml`. A saved summary goes to `data/summaries/<book_id>/`, with a JSON
-file saying how it was made.
+file saying how it was made. A summary is in the book's language unless `--language` names another,
+and its section headings are given to the model already in that language: asked to translate
+them, `qwen3.5` kept the English ones.
 
 Summaries don't use retrieval to pick their material: the top passages for "summarize this"
 would leave out most of a chapter. Every chunk goes through map-reduce instead:
@@ -275,7 +277,8 @@ would leave out most of a chapter. Every chunk goes through map-reduce instead:
    in two halves. This is what makes the coverage figure mean something: `chunks_covered`
    counts chunks in steps that finished.
 4. Partial summaries are sized to fit the final prompt together. Very long chapters merge
-   them first, a few at a time.
+   them first, a few at a time. Models overrun the length they are given, `gpt-oss` by twice,
+   so a round of merges that barely condenses asks the next one for half as much.
 
 Citations in a summary are computed, not claimed. Models don't carry source tags through
 several rounds of summarizing: `gpt-oss` was seen numbering them upward, `[S1] [S2] [S3]`,
@@ -350,7 +353,7 @@ setting its reasoning. A metric the judge can't produce is left out and counted,
 its reasoning, check first that it can still separate cases whose answer is known: see "A judge has
 to prove itself" in `docs/decisions.md`.
 
-Scoring is slow: about 30 s per answer for the three RAGAS metrics, and about a minute per
+Scoring is slow: about 35 s per answer for the three RAGAS metrics, and about a minute per
 chapter for the rubric and key points. A full `generation` run takes hours, so `LIMIT` exists for a
 first look.
 
