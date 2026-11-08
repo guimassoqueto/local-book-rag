@@ -1,0 +1,77 @@
+# Tags and releases every merge into main. main takes no direct pushes (ruleset
+# protect-main), so each push here is a merged pull request.
+#
+# Commitizen reads the conventional commits since the last v* tag and picks the bump:
+#   fix / perf            -> patch
+#   feat                  -> minor
+#   feat! / BREAKING CHANGE footer -> major
+# A merge holding only docs, chore, ci, test, refactor, style or build commits releases
+# nothing. The version lives in the tags only: pyproject.toml's version is not bumped,
+# since nothing (this workflow included) can push a commit to main.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+# Two quick merges must not both tag from the same last version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # Same version as the commit-msg hook in .pre-commit-config.yaml.
+  COMMITIZEN_VERSION: "4.19.3"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Commitizen needs every commit and tag since the last release.
+          fetch-depth: 0
+
+      - name: Install commitizen
+        run: pipx install "commitizen==${COMMITIZEN_VERSION}"
+
+      - name: Work out the next version
+        id: version
+        run: |
+          set +e
+          next=$(cz bump --get-next --yes)
+          status=$?
+          set -e
+          # 21 is NO_COMMITS_TO_BUMP: nothing since the last tag warrants a release.
+          if [ "$status" -eq 21 ]; then
+            echo "::notice::No feat, fix or breaking change since the last tag: nothing to release."
+            exit 0
+          fi
+          if [ "$status" -ne 0 ]; then
+            echo "$next"
+            exit "$status"
+          fi
+          if ! [[ "$next" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::commitizen answered '$next', not a version."
+            exit 1
+          fi
+          echo "tag=v$next" >> "$GITHUB_OUTPUT"
+
+      - name: Tag and publish the release
+        if: steps.version.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG"
+          # The changes grouped by type; the release title already names the version.
+          cz changelog "$TAG" --dry-run | tail -n +2 > "$RUNNER_TEMP/notes.md"
+          git push origin "$TAG"
+          # GitHub appends the merged pull requests and the compare link.
+          gh release create "$TAG" --verify-tag --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md" --generate-notes

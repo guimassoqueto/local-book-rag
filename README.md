@@ -35,6 +35,15 @@ newline, `ruff check --fix`, `ruff format`) and re-stages the fixes, so the comm
 fails on issues that cannot be fixed automatically. The commit message must be a
 conventional commit (`feat: ...`, `chore: ...`) with a header of at most 72 characters.
 
+`main` takes no direct or force pushes, admins included: changes land through pull requests,
+whose title must be a conventional commit too (`pr-title` workflow), since a squash merge
+commits it. Each merge into `main` runs the `release` workflow: commitizen reads the commits
+since the last `v*` tag and picks the bump (`fix`/`perf` patch, `feat` minor, `feat!` or a
+`BREAKING CHANGE` footer major), then the workflow pushes the tag and publishes a GitHub
+release with the changes grouped by type. A merge of only `docs`, `chore`, `ci`, `test` or
+`refactor` commits releases nothing. The version lives in the tags: `pyproject.toml`'s
+`version` is not bumped, since nothing can push the commit that would bump it.
+
 ## Running
 
 ```bash
