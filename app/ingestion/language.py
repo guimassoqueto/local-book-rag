@@ -19,6 +19,11 @@ def normalize_language(code: str) -> str:
     return code.replace("_", "-").split("-")[0].strip().lower()
 
 
+def language_name(code: str) -> str | None:
+    """Name a language for a prompt. Told "Write in pt", gpt-oss summarized Portuguese in English."""
+    return _NAMES.get(normalize_language(code))
+
+
 def detect_language(text: str) -> str:
     """Identify the language of a text, from a sample of it. The result is deterministic."""
     return py3langid.classify(text[:_SAMPLE_CHARACTERS])[0]

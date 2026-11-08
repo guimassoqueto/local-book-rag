@@ -1,4 +1,6 @@
-from app.ingestion.language import question_language
+import pytest
+
+from app.ingestion.language import language_name, question_language
 
 
 def test_a_question_is_named_in_its_language():
@@ -13,3 +15,10 @@ def test_no_language_is_named_when_it_would_be_a_guess():
 
 def test_a_language_without_a_name_here_is_left_to_the_model():
     assert question_language("Wat zegt Mill over de vrijheid van meningsuiting?") is None
+
+
+@pytest.mark.parametrize(
+    ("code", "name"), [("pt", "Portuguese"), ("pt-BR", "Portuguese"), ("en", "English"), ("nl", None)]
+)
+def test_a_book_language_is_named_for_prompts(code, name):
+    assert language_name(code) == name

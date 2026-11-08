@@ -461,7 +461,10 @@ def test_the_language_can_be_chosen(settings, catalog, tmp_path):
         "book_001", 4, "standard", language="Portuguese"
     )
 
-    assert "Write in Portuguese" in llm.calls[-1][0][0].content
+    system, user = llm.calls[-1][0]
+    assert "Write in Portuguese" in system.content
+    assert "## Visão geral do capítulo" in user.content  # asked to translate them, qwen3.5 didn't
+    assert "## Chapter overview" not in user.content
 
 
 def test_the_book_language_is_the_default(settings, catalog, tmp_path):
@@ -469,7 +472,21 @@ def test_the_book_language_is_the_default(settings, catalog, tmp_path):
 
     summarizer(settings, llm, catalog, chapter(2, words=100), tmp_path).summarize("book_001", 4, "standard")
 
-    assert "Write in en" in llm.calls[-1][0][0].content
+    assert "Write in English" in llm.calls[-1][0][0].content
+
+
+def test_a_book_language_without_a_name_falls_back_to_the_text(settings, catalog, tmp_path):
+    # Told "Write in pt", gpt-oss and qwen3.5 summarized Portuguese chapters in English.
+    catalog.update("book_001", language="nl")
+    llm = FakeLLM([FINAL])
+
+    summarizer(settings, llm, catalog, chapter(2, words=100), tmp_path).summarize("book_001", 4, "standard")
+
+    system, user = llm.calls[-1][0]
+    assert "Write in the language of the text" in system.content
+    assert "Write in nl" not in system.content
+    assert "## Chapter overview" in user.content
+    assert "translated into the language of your reply" in user.content
 
 
 def test_claims_are_checked_when_that_is_enabled(settings, catalog, tmp_path):

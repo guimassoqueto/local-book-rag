@@ -126,6 +126,12 @@ worse: 32 of 90 answers came back in Spanish, French or German. Short questions 
 ambiguous to identify ("Explain recursion." reads as French), so below a confidence of 0.5 the
 general rule stays.
 
+**Summaries name their language, and show their headings in it.** A book stores its language as a
+code, and the summary prompts passed it on as one: told "Write in pt", `gpt-oss` and `qwen3.5`
+summarized both Portuguese chapters of the benchmark in English. Named, the language came out right.
+`qwen3.5` still copied the English headings it was asked to translate, even with the language
+named, so the headings are listed already translated, for the six languages the interface offers.
+
 **The no-evidence marker is matched with any dash.** `gpt-oss` writes some hyphens as the
 non-breaking hyphen, U+2011, and did so in the marker in 2 of 360 answers. Unrecognized, the
 abstention was shown as an answer, with the marker in its first line.

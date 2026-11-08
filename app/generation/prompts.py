@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from app.generation.base import Message
 from app.ingestion.chunker import Chunk
-from app.ingestion.language import question_language
+from app.ingestion.language import language_name, question_language
 
 NO_EVIDENCE_MARKER = "[NO-EVIDENCE]"
 
@@ -44,15 +44,7 @@ cut examples and details until it fits.
 
 _FINAL_INSTRUCTIONS = """Write the final summary of the chapter "{chapter}" of "{book}", from the material below.
 
-Use exactly these sections, as Markdown headings, translated into the language of your reply:
-
-## Chapter overview
-## Main thesis
-## Main arguments
-## Important concepts and definitions
-## Supporting examples
-## Relationships between concepts
-## Important conclusions
+{sections}
 
 {style}
 
@@ -83,11 +75,85 @@ def _language_rule(language: str | None) -> str:
     return "Write your reply in the language of the question, whatever the language of the passages."
 
 
+def _summary_language(language: str | None, book_language: str | None) -> str | None:
+    """The language chosen, or the book's. A book stores its language as a code, to be named."""
+    return language or (language_name(book_language) if book_language else None)
+
+
 def _summary_language_rule(language: str | None, book_language: str | None) -> str:
-    target = language or book_language
-    if target:
-        return f"Write in {target}."
+    if target := _summary_language(language, book_language):
+        return f"Write in {target}, whatever the language of the text."
     return "Write in the language of the text."
+
+
+# Shown in the reply's language: asked to translate them, qwen3.5 copied the English headings
+# into Portuguese summaries, even with the language named.
+_SECTIONS = {
+    "English": (
+        "Chapter overview",
+        "Main thesis",
+        "Main arguments",
+        "Important concepts and definitions",
+        "Supporting examples",
+        "Relationships between concepts",
+        "Important conclusions",
+    ),
+    "Portuguese": (
+        "Visão geral do capítulo",
+        "Tese principal",
+        "Argumentos principais",
+        "Conceitos e definições importantes",
+        "Exemplos de apoio",
+        "Relações entre conceitos",
+        "Conclusões importantes",
+    ),
+    "Spanish": (
+        "Visión general del capítulo",
+        "Tesis principal",
+        "Argumentos principales",
+        "Conceptos y definiciones importantes",
+        "Ejemplos de apoyo",
+        "Relaciones entre conceptos",
+        "Conclusiones importantes",
+    ),
+    "French": (
+        "Vue d'ensemble du chapitre",
+        "Thèse principale",
+        "Arguments principaux",
+        "Concepts et définitions importants",
+        "Exemples à l'appui",
+        "Relations entre les concepts",
+        "Conclusions importantes",
+    ),
+    "German": (
+        "Überblick über das Kapitel",
+        "Hauptthese",
+        "Hauptargumente",
+        "Wichtige Begriffe und Definitionen",
+        "Belegende Beispiele",
+        "Beziehungen zwischen den Begriffen",
+        "Wichtige Schlussfolgerungen",
+    ),
+    "Italian": (
+        "Panoramica del capitolo",
+        "Tesi principale",
+        "Argomenti principali",
+        "Concetti e definizioni importanti",
+        "Esempi a sostegno",
+        "Relazioni tra i concetti",
+        "Conclusioni importanti",
+    ),
+}
+
+
+def _sections(language: str | None) -> str:
+    """The required sections, in the reply's language when they are known in it."""
+    if language in _SECTIONS:
+        headings = "\n".join(f"## {heading}" for heading in _SECTIONS[language])
+        return f"Use exactly these sections, as Markdown headings:\n\n{headings}"
+    headings = "\n".join(f"## {heading}" for heading in _SECTIONS["English"])
+    instruction = "Use exactly these sections, as Markdown headings, translated into the language of your reply"
+    return f"{instruction}:\n\n{headings}"
 
 
 def _describe(chunk: Chunk) -> str:
@@ -148,7 +214,12 @@ def final_summary_messages(
 ) -> list[Message]:
     system = _SUMMARY_SYSTEM.format(language_rule=_summary_language_rule(language, book_language))
     user = _FINAL_INSTRUCTIONS.format(
-        book=book, chapter=chapter, material=material, target_words=target_words, style=style
+        book=book,
+        chapter=chapter,
+        material=material,
+        target_words=target_words,
+        style=style,
+        sections=_sections(_summary_language(language, book_language)),
     )
     return [Message("system", system), Message("user", user)]
 
