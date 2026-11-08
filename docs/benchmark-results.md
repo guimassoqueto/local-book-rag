@@ -223,6 +223,9 @@ would cost.
   nothing normalizes historical spelling.
 - **Abstention quality counts the marker**, so an honest "the text doesn't say" without it counts
   as an answer.
+- **Each question searches only its own book.** Asked of the whole library after these runs,
+  gpt-oss answered a trap it had refused in the benchmark, naming the daughter of Maria Benedicta
+  "D. Fernanda", with a citation of a chapter that doesn't say so.
 - **Six chapters** are too few for the summary rubric to separate models, and coverage favors
   longer summaries.
 - **A summary's "References" heading is always in English.**
