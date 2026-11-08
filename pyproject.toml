@@ -120,6 +120,9 @@ indent-style = "space"
 name = "cz_conventional_commits"
 tag_format = "v$version"
 version_scheme = "semver"
+# The version lives in the git tags, which the release workflow creates on every merge
+# into main (main takes no direct pushes, so no workflow can commit a version bump).
+version_provider = "scm"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
