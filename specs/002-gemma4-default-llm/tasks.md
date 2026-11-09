@@ -309,10 +309,11 @@ All in `devtools/default_llm.py`, one after another.
     - `default_llm_probe_smoke_20261109T041047009259Z`: 1 warm-up, 2 whole-library and 4
       marker replies per model, no errors, every wait timed;
     - `data/metadata/catalog.db` unchanged.
-- [ ] T017 [US1] Commit T002 to T016 as `chore: add the default LLM confirmation's tooling`.
+- [X] T017 [US1] Commit T002 to T016 as `chore: add the default LLM confirmation's tooling`.
   - `git diff a647e1a -- app config` must be empty (FR-004).
   - Note the commit's hash: it goes into `verdict.md` with `--commit`.
-- [ ] T018 [US1] Run the generation confirmation, about 2 h, as in [quickstart.md](quickstart.md)
+  - **Done 2026-11-09**: `f6f53a8`, with `git diff a647e1a -- app config` empty.
+- [X] T018 [US1] Run the generation confirmation, about 2 h, as in [quickstart.md](quickstart.md)
   step 1:
   1. `dl preflight` against the generation reference, which must exit 0;
   2. then `make benchmark EXPERIMENT=default_llm_generation`;
@@ -321,7 +322,10 @@ All in `devtools/default_llm.py`, one after another.
   If preflight says `DIFFERS`, stop, and amend the spec with the versions used before the run
   (spec, Edge Cases). Check that `complete` is true, with 90 rows per variant. If the run doesn't
   complete, replace it once (FR-005).
-- [ ] T019 [US1] Run the summarization confirmation, about 25 min, as in quickstart step 2:
+  - **Done 2026-11-09**: preflight `ok` on every line, then
+    `default_llm_generation_20261109T041359173775Z`, `complete: true`, 90 rows per variant. The
+    report was read only for completeness: the verdict reads it in T023.
+- [X] T019 [US1] Run the summarization confirmation, about 25 min, as in quickstart step 2:
   1. `dl preflight`;
   2. then `dl summarize benchmarks/experiments/default_llm_summarization.yaml`, without
      `--limit`.
@@ -329,18 +333,42 @@ All in `devtools/default_llm.py`, one after another.
   Check:
   - `complete` is true, with 6 rows per variant and none `failed`;
   - `prompts.jsonl` holds every inference of both variants, and no judge inference.
-- [ ] T020 [US1] Run `dl probe --workspace 71026d902d`, about 20 min, as in quickstart step 3.
+  - **Done 2026-11-09**: preflight `ok` on every line, then
+    `default_llm_summarization_20261109T060210125028Z`, `complete: true`, 6 rows per variant,
+    none failed.
+    - `prompts.jsonl`: 50 lines, 29 from gpt-oss:20b under its variant and 21 from gemma4:12b
+      under its own, so none of them is the judge's.
+    - gpt-oss's `prompt_tokens − estimate_tokens` is 75 on every line. gemma4's runs from −40
+      to +277.
+    - Four gpt-oss map steps stopped at `length`, at 900 tokens: one in "Fruitful functions",
+      three in "Inheritance". These go to the reading (T022).
+- [X] T020 [US1] Run `dl probe --workspace 71026d902d`, about 20 min, as in quickstart step 3.
   Check:
   - `probe.jsonl` has, per model, 1 `warmup`, 6 `whole_library`, 60 `marker` and 1 `analytical`
     line;
   - `environment.json` says `complete: true`;
   - `git status` shows nothing changed in `data/`.
-- [ ] T021 [US1] Run `dl packets` with the directories from T018 to T020, and with `--earlier`
+  - **Done 2026-11-09**: `default_llm_probe_20261109T062308173324Z`, `complete: true`, with the
+    same digests as preflight.
+    - Per model, 1 `warmup`, 6 `whole_library`, 60 `marker` and 1 `analytical` line, none with
+      an error. Every wait is timed except the warm-ups', which aren't by design.
+    - `git status` shows nothing in `data/`, and `data/metadata/catalog.db` keeps its
+      modification time of 2026-11-07 09:42:29.
+- [X] T021 [US1] Run `dl packets` with the directories from T018 to T020, and with `--earlier`
   `benchmarks/results/summarization_20261108T170744515174Z` and
   `benchmarks/results/summarization_20261108T213459590645Z`, as in quickstart step 4.
   - Copy its `reading.skeleton.yaml` to `specs/002-gemma4-default-llm/reading.yaml`.
   - Note any packet that reports rebuilt passages differing from its row.
-- [ ] T022 [US1] Do the reading. Read every packet against its passages or chapter, and fill
+  - **Done 2026-11-09**: `default_llm_reading_20261109T064021244039Z`.
+    - 15 multi-section packets, 5 summary packets and `probe.md`.
+    - No packet reports rebuilt passages that differ from its row.
+    - The skeleton has 50 entries:
+      - 30 answers;
+      - 10 summaries: two chapters from the confirmation, where gemma4 scored 0.5 or lower on
+        factual consistency, and three from the earlier runs;
+      - 2 `analytical` summaries;
+      - 8 probe replies, all gemma4's. None of gpt-oss's 60 marker replies is shown as an answer.
+- [X] T022 [US1] Do the reading. Read every packet against its passages or chapter, and fill
   `specs/002-gemma4-default-llm/reading.yaml`.
   - **Errors**: for each entry, list the FR-006 error kinds found, each with a `note` that says
     where, such as the passage or sentence.
@@ -350,9 +378,34 @@ All in `devtools/default_llm.py`, one after another.
     same standard.
   - **Where the reading departs from the judge's score**: note it, since the score still decides
     (spec, Edge Cases).
-- [ ] T023 [US1] Run `uv run python devtools/default_llm.py verdict … --integration pending
+  - **Done 2026-11-09**: every entry has a note. The file's header says how it was read.
+    - **Summaries**: only unsupported claims and misattributions are counted. Their citations
+      come from the application's lookup, not from the model (constitution VII).
+    - **gemma4-only errors**: one, an `unanswered_part` in `on_liberty_multi_section_02`, and a
+      borderline one.
+    - **The 8 probe replies**: all abstain, without the marker. Four were written in Portuguese
+      instead of the Spanish or French asked for. Two make side claims the book doesn't support.
+    - **Where the reading departs from the judge**: in several places, noted entry by entry.
+      - gemma4's 0.5 for factual consistency on the summaries isn't borne out by what the
+        reading found.
+      - gpt-oss scored 1.000 on summaries with unsupported claims.
+- [X] T023 [US1] Run `uv run python devtools/default_llm.py verdict … --integration pending
   --commit <T017's hash>`, as in quickstart step 5. Commit `reading.yaml` and `verdict.md` as
   `docs: record the default LLM confirmation's reading and verdict`.
+  - **Done 2026-11-09**: **keep gpt-oss:20b**, since (b) and (d) failed.
+    - **(a) passed**: nothing gated is worse.
+    - **(b) failed**: the summary speed wins don't repeat with an interval excluding zero:
+      −13.5 s (−33.4 to +2.1) and −1.33 steps (−3.33 to +0.000).
+    - **(c) passed**: one gemma4-only error, against a threshold of 3.
+    - **(d) failed**: 8 unrecognized abstentions for gemma4 and 0 for gpt-oss (Spanish 2, French 2,
+      German 4).
+    - **(e)**: not run.
+  - **The tool's rendering, fixed before this verdict was written**:
+    - `render_verdict` printed an unrun (e) as "Failed: pending", and named it among the failed
+      conditions. contracts/records.md says it is `pending`, and that the verdict names the
+      conditions that failed.
+    - The fix and its test are in their own commit. `decide` and the rule are unchanged, and the
+      runs started from `f6f53a8`.
 
 **Checkpoint**: `verdict.md` gives (a) to (d).
 - **If any failed**, the verdict is "keep gpt-oss:20b": skip Phase 4, and go to Phase 5.
@@ -364,6 +417,9 @@ All in `devtools/default_llm.py`, one after another.
 
 **Only if T023's verdict is "pending".** This phase applies the switch, and its integration run is
 condition (e). If (e) fails, T034 reverts it.
+
+**Skipped, 2026-11-09**: T023's verdict is "keep gpt-oss:20b", since (b) and (d) failed. T024 to
+T034 stay unchecked, because none of them ran.
 
 **Goal**: gemma4:12b answers and summarizes by default, gpt-oss:20b stays the judge, and
 `pull-models --all` is the checked, documented way to get the judge.
