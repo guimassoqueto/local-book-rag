@@ -96,7 +96,8 @@ uv run python devtools/default_llm.py verdict \
   --generation benchmarks/results/default_llm_generation_<stamp> \
   --summarization benchmarks/results/default_llm_summarization_<stamp> \
   --probe benchmarks/results/default_llm_probe_<stamp> \
-  --reading specs/002-gemma4-default-llm/reading.yaml --integration pending
+  --reading specs/002-gemma4-default-llm/reading.yaml --integration pending \
+  --commit <the tooling commit's hash>
 ```
 
 **Expect**: `verdict.md` with each condition's numbers.
