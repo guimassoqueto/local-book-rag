@@ -519,7 +519,7 @@ is, which runs chose it, and why. `docs/benchmark-results.md` holds the confirma
 chose it, and why (SC-005). On a "keep", `git diff a647e1a -- app config tests` shows only
 `tests/unit/test_default_llm_devtool.py` (FR-016).
 
-- [ ] T035 [P] [US2] In `docs/decisions.md`, add an entry to the Generation section, in the file's
+- [X] T035 [P] [US2] In `docs/decisions.md`, add an entry to the Generation section, in the file's
   style (a bold sentence, then why), headed **The default LLM is chosen by a rule fixed before its
   runs.** It covers:
   - **The default**: gemma4:12b or gpt-oss:20b, as `verdict.md` says.
@@ -536,7 +536,7 @@ chose it, and why (SC-005). On a "keep", `git diff a647e1a -- app config tests` 
       fingerprint;
     - the judge brought by `pull-models --all`.
   - **On a "keep"**: which conditions failed, and what would reopen the question.
-- [ ] T036 [P] [US2] In `docs/benchmark-results.md`, add a section `## Default LLM` before
+- [X] T036 [P] [US2] In `docs/benchmark-results.md`, add a section `## Default LLM` before
   Recommendations. It records:
   - T017's commit;
   - the dates, the Ollama version and the digests;
@@ -557,16 +557,22 @@ chose it, and why (SC-005). On a "keep", `git diff a647e1a -- app config tests` 
     - on a "keep", the gemma4 item points to the reason in `docs/decisions.md`.
   - **Reproducing**: add the two confirmation experiments, and the script's subcommands from
     [quickstart.md](quickstart.md).
-- [ ] T037 [US2] Under `verdict.md`'s Follow-ups, list every failure the reading or the probe found
+- [X] T037 [US2] Under `verdict.md`'s Follow-ups, list every failure the reading or the probe found
   that needs a prompt or parser change, such as footnote markers cited as sources, or the marker in
   a language it isn't recognized in. Give each one a line to become its own `fix/` or `feat/`
   branch. Fix none of them here (SC-006).
-- [ ] T038 [US2] Check this story's independent test:
+- [X] T038 [US2] Check this story's independent test:
   - SC-005, by reading `docs/decisions.md` alone;
   - on a "keep", FR-016, with `git diff a647e1a -- app config tests`;
   - on a switch, that the diff in `app/` is only T027 and T030.
 
   Commit T035 to T037 as `docs: record the default LLM and why`.
+  - **Done 2026-11-09**:
+    - **SC-005**: the entry in `docs/decisions.md` names the default, the two runs and their
+      commit, and how each condition came out.
+    - **FR-016**: `git diff a647e1a -- app config tests` shows only
+      `tests/unit/test_default_llm_devtool.py`, the script's own tests.
+    - **FR-017**: nothing touched the embedding model, chunking or the index.
 
 **Checkpoint**: both outcomes are recorded where constitution VIII asks.
 

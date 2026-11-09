@@ -78,4 +78,35 @@ pending
 
 ## Follow-ups
 
-_Added by hand after the verdict._
+_Added by hand after the verdict._ Each is its own branch, and none is fixed here (SC-006). The
+first is what blocked gemma4:12b. The others hold whichever model is the default.
+
+- **`fix/unmarked-abstentions`**: gemma4:12b abstains without the no-evidence marker when it
+  explains what the passages do say. The application then shows the abstention as an answer.
+  - **In the probe**: 8 of its 60 replies (Spanish 2, French 2, German 4), against 0 of
+    gpt-oss:20b's 60.
+  - **In the generation run**: `quincas_borba_unanswerable_01`, in Portuguese, and
+    `on_liberty_multi_section_01`, in English.
+  - **The fix**: either a prompt that keeps the marker in that form of reply, or a parser that
+    recognizes it, checked on the real models in every interface language. The generation
+    benchmark's abstention quality would show it.
+  - **It is what reopens this verdict's (d).**
+- **`fix/answer-language-setting`**: gemma4:12b doesn't always follow the answer-language setting.
+  - Asked for Spanish, French, German or Italian on a Portuguese question, it answered 14 of its
+    60 probe replies in Portuguese and 1 in English. gpt-oss:20b answered 1 of 60 in English.
+  - The generation benchmark doesn't measure the setting, only the question's own language.
+- **`feat/editor-introduction-passages`**: *On Liberty*'s introduction, by W. L. Courtney, is
+  split into chapters titled "INTRODUCTION. I.", "II." and "III.".
+  - So its passages reach the model as "III.", with nothing saying they aren't Mill's.
+  - gpt-oss:20b credited them to Mill in `on_liberty_multi_section_04` and `_05`, concluding that
+    Mill rests on a social contract and accepts punishing "anti-social" opinions. gemma4:12b did
+    so in `_05`.
+  - The passage heading, or the chapter titles, should name the editor's text as such.
+- **`fix/summary-judge-consistency`**: the summary judge's factual consistency disagrees with the
+  reading in both directions:
+  - gemma4:12b got 0.5 on four Think Python summaries where the reading found no unsupported claim
+    or misattribution.
+  - gpt-oss:20b got 1.0 on two summaries where it found several, its "Fruitful functions" and On
+    Liberty chapter II.
+  - Constitution VI asks the judge to prove itself again on known-answer cases before its scores
+    decide the next comparison of summaries.
