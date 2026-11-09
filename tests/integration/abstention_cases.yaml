@@ -1,0 +1,534 @@
+# Real replies, labeled by reading them, that the abstention check is proved on
+# (.specify/bugs/unmarked-abstentions). test_generation.py has each read by the model that
+# wrote it, when that model's profile in config/models.yaml sets check_abstentions. The others
+# are kept for the record, and the fix report says how the checked models read them.
+#
+# - abstention: says the passages don't contain what was asked, without the no-evidence marker.
+# - answer: gives what was asked, or some of it when it asks for several things, even when it
+#   also says what is missing, or answers with a negation. Some are wrong, but they are answers.
+# - ambiguous: could be read either way. Kept for the record, and not scored.
+#
+# Trailing spaces were removed from the replies' lines; nothing else was changed.
+
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 06:23Z, quincas_borba_unanswerable_01 in French
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar por demência?
+  reply: A denúncia de que Quincas Borba não poderia testar devido a uma manifesta demência foi feita
+    por "alguém" [1]. O texto não identifica a pessoa específica que realizou a denúncia.
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 06:23Z, quincas_borba_unanswerable_01 in German
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar por demência?
+  reply: Die Passagen enthalten keine Informationen darüber, wer die Denunziation gegen das Testament
+    von Quincas Borba eingereicht hat; es wird lediglich erwähnt, dass die Denunziation von „jemandem“
+    (*alguem*) erfolgte [1].
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 06:23Z, quincas_borba_unanswerable_02 in Spanish
+  question: Como se chamava a mãe de Rubião?
+  reply: |-
+    As passagens fornecidas não mencionam o nome da mãe de Rubião.
+
+    O texto [1] menciona que a mãe de Sophia (com quem Rubião estava no carro) era uma "santa senhora" e que os escravos lhe davam o nome de "Sinhá Mãe", mas não fornece o nome da mãe de Rubião.
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 06:23Z, quincas_borba_unanswerable_02 in French
+  question: Como se chamava a mãe de Rubião?
+  reply: |-
+    Os passagens fornecidas não mencionam o nome da mãe de Rubião.
+
+    No capítulo CLII, Rubião refere-se a ela como uma "santa senhora" e afirma que ela "deve estar no céu" [1], mas não fornece o nome dela.
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 06:23Z, quincas_borba_unanswerable_02 in German
+  question: Como se chamava a mãe de Rubião?
+  reply: |-
+    Die Passagen enthalten keine Informationen darüber, wie die Mutter von Rubião hieß.
+
+    In Passage [1] wird zwar erwähnt, dass Rubião für seine Mutter betet, die im Himmel sei, und dass sie eine "heilige Frau" war, aber ihr Name wird nicht genannt.
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 06:23Z, quincas_borba_unanswerable_03 in Spanish
+  question: Em qual cidade de Alagoas ocorreu a epidemia que levou Sofia a organizar a comissão de senhoras?
+  reply: As passagens fornecidas não mencionam o nome da cidade específica em Alagoas onde ocorreu a epidemia;
+    elas indicam apenas que a epidemia ocorreu "n'uma cidade das Alagoas" [1].
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 06:23Z, quincas_borba_unanswerable_03 in German
+  question: Em qual cidade de Alagoas ocorreu a epidemia que levou Sofia a organizar a comissão de senhoras?
+  reply: Die Texte enthalten keine Informationen darüber, in welcher spezifischen Stadt in Alagoas die
+    Epidemie ausbrach. Es wird lediglich erwähnt, dass die Epidemie in einer Stadt in Alagoas stattfand
+    [1][2].
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 06:23Z, quincas_borba_unanswerable_05 in German
+  question: Por qual meio de transporte Rubião viajou do Rio de Janeiro a Barbacena depois de deixar a
+    casa de saúde?
+  reply: |-
+    Die Passagen enthalten keine Informationen darüber, mit welchem Transportmittel Rubião vom Rio de Janeiro nach Barbacena gereist ist, nachdem er das Sanatorium verlassen hatte.
+
+    In Passage [4] wird erwähnt, dass Rubião in einer **Tilbury** (einer Kutsche) reiste, während er sich an der Küste befand, aber es wird nicht spezifiziert, ob dies die Reise von Rio nach Barbacena war. In Passage [3] wird lediglich erwähnt, dass er aus dem Sanatorium entlassen wurde und dass er Palha geschrieben hatte, um ihn zu bitten, ihn herauszuholen.
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 14:34Z, first rewording, quincas_borba_unanswerable_01 in Spanish
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar por demência?
+  reply: A denúncia de que Quincas Borba não poderia testar por manifesta demência foi feita por "alguém"
+    [1]. O texto não identifica nominalmente a pessoa que realizou a denúncia.
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 14:34Z, first rewording, quincas_borba_unanswerable_01 in German
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar por demência?
+  reply: Die Passagen enthalten keine Informationen darüber, wer die Denunziation gegen das Testament
+    von Quincas Borba eingereicht hat; es wird lediglich erwähnt, dass die Denunziation von „jemandem“
+    (*alguem*) eingereicht wurde [1].
+- label: abstention
+  model: gemma4:12b
+  source: the probe of 2026-11-09 14:34Z, first rewording, quincas_borba_unanswerable_02 in German
+  question: Como se chamava a mãe de Rubião?
+  reply: |-
+    Die Passagen enthalten keine Informationen darüber, wie die Mutter von Rubião hieß.
+
+    In Kapitel CLII wird zwar erwähnt, dass Rubião für seine Mutter betet, die im Himmel sei, und dass sie eine "heilige Frau" war, aber ihr Name wird nicht genannt [1].
+- label: abstention
+  model: gpt-oss:20b
+  source: generation_20261108T175100527075Z, quincas_borba_unanswerable_01
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar por demência?
+  reply: A denúncia contra o testamento de Quincas Borba foi apresentada por **alguém** (o nome não é
+    especificado no texto). O relato indica que essa pessoa alegou que Quincas Borba, por manifesta demência,
+    não podia testar [1].
+  note: Reads like an answer, "by someone", but the question asks who.
+- label: abstention
+  model: gemma4:12b
+  source: generation_20261108T175100527075Z, quincas_borba_unanswerable_01
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar por demência?
+  reply: A denúncia de que Quincas Borba não poderia testar por manifesta demência foi dada por "alguém"
+    [1]. O texto não identifica nominalmente a pessoa que fez a denúncia.
+- label: abstention
+  model: qwen3.5:9b
+  source: generation_20261108T175100527075Z, quincas_borba_unanswerable_01
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar por demência?
+  reply: |-
+    Com base nos trechos fornecidos, **não é possível identificar quem apresentou a denúncia** especificamente.
+
+    O texto menciona o fato da denúncia e sua consequência, mas omite o nome do autor:
+
+    *   No Capítulo XXV, lê-se que houve "a denuncia dada por **alguem** contra o testamento, allegando que o Quincas Borba, por manifesta demencia, não podia testar" [1].
+    *   O texto confirma que a denúncia foi destruída e o inventário concluído, mas nunca revela o nome ou identidade da pessoa que a fez.
+
+    Portanto, as passagens não contêm informação suficiente para responder à pergunta sobre a identidade do denunciante.
+- label: abstention
+  model: qwen3.5:9b
+  source: generation_20261108T175100527075Z, quincas_borba_unanswerable_05
+  question: Por qual meio de transporte Rubião viajou do Rio de Janeiro a Barbacena depois de deixar a
+    casa de saúde?
+  reply: |-
+    Com base nos trechos fornecidos, não há informação explícita sobre o meio de transporte utilizado por Rubião para viajar do Rio de Janeiro até Barbacena após deixar a casa de saúde.
+
+    O texto menciona que Rubião escreveu uma carta datada do Rio de Janeiro enviada a Barbacena (passagem [5]), e também relata que ele estava em Barbacena oito dias antes de receber essa carta (passagem [3]). Além disso, há uma descrição de uma viagem de carroça (tilbury) pela praia, mas o contexto sugere que Rubião já estava no Rio de Janeiro ou indo para a praia local, e não especificamente descrevendo a jornada entre as duas cidades após sua saída da casa de saúde (passagem [4]).
+
+    Portanto, **não há evidência** nos trechos fornecidos sobre qual meio de transporte Rubião usou para essa viagem específica.
+- label: abstention
+  model: gemma4:12b
+  source: generation_20261108T175100527075Z, on_liberty_multi_section_01
+  question: When Mill first defines the sphere of conduct that concerns only oneself, he admits that such
+    conduct may affect others through the agent and promises to return to the objection. How does he finally
+    deal with it?
+  reply: |-
+    The provided passages do not contain information regarding how Mill finally deals with the objection that conduct affecting oneself may also affect others through the agent.
+
+    While Mill acknowledges this contingency and states that the objection "will receive consideration in the sequel" [1], the provided text ends before that specific consideration is detailed.
+  note: 'Answerable, but retrieval missed the evidence: abstaining is right.'
+- label: abstention
+  model: qwen3.5:9b
+  source: generation_20261108T175100527075Z, quincas_borba_conceptual_05
+  question: Qual é a ironia da morte de Rubião, que 'não morreu súdito nem vencido', à luz da fórmula
+    'ao vencedor, as batatas'?
+  reply: |-
+    Com base nos trechos fornecidos, não há evidência direta sobre a causa exata da morte de Rubião ou sobre o fato específico de ele ter morrido "nem súdito nem vencido". Os textos descrevem a formulação e a compreensão da frase "Ao vencedor, as batatas" por Rubião, mas não detalham os eventos finais da sua vida.
+
+    O que os trechos revelam é:
+    *   A origem da frase como uma alegoria sobre a luta entre tribus famintas, onde o vencedor tem direito às batatas (o alimento sólido e perpétuo), enquanto o perdedor consome raízes pobres [1][3].
+    *   Rubião compreende essa lógica quando percebe que, ao descer de Barbacena para a capital, ele se torna um "vencedor" e não mais um "exterminado", devendo ser "duro e implacável" [1][3].
+    *   Ele repete a frase em vários momentos: ao ver a rua sem noite nem água [2], ao capturar o rei da Prússia (com a intenção de exigir indenização ou fuzilá-lo) [4], e ao subir a rua de Tiradentes em Barbacena [5].
+    *   A narrativa sugere que Rubião internalizou a ideia de que "o melhor modo de apreciar o chicote é ter-lhe o cabo na mão" e que a paisagem depende do ponto de vista, transformando-se no vencedor da alegoria [1].
+
+    No entanto, os passages não contêm informações sobre como Rubião morreu ou sobre ele ter morrido especificamente sem ser súdito nem vencido. Portanto, não é possível responder à pergunta sobre a ironia específica da sua morte com base apenas nestes textos.
+  note: 'Answerable, but retrieval missed the evidence: abstaining is right.'
+- label: abstention
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in English, seed 7
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar?
+  reply: The passages provided do not specify who presented the denunciation against Quincas Borba's will;
+    they only state that "alguem" (someone) did so [1]. Therefore, the source does not contain enough
+    information to answer which specific person made the accusation.
+- label: abstention
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in Portuguese, seed 7
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar?
+  reply: O texto indica que houve uma "denuncia dada por alguem", mas não especifica quem foi essa pessoa
+    [1]. Portanto, as passagens fornecidas não contêm informação suficiente para responder à pergunta
+    sobre a identidade do denunciante.
+- label: abstention
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in Spanish, seed 7
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar?
+  reply: El pasaje indica que hubo una denuncia presentada contra el testamento de Quincas Borba, pero
+    no especifica quién la presentó. Solo menciona que fue "alguem" (alguien) [1]. Por lo tanto, el texto
+    no contiene suficiente información para identificar al autor de la denuncia.
+- label: abstention
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in French, seed 7
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar?
+  reply: Os passages indiquem que uma "denúncia dada por alguem" foi apresentada contra o testamento de
+    Quincas Borba, mas não especificam quem é essa pessoa [1]. Portanto, a fonte não contém informações
+    suficientes para responder à pergunta sobre a identidade do autor da denúncia.
+- label: abstention
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in German, seed 7
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar?
+  reply: |-
+    Die vorliegenden Abschnitte geben keine Auskunft darüber, wer genau die Denunziation gegen das Testament von Quincas Borba eingereicht hat. Der Text erwähnt zwar, dass eine solche Denunziation „von jemandem" (alguem) vorgelegt wurde [1], benennt aber nicht den Namen oder die Identität dieser Person.
+
+    Daher kann die Frage nach dem spezifischen Urheber der Denunziation mit den bereitgestellten Passagen nicht beantwortet werden.
+- label: abstention
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in Italian, seed 7
+  question: Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia
+    testar?
+  reply: Le passaggi forniti non indicano chi ha presentato la denuncia contro il testamento di Quincas
+    Borba; menzionano solo che una denuncia fu data da "alguem" (qualcuno) [1].
+- label: answer
+  model: gemma4:12b
+  source: chapter XXV alone, asked for an answer in English, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: A denúncia contra o testamento de Quincas Borba, que alegava que ele não poderia testar devido
+    a uma "manifesta demência", foi destruída [1]. O texto afirma que a denúncia foi dada por "alguém",
+    sem especificar a identidade da pessoa [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: gemma4:12b
+  source: chapter XXV alone, asked for an answer in Portuguese, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: A denúncia contra o testamento de Quincas Borba, que alegava que ele não poderia testar por manifesta
+    demência, foi destruída [1]. O texto afirma que a denúncia foi dada por "alguém", sem especificar
+    a identidade da pessoa [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: gemma4:12b
+  source: chapter XXV alone, asked for an answer in Spanish, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: A denúncia contra o testamento de Quincas Borba, que alegava que ele não podia testar por manifesta
+    demência, foi destruída [1]. O texto menciona que a denúncia foi dada por "alguém", não especificando
+    a identidade da pessoa [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: gemma4:12b
+  source: chapter XXV alone, asked for an answer in German, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: Die Denúncia wurde zerstört [1]. Die Passagen geben an, dass die Denúncia von jemandem eingereicht
+    wurde, der behauptete, dass Quincas Borba aufgrund offensichtiger Demenz nicht testieren könne [1].
+    Der Name der Person, die die Denúncia einreichte, wird im Text nicht genannt [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: gemma4:12b
+  source: chapter XXV alone, asked for an answer in Italian, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: A denúncia contra o testamento de Quincas Borba, que alegava que ele não poderia testar por "manifesta
+    demencia", foi destruída [1]. O texto afirma que a denúncia foi dada por "alguem", não especificando
+    a identidade da pessoa [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in English, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: A denúncia contra o testamento de Quincas Borba foi destruída [1]. Quanto à pessoa que a apresentou,
+    o texto afirma apenas que ela foi dada "por alguem", sem especificar o nome ou identidade desse indivíduo
+    [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in Portuguese, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: A denúncia contra o testamento de Quincas Borba foi apresentada por "alguem", conforme indicado
+    no texto, e posteriormente foi destruída [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in Spanish, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: Segundo o texto, a denúncia foi apresentada por "alguem" contra o testamento, alegando que Quincas
+    Borba sofria de demência manifesta [1]. Quanto ao destino do documento, o texto afirma que essa denúncia
+    foi destruída [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in French, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: A denúncia contra o testamento de Quincas Borba foi apresentada por "alguem" [1]. Quanto ao seu
+    destino, o texto afirma que ela foi destruída [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in German, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: Segundo o texto, a denúncia foi apresentada por "alguem" [1]. Quanto ao destino da denúncia,
+    ela foi destruída [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: qwen3.5:9b
+  source: chapter XXV alone, asked for an answer in Italian, seed 7
+  question: O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?
+  reply: |-
+    Sulla base dei passaggi forniti, è possibile rispondere alla prima parte della domanda riguardo al destino della denuncia, ma non si può identificare con certezza chi l'abbia presentata.
+
+    Ecco quanto emerge dal testo:
+    *   **Cosa accadde:** La denuncia fu distrutta e il processo di inventario poté procedere rapidamente verso la conclusione [1].
+    *   **Chi la presentò:** Il passaggio menziona che la denuncia fu data "da qualcuno" ("por alguem"), ma non specifica il nome o l'identità di questa persona [1].
+  note: 'Answers what happened, and says who is missing: a partial answer.'
+- label: answer
+  model: gemma4:12b
+  source: generation_20261108T175100527075Z, think_python_multi_section_05
+  question: The book says class interfaces can be discovered in the same way as function interfaces. How
+    do the steps of data encapsulation parallel those of encapsulation and generalization?
+  reply: |-
+    The book states that class interfaces can be discovered by "data encapsulation," which is a different development plan used when it is less obvious what objects are needed and how they should interact [1].
+
+    While the text does not provide a direct step-by-step parallel between the two processes, it describes the components of each:
+
+    *   **Encapsulation and Generalization:** This is a development plan for discovering function interfaces. It involves starting with a small program with no function definitions, identifying a coherent piece of it to encapsulate into a function, generalizing that function by adding parameters, and repeating the process [3].
+    *   **Data Encapsulation:** This is used to discover class interfaces. The text provides an example where global variables (which limit a program to running one analysis at a time) are encapsulated into an object's state (e.g., a `Markov` class) to allow multiple separate analyses to run simultaneously [1].
+
+    This suggests that while "encapsulation and generalization" focuses on moving code into functions and adding parameters, "data encapsulation" focuses on moving state into objects to manage interactions and independence.
+  note: A partial answer.
+- label: answer
+  model: qwen3.5:9b
+  source: generation_20261108T175100527075Z, quincas_borba_conceptual_02
+  question: O que significa a fórmula 'ao vencedor, as batatas' na alegoria das duas tribos e por que
+    Rubião só passa a compreendê-la depois do testamento?
+  reply: |-
+    Com base nos trechos fornecidos, é possível responder parcialmente à sua pergunta sobre o significado da fórmula no contexto da alegoria, mas as passagens **não explicam explicitamente** os detalhes completos da história das duas tribos (como a identidade delas ou o motivo específico da luta), limitando-se a descrever o resultado e a lógica apresentada por Quincas Borba.
+
+    Aqui está o que os textos revelam:
+
+    **1. O significado da fórmula na alegoria:**
+    Segundo Rubião, após ouvir as explicações de Quincas Borba sobre a morte da avó, ele compreendeu a conclusão da alegoria das tribus famintas. A frase significa que "as batatas fizeram-se para a tribu que elimina a outra, afim de transpor a montanha e ir ás batatas do outro lado" [1].
+    *   **Inferência:** Isso sugere que o objetivo final da luta entre as tribos não é a sobrevivência mútua ou a paz, mas sim a conquista de um recurso escasso (as batatas) localizado além de uma barreira (a montanha). A vitória é definida pela capacidade de eliminar o oponente para acessar esse recurso.
+
+    **2. Por que Rubião só compreende depois do testamento:**
+    Os trechos indicam que a compreensão de Rubião mudou drasticamente dependendo da sua situação pessoal e mental:
+    *   **Antes do testamento:** O texto afirma explicitamente que Rubião "Não a [a fórmula] compreenderia antes do testamento", pois anteriormente ele a achava "obscura e sem explicação" [2].
+    *   **Depois do testamento (e da mudança de perspectiva):** A compreensão ocorre quando Rubião se vê como um "vencedor". Ao ouvir Quincas Borba, Rubião percebe que até pouco tempo fora uma "bolha extincta", mas agora é um vencedor. Ele conclui que "Cumpria-lhe ser duro e implacavel, era poderoso e forte" [1].
+    *   **A razão da mudança:** O texto sugere que a compreensão depende do "ponto de vista". Rubião só aceita a lógica da frase quando ela se aplica à sua nova realidade: ele está descendo de Barbacena para "arrancar e comer as batatas da capital" [2]. A fórmula faz sentido apenas quando ele internaliza a necessidade de ser implacável para sobreviver e prosperar, transformando a frase em uma "lei da vida e da verdade" [3].
+
+    Em resumo, Rubião compreende a fórmula porque a sua própria existência passa a se alinhar à lógica da alegoria: ele assume o papel do vencedor que deve eliminar os outros para obter as batatas, abandonando a ideia de ser uma vítima ou um "exterminado" [1][2].
+  note: A partial answer.
+- label: answer
+  model: qwen3.5:9b
+  source: generation_20261108T175100527075Z, quincas_borba_multi_section_04
+  question: Que ligação existe entre o menino Deolindo e Rubião, considerando o acidente na rua da Ajuda
+    e a cena em que Rubião passa delirando pela mesma rua?
+  reply: |-
+    Com base nos trechos fornecidos, não há evidência de uma ligação direta estabelecida entre o menino Deolindo e Rubião (como amizade, parentesco ou interação pessoal específica além da proximidade física no momento do acidente). Os textos apresentam as seguintes informações sobre os dois personagens:
+
+    1.  **O Acidente na Rua da Ajuda:**
+        *   Em um dos episódios descritos, Rubião ouve o grito de uma mulher chamada "Deolindo" (que é a criança) e vê que ela está atravessando a rua com perigo de ser atropelada por um carro.
+        *   Rubião corre aos cavalos e salva a criança, arrancando-a do perigo [1].
+        *   Após o resgate, a mãe da criança (que não é identificada como Sophia) recebe a criança das mãos de Rubião e chora [1].
+
+    2.  **A Cena do Delírio de Rubião:**
+        *   Mais tarde, Rubião passa por um estado de delírio, imaginando-se como imperador em um palácio interminável na rua da Ajuda [2].
+        *   Durante esse delírio, ele ouve gritos e confunde-os com aclamações, mas não há menção específica de que ele esteja interagindo com Deolindo nesse momento [3].
+        *   Em outro trecho, Rubião encontra-se com Sophia no carro e discute sobre o convento da Ajuda, mas a criança Deolindo não é mencionada nessa conversa específica [4].
+
+    **Conclusão baseada nos textos:**
+    A única "ligação" documentada entre Rubião e Deolindo é o ato de salvamento: Rubião resgata Deolindo de um acidente na rua da Ajuda. Não há informações nos trechos sobre como essa interação afetou a relação deles posteriormente, nem se eles se conheceram antes ou depois desse evento específico, exceto pela menção de que Rubião passa pelo local onde a criança vive (uma colchoaria) tanto no momento do resgate quanto durante seu delírio subsequente [1][2].
+  note: 'A partial answer: the rescue is the link.'
+- label: answer
+  model: qwen3.5:9b
+  source: generation_20261108T175100527075Z, think_python_multi_section_01
+  question: Across the book's notes on Python 2, how do the print statement, the division operator and
+    the function that reads keyboard input differ from Python 3?
+  reply: |-
+    Based on the provided passages, here is how the specific elements differ between Python 2 and Python 3:
+
+    **The `print` statement**
+    In Python 2, `print` is a statement rather than a function, so it does not use parentheses. In Python 3, it is a function that requires parentheses [1].
+
+    **The division operator**
+    The provided passages do not contain information regarding how the division operator differs between Python 2 and Python 3.
+
+    **The function that reads keyboard input**
+    In Python 2, the function used to read keyboard input is called `raw_input`. In Python 3, this function is called `input` [3].
+  note: A partial answer.
+- label: answer
+  model: qwen3.5:9b
+  source: generation_20261108T175100527075Z, think_python_multi_section_05
+  question: The book says class interfaces can be discovered in the same way as function interfaces. How
+    do the steps of data encapsulation parallel those of encapsulation and generalization?
+  reply: |-
+    The provided passages do not explicitly list the specific steps for discovering "function interfaces" to directly compare them with the steps for discovering "class interfaces." However, the text does describe the process for function interface discovery and states that class interfaces are discovered in a similar manner.
+
+    **Steps for Function Interface Discovery (Encapsulation and Generalization):**
+    According to Passage [3], the development plan used to discover function interfaces involves these steps:
+    1.  Start by writing a small program with no function definitions.
+    2.  Once the program is working, identify a coherent piece of it, encapsulate that piece in a function, and give it a name.
+    3.  Generalize the function by adding appropriate parameters.
+    4.  Repeat these steps until a set of working functions exists.
+    5.  Look for opportunities to improve the program by refactoring (e.g., factoring similar code into an appropriately general function).
+
+    **Parallel for Class Interface Discovery (Data Encapsulation):**
+    Passage [1] states: "In the same way that we discovered function interfaces by encapsulation and generalization, we can discover class interfaces by data encapsulation." It further explains this process using a Markov analysis example:
+    *   **Encapsulation:** Instead of using global variables (`suffix_map` and `prefix`) which limit the program to one analysis at a time, the state is encapsulated in an object (the `Markov` class) where these variables become instance attributes (`self.suffix_map`, `self.prefix`).
+    *   **Generalization/Refactoring:** The functions that read and write these global variables are transformed into methods associated with the new class.
+
+    **Missing Information:**
+    The passages do not provide a numbered list of steps specifically for "discovering class interfaces," nor do they explicitly map each step of the function discovery process to a corresponding step in the class discovery process. They only assert that the same *way* (encapsulation and generalization) applies, illustrated by the transition from global variables to object state and functions to methods.
+  note: Opens by saying the steps are not listed, then gives them.
+- label: answer
+  model: qwen3.5:9b
+  source: generation_20261108T175100527075Z, on_liberty_multi_section_05
+  question: Mill says mankind would be no more justified in silencing a lone dissenter than he would be
+    in silencing mankind. Under what circumstances, then, does he accept that expressing an opinion may
+    be punished?
+  reply: |-
+    Based on the provided passages, **John Stuart Mill does not accept** that expressing an opinion may be punished under any circumstances. In fact, he explicitly argues against the legitimacy of such punishment in all cases.
+
+    The text states:
+    *   "I deny the right of the people to exercise such coercion, either by themselves or by their government." [1]
+    *   "The power itself is illegitimate. The best government has no more title to it than the worst." [1]
+    *   Mill argues that silencing discussion is an "assumption of infallibility" and that we can never be sure an opinion being stifled is false; even if we were sure, "stifling it would be an evil still." [2]
+    *   Regarding religious opinions specifically, the text notes: "Aware of the impossibility of defending the use of punishment for restraining irreligious opinions..." [5]
+
+    While Mill acknowledges that laws against opinion expression exist and have been enforced (citing examples from 1857 regarding blasphemy and anti-theism), he presents these as current evils or historical stains rather than justifiable practices. He argues that penalizing the expression of opinion is "noxious" regardless of whether it aligns with public opinion [1].
+
+    Therefore, according to these passages, Mill accepts **no circumstances** under which expressing an opinion may be punished; he considers the power to silence opinions to be inherently illegitimate.
+  note: An answer that is a negation.
+- label: answer
+  model: gpt-oss:20b
+  source: default_llm_generation_20261109T041359173775Z, on_liberty_multi_section_04
+  question: Courtney says that in its general spirit the tract on Liberty belongs to the eighteenth-century
+    standpoint, which he describes as individuals with their own claims forming society by contract or
+    otherwise. Does Mill himself rest his argument on abstract rights or on a social contract?
+  reply: Mill’s own discussion in the passage shows that he does not base his argument on abstract, pre‑existing
+    rights.  He explicitly notes that individuals “deliberately formed a Social State, either by a contract
+    or otherwise” and that the rights he advocates are “slowly acquired in the growth and development
+    of the social state” rather than being given by an original ordinance of Nature.  Thus Mill’s argument
+    rests on the idea of a social contract (or the historical formation of society) rather than on abstract,
+    natural rights that exist independently of that contract.  [1]
+  note: An answer that is a negation.
+- label: answer
+  model: gpt-oss:20b
+  source: the probe of 2026-11-09 14:34Z, first rewording, think_python_unanswerable_04 in Spanish
+  question: How does a child class use super() to call the __init__ method of its parent class?
+  reply: |-
+    En Python, cuando una clase hija necesita ejecutar el código de inicialización de su clase padre, puede hacerlo llamando a `super().__init__()` dentro de su propio método `__init__`.
+    El método `super()` devuelve un objeto que actúa como proxy a la clase padre, y al invocarlo con `__init__()` se ejecuta la lógica de inicialización definida en la clase ancestro.
+
+    En el capítulo de herencia del libro *think‑python* se muestra que, si la clase hija define su propio `__init__`, ese método **sobrescribe** el de la clase padre; por lo tanto, para que la inicialización del padre siga ocurriendo, la hija debe llamar explícitamente a `super().__init__()` dentro de su constructor.
+    Esto permite que la hija extienda la funcionalidad del padre sin perder la configuración que éste realiza (por ejemplo, crear la lista de cartas en un `Deck`).
+
+    Referencia: [1] (capítulo “Inheritance”, sección “Inheritance”).
+  note: 'Answered from general knowledge: wrong, but an answer.'
+- label: answer
+  model: qwen3:14b
+  source: generation_20261108T175100527075Z, quincas_borba_unanswerable_05
+  question: Por qual meio de transporte Rubião viajou do Rio de Janeiro a Barbacena depois de deixar a
+    casa de saúde?
+  reply: Rubião viajou do Rio de Janeiro a Barbacena por meio de um tilbury, conforme descrito no texto
+    [4].
+  note: 'Invented: wrong, but an answer.'
+- label: answer
+  model: gemma4:12b
+  source: default_llm_generation_20261109T041359173775Z, on_liberty_multi_section_05
+  question: Mill says mankind would be no more justified in silencing a lone dissenter than he would be
+    in silencing mankind. Under what circumstances, then, does he accept that expressing an opinion may
+    be punished?
+  reply: |-
+    Mill does not state that he accepts the punishment of expressing an opinion under any circumstances; rather, he argues that the power to silence an opinion is "illegitimate" regardless of whether it is exercised by a government in opposition to the people or in agreement with them [1].
+
+    He provides the following specific points regarding the justification of such actions:
+
+    *   **The Illegitimacy of Coercion:** Mill denies the right of the people to exercise coercion over opinions, even if the government is "entirely at one with the people" and acts only in agreement with what it perceives to be their voice [1]. He asserts that the power of coercion is "noxious, or more noxious" when used in accordance with public opinion than when it is used against it [1].
+    *   **The Assumption of Infallibility:** He argues that any silencing of discussion is an "assumption of infallibility" [2]. Even if an authority is certain that an opinion is false, they have no right to decide the question for all mankind or to exclude others from the means of judging [2].
+    *   **The "Ordeal" of Truth:** Mill notes that some argue for religious intolerance on the basis that persecution is an "ordeal through which truth ought to pass" and that legal penalties are ultimately "powerless against truth" [5]. However, Mill does not commend this view, noting that it treats those who provide "splendid benefits" to mankind (such as the early Christians or Reformers) as "vilest of criminals" [5].
+    *   **Social Organism and Common Interest:** In a separate section, Mill notes that the individual has "no rights" against the "social organism" and that society can punish acts or opinions that are "anti-social in character" [4]. He suggests that an individual's sphere of activity is "bounded by the common interest" [4].
+  note: An answer that is a negation.
+- label: answer
+  model: qwen3:14b
+  source: generation_20261108T175100527075Z, think_python_factual_02
+  question: What does the book call functions that return results, and what does it call functions that
+    perform an action but don't return a value?
+  reply: The book refers to functions that return results as **fruitful functions** and functions that
+    perform an action but don't return a value as **void functions** [1].
+  note: Says "don't return a value", as part of the answer.
+- label: answer
+  model: gemma4:12b
+  source: default_llm_generation_20261109T041359173775Z, quincas_borba_factual_09
+  question: Segundo o bilhete de Sofia a D. Fernanda, quanto Palha apurou ao liquidar os bens de Rubião?
+  reply: Segundo o bilhete de Sophia enviado a D. Fernanda, Christiano apurou três contos e duzentos ao
+    liquidar os bens do Sr. Rubião [1].
+- label: answer
+  model: gemma4:12b
+  source: default_llm_generation_20261109T041359173775Z, think_python_factual_01
+  question: According to the book, when are comments most useful, and what should a comment explain rather
+    than what the code does?
+  reply: Comments are most useful when they document non-obvious features of the code [1]. Rather than
+    explaining what the code does, it is more useful for a comment to explain why [1].
+- label: answer
+  model: gemma4:12b
+  source: default_llm_generation_20261109T041359173775Z, on_liberty_factual_01
+  question: According to Courtney's introduction, who defeated Mill at the General Election that ended
+    his time in Parliament, and how long had he served there?
+  reply: Mill was defeated at the next General Election by Mr. W. H. Smith [1]. He had served in Parliament
+    for only three years [1].
+- label: ambiguous
+  model: gemma4:12b
+  source: generation_20261108T175100527075Z, on_liberty_multi_section_04
+  question: Courtney says that in its general spirit the tract on Liberty belongs to the eighteenth-century
+    standpoint, which he describes as individuals with their own claims forming society by contract or
+    otherwise. Does Mill himself rest his argument on abstract rights or on a social contract?
+  reply: |-
+    Courtney does not state that Mill rests his argument on a social contract; rather, he describes the eighteenth-century view as one where individuals "deliberately formed a Social State, either by a contract or otherwise" [1].
+
+    Regarding Mill's specific position, the provided passages do not explicitly state whether Mill himself rests his argument on abstract rights or a social contract. However, the text provides the following context:
+
+    *   **Courtney's Analysis:** Courtney notes that Mill advocates for the "rights of the individual as against Society" [1]. He contrasts Mill's position with the nineteenth-century view (which suggests the State is prior to the individual) and the eighteenth-century view (which suggests individuals existed first and formed a Social State) [1].
+    *   **Mill's Influence:** The text mentions that Mill's *Liberty* was "based on a suggestion derived from Von Humboldt" [4, 5].
+    *   **The Author's Inference:** Courtney suggests that the eighteenth-century view—where individuals have "special claims and responsibilities" and form a state by contract—is "hardly the view of the nineteenth century" [1]. He further notes that in the modern world, rights are "slowly acquired in the growth and development of the social state" rather than being an "original ordinance of Nature" [1].
+  note: Says the passages do not state Mill's position, then gives context.
+- label: ambiguous
+  model: qwen3:14b
+  source: generation_20261108T175100527075Z, on_liberty_multi_section_04
+  question: Courtney says that in its general spirit the tract on Liberty belongs to the eighteenth-century
+    standpoint, which he describes as individuals with their own claims forming society by contract or
+    otherwise. Does Mill himself rest his argument on abstract rights or on a social contract?
+  reply: Courtney notes that the tract on Liberty belongs to the eighteenth-century standpoint, where
+    individuals are described as having their own claims and forming society by contract or otherwise
+    [1]. However, the passage does not explicitly state whether Mill himself rests his argument on abstract
+    rights or on a social contract. Therefore, the source does not contain enough information to determine
+    whether Mill's argument is based on abstract rights or a social contract.
+  note: Says the passage does not state Mill's position, then gives context.
+- label: ambiguous
+  model: qwen3.5:9b
+  source: generation_20261108T175100527075Z, quincas_borba_factual_09
+  question: Segundo o bilhete de Sofia a D. Fernanda, quanto Palha apurou ao liquidar os bens de Rubião?
+  reply: |-
+    Segundo as passagens fornecidas, não há menção de um "bilhete de Sofia" dirigido a D. Fernanda que especifique o valor apurado pela liquidação dos bens de Rubião.
+
+    O texto em [1] relata que D. Fernanda mandou uma resposta do director da casa de saúde para Sophia e que esta respondeu por escrito (num bilhete) dizendo: "Mas eu é que não teria animo de vel-o...". Nesse mesmo trecho, menciona-se que Christiano declarou ter liquidado os bens do Sr. Rubião e que o valor apurado foi "tres contos e duzentos", mas essa informação vem de uma declaração oral de Christiano após Sophia mostrar a carta, e não de um bilhete enviado por Sophia a D. Fernanda com esse dado financeiro.
+
+    Portanto, as passagens **não contêm** a informação de que Sofia enviou um bilhete a D. Fernanda especificando o valor apurado pela liquidação; o valor mencionado (três contos e duzentos) é relatado como uma declaração de Christiano sobre os bens do Sr. Rubião [1].
+  note: Gives the amount, but disputes the premise and concludes the passages do not contain it.

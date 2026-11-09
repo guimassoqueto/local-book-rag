@@ -1,12 +1,13 @@
 """Answers questions from retrieved passages, with every claim traceable to its source."""
 
+import logging
 import re
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 
 from app.config.settings import RetrievalConfig, Settings
-from app.errors import GenerationError
+from app.errors import BookRagError, GenerationError
 from app.generation.base import (
     FINISHED_BY_LENGTH,
     Generation,
@@ -16,7 +17,12 @@ from app.generation.base import (
     TextDelta,
 )
 from app.generation.citations import Citation, normalize_citations, resolve_citations
-from app.generation.prompts import NO_EVIDENCE_MARKER, format_passage, question_answering_messages
+from app.generation.prompts import (
+    NO_EVIDENCE_MARKER,
+    abstention_check_messages,
+    format_passage,
+    question_answering_messages,
+)
 from app.ingestion.chunker import Chunk
 from app.retrieval.base import Passage, RetrievalFilters
 from app.retrieval.pipeline import RetrievalResult
@@ -33,6 +39,11 @@ _DASHES = str.maketrans(dict.fromkeys("\u2010\u2011\u2012\u2013\u2014\u2212", "-
 _MARKER_START = NO_EVIDENCE_MARKER[: NO_EVIDENCE_MARKER.index("EVID") + len("EVID")]
 _MARKER = re.compile(re.escape(_MARKER_START) + r"\w{0,12}\]", re.IGNORECASE)
 _MAX_MARKER_LENGTH = 30  # held back no longer than this while it could still be the marker
+
+# The check's verdict is its first word, whatever surrounds it: **No**, "YES." and the like. NO
+# means the reply gives nothing that was asked: an abstention. Matching the word anywhere would
+# misread an explanation, where "no" is a common word.
+_VERDICT = re.compile(r"\W*(YES|NO)\b", re.IGNORECASE)
 
 _OPENING_BRACKETS = "【［〔"
 _CLOSING_BRACKETS = "】］〕"
@@ -89,6 +100,45 @@ def read_reply(generation: Generation | None, chunks: Sequence[Chunk]) -> Reply:
     text, insufficient = _read_marker(normalize_citations(_usable_text(generation)))
     citations, invented = resolve_citations(text, chunks)
     return Reply(text, tuple(citations), tuple(invented), insufficient)
+
+
+def check_abstention(
+    llm: LLMProvider, settings: Settings, question: str, reply: Reply, parameters: GenerationParameters
+) -> Reply:
+    """Read a reply without the marker again for an abstention in words, if the model's profile asks.
+
+    gemma4 and qwen3.5 sometimes abstain without the no-evidence marker: asked who did something,
+    they reply that the passages say only "someone". Rewording the prompt made gpt-oss abstain on
+    questions its passages answer (.specify/bugs/unmarked-abstentions), so the model that wrote the
+    reply reads it again instead, without the passages. The application shows an abstention only
+    once the reply is finished, so one recognized here is shown as any other.
+
+    A verdict that can't be read, a failed call, or a check too long for the context leaves the
+    reply an answer, and is logged: a check must never cost the reader an answer.
+
+    Args:
+        llm: the model that wrote the reply.
+        settings: its settings, whose profile says whether to check.
+        question: what was asked.
+        reply: the reply, as read_reply() read it.
+        parameters: the reply's parameters. The check keeps its token limit, at temperature 0.
+    """
+    if reply.insufficient_evidence or not settings.llm_profile.check_abstentions:
+        return reply
+    messages = abstention_check_messages(question, reply.text)
+    needed = sum(llm.count_tokens(message.content) for message in messages) + parameters.max_tokens
+    if needed > llm.context_size():
+        log_event(logger, "abstention check skipped", logging.WARNING, model=llm.model, reason="context")
+        return reply
+    try:
+        verdict = _VERDICT.match(llm.generate(messages, replace(parameters, temperature=0)).text)
+    except BookRagError as exc:
+        log_event(logger, "abstention check skipped", logging.WARNING, model=llm.model, reason=type(exc).__name__)
+        return reply
+    if verdict is None:
+        log_event(logger, "abstention check skipped", logging.WARNING, model=llm.model, reason="unreadable")
+        return reply
+    return replace(reply, insufficient_evidence=verdict.group(1).upper() == "NO")
 
 
 class QuestionAnsweringService:
@@ -166,6 +216,7 @@ class QuestionAnsweringService:
             yield TextDelta(leftover)
 
         reply = read_reply(generation, chunks)
+        reply = check_abstention(self._llm, self._settings, question, reply, self._parameters())
         # One event at the end: Gradio resumes this generator from different contexts, which rules
         # out the `operation` context manager. It never carries the text of a book or a question.
         log_event(

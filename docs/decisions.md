@@ -178,6 +178,72 @@ result. A bracket that opens with `[NO-EVID` and closes within a word counts as 
 The prompt still asks for it in English: changing the prompt would have changed what the
 generation benchmark measured.
 
+**The marker rule keeps its wording.** gemma4 and qwen3.5 sometimes abstain without the
+marker. This happens when the passages mention what was asked about, but not what was asked: asked
+who denounced the will, they reply that the text says only "someone", as if that were part of an
+answer. Two rewordings were measured, and both made gpt-oss, the default, abstain on questions its
+passages answer (`.specify/bugs/unmarked-abstentions/`):
+- **The first** made three changes. It limited the partial-answer rule to questions that ask for
+  several things, and asked for the marker "even when they mention the people, places or events
+  it asks about". It also allowed adding what the passages do say after the marker. gpt-oss's
+  wrong abstentions rose from 1 to 22 of 75, and its abstention quality fell by 0.233 (−0.322 to
+  −0.144). About half said "the source doesn't contain the answer; however…", then gave it. Most
+  of the rest denied an answer the passages hold. gemma4's unmarked abstentions in the probe fell
+  from 8 of 60 to 3.
+- **The second** kept only the narrower partial-answer rule. On the same contexts and seed,
+  gpt-oss made 9 wrong abstentions, and gemma4 left 3 unanswerable questions unmarked instead of 1.
+
+Tests on a single passage in six languages had favored the first wording, and predicted neither
+result. A wording is better measured on the generation benchmark's own contexts, without the
+judge, which takes minutes: whether a reply abstains needs no judging.
+
+**Some models read their replies again for an abstention.** With `check_abstentions` in its
+profile, a model that leaves out the marker is asked one more question, about its finished reply:
+does it give the reader any of the information the question asks for? A NO makes the reply an
+abstention. It is on for gemma4:12b and qwen3.5:9b.
+- **After the reply, which displays the same way.** The application shows an abstention only once
+  the reply is finished, under it. During streaming the marker is only removed.
+- **The model that wrote the reply reads it.** Another model would often have to be loaded in its
+  place, which costs far more than the check.
+- **Without the passages.** The check reads what the reply gives, not whether the passages
+  support it: weighing the evidence is what the rewordings moved, for every model at once.
+- **Per profile.** The answering prompt doesn't change, so neither does any model's answer.
+  gpt-oss, the default, runs no check: it left one abstention unmarked in 240 replies, and its
+  check would reason on every answer.
+- **Never at the cost of an answer.** A verdict it can't read, a failed call, or a check too long
+  for the context leaves the reply an answer, and is logged.
+- **The first wording asked for ANSWER or ABSTENTION**, and both models took partial answers that
+  say what is missing for abstentions: qwen3.5 10 of 25 known answers, gemma4 2. Asking whether
+  the reply gives any of what was asked, with "someone" for who counting as nothing, fixed that.
+- **A phrase parser was ruled out.** Some answers are negations ("Mill does not state that he
+  accepts…"), and some partial answers open by saying something is missing.
+
+The proof (`tests/integration/test_generation.py`) has each model read its own known
+replies, as in use: 23 for gemma4 and 20 for qwen3.5, asked in six languages, all read as
+labeled but one. It also ran over the benchmark's replies:
+- **Every unanswerable question left unmarked** was recognized.
+- **Answers taken for abstentions**, in gemma4's 150 and qwen3.5's 75:
+  - replies whose evidence retrieval had missed;
+  - one of qwen3.5's, which gives the amount asked, then concludes that the passages don't
+    contain it;
+  - gemma4's partial answer to `think_python_multi_section_05`, in both runs, depending on how
+    the model was loaded.
+
+Its limits:
+- **gemma4's verdict on one of its partial answers depends on the load.** "The book states… While
+  the text does not provide a direct step-by-step parallel, it describes…" came out an answer
+  under one load of the model and an abstention under another, every time within each, at
+  temperature 0. The reader then sees the whole answer, under the note that the model found
+  none. The owner kept the check on for gemma4: it ended gemma4's unmarked abstentions in the
+  probe, 8 of 60, and the proof marks this case as a known misread.
+- **Read by the other model, a few known replies came out otherwise.** gemma4 took 4 of qwen3.5's
+  terse partial answers for abstentions, and qwen3.5 missed gpt-oss's "por alguém (o nome não é
+  especificado)".
+- **The benchmark's abstention quality didn't move**, 0.989 for gemma4 and 0.978 for qwen3.5. The
+  unanswerable questions it now recognizes are offset by abstentions on answerable questions
+  whose evidence retrieval missed, which the metric counts as wrong. `evidence_in_context` tells
+  the two apart.
+
 **The default LLM is chosen by a rule fixed before its runs.** gpt-oss:20b stays the default.
 
 Why gpt-oss was the first default:

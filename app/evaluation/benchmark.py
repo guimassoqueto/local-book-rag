@@ -53,7 +53,7 @@ from app.evaluation.summary_metrics import SummaryJudge
 from app.generation.base import GenerationParameters, LLMProvider
 from app.generation.factory import create_llm_provider
 from app.generation.prompts import question_answering_messages
-from app.generation.question_answering import read_reply
+from app.generation.question_answering import check_abstention, read_reply
 from app.ingestion.chunker import Chunk
 from app.ingestion.validation import validate_upload
 from app.retrieval.base import RetrievalFilters
@@ -374,7 +374,9 @@ class BenchmarkRunner:
                 messages = question_answering_messages(question.question, chunks, None)
                 try:
                     generation = llm.generate(messages, parameters)
-                    answers.append((question, generation, read_reply(generation, chunks)))
+                    reply = read_reply(generation, chunks)
+                    reply = check_abstention(llm, settings, question.question, reply, parameters)
+                    answers.append((question, generation, reply))
                 except BookRagError as exc:
                     self._say(f"  {question.id}: {exc}")
                     answers.append((question, None, None))

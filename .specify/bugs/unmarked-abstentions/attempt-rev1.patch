@@ -1,0 +1,227 @@
+diff --git a/app/generation/prompts.py b/app/generation/prompts.py
+index 3eb8684..9dc8ddb 100644
+--- a/app/generation/prompts.py
++++ b/app/generation/prompts.py
+@@ -15,8 +15,8 @@ Follow these rules:
+ - Cite the passages you rely on, with their numbers in square brackets, like [1] or [2][3].
+ - Keep what the author states apart from what you infer. Introduce an inference as such, for example with "this suggests".
+ - Preserve the author's meaning: don't strengthen, soften or generalize a claim.
+-- If the passages answer only part of the question, answer that part and say what is missing.
+-- If the passages don't answer the question at all, begin your reply with {NO_EVIDENCE_MARKER}, then say that the source doesn't contain enough information. Don't guess, and don't answer from general knowledge.
++- If the question asks for several things and the passages give only some of them, answer those and say which are missing.
++- If the passages don't give what the question asks for, begin your reply with {NO_EVIDENCE_MARKER}, even when they mention the people, places or events it asks about. Write the marker exactly so, in any language. Then say that the source doesn't contain the answer; you may add what the passages do say. Don't guess, and don't answer from general knowledge.
+ - {{language_rule}}"""  # noqa: E501
+
+ _SUMMARY_SYSTEM = """You write faithful summaries of book chapters, for a reader who needs to rely on them.
+diff --git a/tests/integration/test_generation.py b/tests/integration/test_generation.py
+index c3b29f3..e89ccec 100644
+--- a/tests/integration/test_generation.py
++++ b/tests/integration/test_generation.py
+@@ -1,14 +1,20 @@
+-"""Runs the configured LLM for real."""
++"""Runs the configured LLM for real, and every pulled one where the answering prompt is concerned."""
+
+ import os
++from dataclasses import replace
+
+ import pytest
+
+ from app.config.loader import load_settings
+ from app.config.settings import EnvironmentSettings
++from app.errors import ModelNotFoundError
++from app.evaluation.benchmark import apply_overrides
+ from app.generation.base import GenerationParameters, Message
+ from app.generation.factory import create_llm_provider
++from app.generation.prompts import question_answering_messages
++from app.generation.question_answering import read_reply
+ from app.utils.ollama_runtime import OllamaRuntime
++from tests.fakes import make_chunk
+
+ pytestmark = pytest.mark.integration
+
+@@ -46,3 +52,130 @@ def test_a_reply_reports_its_statistics(llm):
+     assert generation.stats.tokens_per_second > 0
+     assert generation.stats.time_to_first_token > 0
+     assert generation.stats.finish_reason == "stop"
++
++
++# The no-evidence marker, on every pulled model (.specify/bugs/unmarked-abstentions). Passages
++# that mention what was asked about, but not what was asked, drew replies that cited them and said
++# the rest was missing, without the marker, so the application showed them as answers.
++
++
++def _passage(chapter, title, text):
++    return replace(
++        make_chunk(text, index=chapter, chapter=chapter, language="pt"), book_title="Quincas Borba", chapter_title=title
++    )
++
++
++# Quincas Borba (1891), as the benchmark workspace chunks it. The first names no one behind the
++# denunciation, and the second no city.
++DENUNCIATION = _passage(
++    27,
++    "CAPITULO XXV",
++    (
++        "CAPITULO XXV\n\n"
++        "Jantou lá muitas vezes. Era timido e acanhado. A frequencia attenuou a impressão dos primeiros "
++        "dias. Mas trazia sempre guardado, e mal guardado, certo fogo particular, que elle não podia "
++        "extinguir. Emquanto durou o inventario, e principalmente a denuncia dada por alguem contra o "
++        "testamento, allegando que o Quincas Borba, por manifesta demencia, não podia testar, o nosso "
++        "Rubião distrahiu-se; mas a denuncia foi destruida, e o inventario caminhou rapidamente para a "
++        "conclusão. Palha festejou o acontecimento com um jantar em que tomaram parte, alem dos tres, o "
++        "advogado, o procurador e o escrivão. Sophia tinha nesse dia os mais bellos olhos do mundo."
++    ),
++)
++
++EPIDEMIC = _passage(
++    94,
++    "CAPITULO XCII",
++    (
++        "CAPITULO XCII\n\n"
++        "De noite, correu á praia do Flamengo. Não pôde fallar a Maria Benedicta, que estava em cima, no "
++        "quarto, com duas moças da visinhança, amigas della. Sophia veiu recebel-o á porta, e levou-o "
++        "para o gabinete, onde duas costureiras faziam os vestidos de luto. O marido acabava de chegar; "
++        "ainda não descera.\n\n"
++        "—Sente-se aqui, disse ella.\n\n"
++        "Tomou conta delle; estava divina. As palavras sabiam-lhe carinhosas e graves, entrecortadas de "
++        "sorrisos amigos e honestos. Fallou-lhe da tia, da prima, do tempo, dos criados, dos "
++        "expectaculos, da falta d'agua, de uma multidão de cousas diversas, vulgares ou não, mas que "
++        "passando pela bocca da moça, mudavam de natureza e de aspecto. Rubião ouvia fascinado. Ella, "
++        "para não estar vadia, ia cosendo uns folhos; e, quando a conversação fazia pausa, Rubião era "
++        "pouco para comer-lhe as mãos ageis, que pareciam brincar com a agulha.\n\n"
++        "—Sabe que estou formando uma commissão de senhoras? perguntou ella.\n\n"
++        "—Não sabia; para que?\n\n"
++        "—Não leu a noticia daquella epidemia n'uma cidade das Alagoas?\n\n"
++        "Contou-lhe que ficara tão penalisada, que resolveu logo organisar uma commissão de senhoras, "
++        "para pedir esmolas. A morte da tia interrompeu os primeiros passos; mas ia continuar, passada a "
++        "missa do setimo dia. E perguntou que lhe parecia.\n\n"
++        "—Parece-me bem. Não ha homens na commissão?\n\n"
++        "—Ha só senhoras. Os homens apenas dão dinheiro, concluiu rindo."
++    ),
++)
++
++LANGUAGES = ("English", "Portuguese", "Spanish", "French", "German", "Italian")
++SEED = 7  # one sampling, so a failure can be run again as it was
++MODELS = sorted(load_settings(EnvironmentSettings().config_dir).llm_profiles)
++CASES = [(model, language) for model in MODELS for language in LANGUAGES]  # one model at a time
++
++
++@pytest.fixture
++def runtime(settings, monkeypatch):
++    monkeypatch.setenv("OLLAMA_BASE_URL", os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"))
++    return OllamaRuntime(EnvironmentSettings().ollama_base_url, settings.ollama.request_timeout_seconds)
++
++
++def _reply(settings, runtime, model, question, passage, language):
++    """Ask as the application does, with the configured temperature and token limit."""
++    try:
++        runtime.model_info(model)
++    except ModelNotFoundError:
++        pytest.skip(f"{model} isn't pulled")
++    llm = create_llm_provider(apply_overrides(settings, {"llm": {"model": model}}), runtime)
++    task = settings.generation.question_answering
++    parameters = GenerationParameters(
++        temperature=settings.llm.temperature if task.temperature is None else task.temperature,
++        max_tokens=task.max_tokens or settings.llm.max_tokens,
++        seed=SEED,
++    )
++    return read_reply(llm.generate(question_answering_messages(question, [passage], language), parameters), [passage])
++
++
++@pytest.mark.parametrize(
++    ("question", "passage"),
++    [
++        (
++            "Quem apresentou a denúncia contra o testamento de Quincas Borba, alegando que ele não podia testar?",
++            DENUNCIATION,
++        ),
++        ("Em qual cidade de Alagoas ocorreu a epidemia que levou Sofia a organizar a comissão de senhoras?", EPIDEMIC),
++    ],
++    ids=["who-denounced", "which-city"],
++)
++@pytest.mark.parametrize(("model", "language"), CASES)
++def test_passages_that_only_mention_what_was_asked_about_draw_the_marker(
++    settings, runtime, model, language, question, passage
++):
++    reply = _reply(settings, runtime, model, question, passage, language)
++
++    assert reply.insufficient_evidence, reply.text
++
++
++# gpt-oss marks this reply as an abstention in German, as it did with the prompt before the fix, and
++# in French since it. It answers what happened, but the application shows only an abstention. The
++# generation benchmark's wrong abstentions measure this on real questions, in the question's own
++# language (.specify/bugs/unmarked-abstentions/fix.md).
++_KNOWN_WRONG_ABSTENTIONS = {("gpt-oss:20b", "French"), ("gpt-oss:20b", "German")}
++
++
++@pytest.mark.parametrize(
++    ("model", "language"),
++    [
++        pytest.param(*case, marks=pytest.mark.xfail(reason="a known wrong abstention, see above"))
++        if case in _KNOWN_WRONG_ABSTENTIONS
++        else case
++        for case in CASES
++    ],
++)
++def test_a_question_answered_in_part_is_answered_not_abstained_from(settings, runtime, model, language):
++    question = "O que aconteceu com a denúncia contra o testamento de Quincas Borba, e quem a apresentou?"
++
++    reply = _reply(settings, runtime, model, question, DENUNCIATION, language)
++
++    assert not reply.insufficient_evidence, reply.text
+diff --git a/tests/unit/test_question_answering.py b/tests/unit/test_question_answering.py
+index 73d43f1..b5233c4 100644
+--- a/tests/unit/test_question_answering.py
++++ b/tests/unit/test_question_answering.py
+@@ -5,7 +5,7 @@ import pytest
+
+ from app.errors import GenerationError
+ from app.generation.base import FINISHED_BY_LENGTH, TextDelta
+-from app.generation.prompts import NO_EVIDENCE_MARKER
++from app.generation.prompts import NO_EVIDENCE_MARKER, format_passage
+ from app.generation.question_answering import NOTHING_RETRIEVED, Answer, QuestionAnsweringService, _MarkerFilter
+ from app.retrieval.base import Passage, RetrievalFilters
+ from app.retrieval.pipeline import RetrievalResult
+@@ -104,6 +104,20 @@ def test_the_prompt_carries_the_spec_requirements(settings):
+     assert NO_EVIDENCE_MARKER in system
+
+
++def test_the_marker_covers_passages_that_only_mention_what_was_asked_about(settings):
++    """Such passages drew partial-looking replies without the marker (.specify/bugs/unmarked-abstentions)."""
++    llm = FakeLLM(["Answer [1]."])
++
++    ask(settings, llm)
++
++    rules = system_message(llm)
++    marker_rule = next(line for line in rules.splitlines() if NO_EVIDENCE_MARKER in line)
++    assert f"begin your reply with {NO_EVIDENCE_MARKER}" in marker_rule  # the streaming filter reads the start
++    assert "even when they mention" in marker_rule
++    partial_rule = next(line for line in rules.splitlines() if "missing" in line)
++    assert "several things" in partial_rule
++
++
+ def test_formats_without_pages_leave_them_out(settings):
+     chunk = make_chunk("Text.", section=None)
+     llm = FakeLLM(["Answer [1]."])
+@@ -291,13 +305,18 @@ def test_passages_that_dont_fit_are_left_out_rather_than_cut_by_ollama(settings)
+     llm = FakeLLM(["Answer [1]."], context_size=3000)
+     words = " ".join(["word"] * 500)
+
+-    answer = ask(settings, llm, found=(words, words, words, words, words))
++    found = (words, words, words, words, words)
++
++    answer = ask(settings, llm, found=found)
+
+     window = 3000 * (1 - settings.generation.context.safety_margin)
+     budget = window - settings.generation.question_answering.max_tokens
+     sent = sum(llm.count_tokens(message.content) for message in llm.calls[0][0])
+-    assert len(answer.passages) == 2
++    kept = len(answer.passages)
++    assert 0 < kept < len(found)
+     assert sent <= budget
++    left_out = passages(*found)[kept].chunk
++    assert sent + llm.count_tokens(format_passage(kept + 1, left_out)) > budget  # left out because it didn't fit
+
+
+ def test_the_best_passages_are_the_ones_kept(settings):

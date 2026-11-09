@@ -274,7 +274,16 @@ docker compose exec app book-rag ask "What is the harm principle?" --language Po
 
 Answers come from the retrieved passages, with numbered citations that resolve to chapter,
 section and pages. When the passages don't hold the answer, the model is told to say so
-instead of answering from general knowledge.
+instead of answering from general knowledge. It opens such a reply with a marker, and the
+application shows the reply as an abstention: "The model found no answer in the selected books".
+
+Some models sometimes abstain in words, without the marker: asked who did something, they reply
+that the passages say only "someone". With `check_abstentions: true` in a model's profile in
+`config/models.yaml`, the model reads each reply without the marker again, in one short call,
+and an abstention it finds is shown as one. It is on for `gemma4:12b` and `qwen3.5:9b`, where it
+took about a quarter of a second. A check that fails, or can't be read, leaves the reply an
+answer. It can still take a partial answer for an abstention: `docs/decisions.md` has its
+measurements.
 
 Passages are fitted to the context window before anything is sent, reserving room for the
 reply and `generation.context.safety_margin`. This matters: Ollama doesn't refuse a prompt

@@ -63,12 +63,18 @@ llm_profiles:
     # against max_tokens: qwen3.5:9b spent 566 tokens on a one-sentence question.
     reasoning: false
 
+    # This model and the one below sometimes abstain in words, without the no-evidence marker. The
+    # model then reads each such reply again, in one short call, to tell an abstention from an
+    # answer. See check_abstention() and docs/decisions.md.
+    check_abstentions: true
+
   qwen3.5:9b:
     tokenizer:
       kind: huggingface
       name: Qwen/Qwen3.5-9B
 
     reasoning: false
+    check_abstentions: true
 
   qwen3:14b:
     tokenizer:

@@ -345,3 +345,109 @@ def test_reasoning_that_consumes_the_limit_is_an_error_not_an_empty_answer(setti
 def test_an_empty_answer_is_an_error(settings):
     with pytest.raises(GenerationError, match="without an answer"):
         ask(settings, FakeLLM(["  "]))
+
+
+# An abstention written without the marker (.specify/bugs/unmarked-abstentions)
+
+UNMARKED = "The passages say only that someone made the denunciation [1]; they don't name who."
+
+
+def checking(settings):
+    """The settings, with the configured model's profile asking for the abstention check."""
+    profiles = dict(settings.llm_profiles)
+    profiles[settings.llm.model] = settings.llm_profile.model_copy(update={"check_abstentions": True})
+    return settings.model_copy(update={"llm_profiles": profiles})
+
+
+def test_an_abstention_without_the_marker_is_recognized_when_the_profile_asks(settings):
+    answer = ask(checking(settings), FakeLLM([UNMARKED, "NO"]), question="Who made the denunciation?")
+
+    assert answer.insufficient_evidence
+    assert answer.text == UNMARKED
+    assert [citation.number for citation in answer.citations] == [1]
+
+
+def test_the_check_reads_the_question_and_the_reply_but_not_the_passages(settings):
+    llm = FakeLLM([UNMARKED, "NO"])
+
+    ask(checking(settings), llm, question="Who made the denunciation?")
+
+    messages, parameters = llm.calls[1]
+    assert "Who made the denunciation?" in messages[-1].content
+    assert UNMARKED in messages[-1].content
+    assert not any("Opportunity cost is what you give up." in message.content for message in messages)
+    assert parameters.temperature == 0
+    assert parameters.max_tokens == llm.calls[0][1].max_tokens
+
+
+def test_a_reply_the_check_reads_as_an_answer_stays_one(settings):
+    answer = ask(checking(settings), FakeLLM(["Opportunity cost is what you give up [1].", "YES"]))
+
+    assert not answer.insufficient_evidence
+
+
+@pytest.mark.parametrize("verdict", ["**No**", "no.\n\nThe reply says only that the passages don't name who.", '"NO"'])
+def test_the_verdict_is_its_first_word(settings, verdict):
+    assert ask(checking(settings), FakeLLM([UNMARKED, verdict])).insufficient_evidence
+
+
+@pytest.mark.parametrize("verdict", ["Maybe.", "The answer is no.", "Nope", ""])
+def test_a_verdict_that_cant_be_read_leaves_the_answer(settings, verdict):
+    assert not ask(checking(settings), FakeLLM([UNMARKED, verdict])).insufficient_evidence
+
+
+def test_a_failed_check_leaves_the_answer(settings):
+    def respond(messages, parameters):
+        if len(llm.calls) > 1:
+            raise GenerationError("Ollama went away.")
+        return UNMARKED
+
+    llm = FakeLLM(respond=respond)
+
+    answer = ask(checking(settings), llm)
+
+    assert not answer.insufficient_evidence
+    assert answer.text == UNMARKED
+
+
+def test_a_check_too_long_for_the_context_is_skipped_rather_than_cut(settings):
+    llm = FakeLLM(["word " * 7000, "NO"])
+
+    answer = ask(checking(settings), llm)
+
+    assert len(llm.calls) == 1
+    assert not answer.insufficient_evidence
+
+
+def test_no_check_is_made_unless_the_profile_asks(settings):
+    llm = FakeLLM([UNMARKED, "NO"])
+
+    answer = ask(settings, llm)
+
+    assert len(llm.calls) == 1
+    assert not answer.insufficient_evidence
+
+
+def test_a_marked_reply_needs_no_check(settings):
+    llm = FakeLLM([f"{NO_EVIDENCE_MARKER} The source does not cover this.", "YES"])
+
+    answer = ask(checking(settings), llm)
+
+    assert answer.insufficient_evidence
+    assert len(llm.calls) == 1
+
+
+def test_a_skipped_check_is_logged_without_any_text(settings, tmp_path):
+    configure_logging("INFO", "INFO", tmp_path / "logs", console=False)
+
+    ask(checking(settings), FakeLLM([UNMARKED, "Perhaps."]), question="A private question")
+
+    logged = (tmp_path / "logs" / "app.jsonl").read_text()
+    entries = [json.loads(line) for line in logged.splitlines()]
+    [event] = [entry for entry in entries if entry["message"] == "abstention check skipped"]
+    assert event["reason"] == "unreadable"
+    assert event["level"] == "WARNING"
+    assert "A private question" not in logged
+    assert "someone" not in logged
+    assert "Perhaps" not in logged
+    logging.getLogger("book_rag").handlers.clear()

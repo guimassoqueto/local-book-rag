@@ -333,6 +333,64 @@ Answers or summaries with each error kind:
 - **gemma4 shows the first word sooner**, though gpt-oss reads prompts faster: gpt-oss reasons
   first.
 
+## The marker rule, reworded
+
+Two rewordings of the answering prompt's no-evidence rule were tried against gemma4's unmarked
+abstentions (`.specify/bugs/unmarked-abstentions/`). Neither was kept: `docs/decisions.md` says
+why. The runs used the same Ollama, digests and dataset as the confirmation above, on 2026-11-09:
+- **Generation**: `default_llm_generation_20261109T125707928285Z`, 1 h 37 min, from `7b7e64c` with
+  the first rewording. Its `results.json` doesn't record the prompt.
+- **The probe**: `default_llm_probe_20261109T143458804914Z`, 18 min, with the first rewording.
+- **Replays**: the 90 questions' answers without the judge, on the confirmation run's contexts
+  and seed, for the original prompt and the second rewording. Replayed, the original prompt gave
+  the confirmation run's abstentions on all 180 answers. The replays aren't kept.
+
+| Prompt | Model | Wrong abstentions | Unanswerable abstained | Abstention quality |
+| --- | --- | --- | --- | --- |
+| Original | gpt-oss:20b | 1 | 15 of 15 | 0.989 |
+| Original | gemma4:12b | 0 | 14 of 15 | 0.989 |
+| Original, replayed | qwen3.5:9b | 0 | 13 of 15 | 0.978 |
+| First rewording | gpt-oss:20b | 22 | 15 of 15 | **0.756** |
+| First rewording | gemma4:12b | 2 | 15 of 15 | 0.978 |
+| Second rewording, replayed | gpt-oss:20b | 9 | 14 of 15 | 0.889 |
+| Second rewording, replayed | gemma4:12b | 2 | 12 of 15 | 0.944 |
+| Second rewording, replayed | qwen3.5:9b | 2 | 15 of 15 | 0.978 |
+
+- **gpt-oss's abstention quality fell by 0.233** (−0.322 to −0.144) with the first rewording. No
+  other metric moved by an interval excluding zero, except gpt-oss's multi-section correctness,
+  +0.091 (+0.007 to +0.167). That rise counts only the 11 answers it still gave, out of 15.
+- **The probe**, with the first rewording:
+  - Abstentions shown as answers in Spanish, French, German and Italian fell from 2, 2, 4, 0 to
+    1, 0, 2, 0 for gemma4.
+  - gpt-oss's stayed at none. It answered one unanswerable question in Spanish from general
+    knowledge, which it hadn't before.
+
+## The abstention check
+
+gemma4:12b and qwen3.5:9b now read each reply without the marker again, for an abstention in
+words (`check_abstentions`, see `docs/decisions.md`). The answering prompt didn't change, so no
+full generation run was made.
+- **The check over existing replies.** The benchmark's seed is fixed, so the replies of these runs
+  are the ones a new run would get. Each model read its own unmarked replies. The answerable
+  replies taken for abstentions are listed with their `evidence_in_context`.
+
+  | Run, model | Unanswerable abstained | Answerable taken for abstentions | Abstention quality | Median seconds per check |
+  | --- | --- | --- | --- | --- |
+  | `default_llm_generation_20261109T041359173775Z`, gemma4 | 14 → 15 of 15 | `on_liberty_multi_section_01` (0.2), and `think_python_multi_section_05` (0.57) under one load | 0.989 → 0.989, or 0.978 under that load | 0.26 |
+  | `generation_20261108T175100527075Z`, qwen3.5 | 13 → 15 of 15 | `quincas_borba_conceptual_05` (0.0), `quincas_borba_factual_09` (1.0, ambiguous) | 0.978 → 0.978 | 0.18 |
+
+  The metric counts an abstention after a retrieval miss as wrong, so what the check gains on
+  unanswerable questions doesn't show in it.
+- **The probe**: `default_llm_probe_20261109T161109798344Z`, from `ebd39f5` with the check, on
+  2026-11-09, against `default_llm_probe_20261109T062308173324Z`.
+  - **gemma4's abstentions shown as answers**: 0 of 60, down from 8. In Spanish, French, German
+    and Italian: 0, 0, 0, 0, down from 2, 2, 4, 0.
+  - **gpt-oss**, which runs no check, stayed at 0 of 60.
+  - **The whole-library question with an answer** was answered in all three runs by both models,
+    and the trap was refused in all three.
+  - **The wait for the first visible word didn't change**: gemma4's median was 1.12 s on the
+    unanswerable questions, against 1.14 s before. The check runs after the reply.
+
 ## Recommendations
 
 The defaults stay as they are. These are what the results suggest changing, and what each change
