@@ -62,6 +62,7 @@ dev = [
     "pytest-cov",
     "respx",
     "ruff",
+    "specify-cli",
 ]
 
 [build-system]

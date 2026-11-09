@@ -237,3 +237,7 @@ benchmarks/books/
 benchmarks/workspace/
 benchmarks/results/*
 !benchmarks/results/.gitkeep
+
+# Spec Kit catalog cache, written by `specify extension update`. .specify/.gitignore
+# covers the rest of its machine-local state.
+.specify/extensions/.cache/

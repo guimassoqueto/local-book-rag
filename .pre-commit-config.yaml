@@ -13,6 +13,11 @@ repos:
   # Fixers: they fix the staged files and re-stage the fixes instead of failing, and
   # fail only on issues they cannot fix (see devtools/fix-staged.sh).
   # ruff comes from the venv, so it always matches `make lint`.
+  #
+  # Neither fixer touches the files Spec Kit generates: it writes some without a final
+  # newline, and a fixed file no longer matches the hash Spec Kit recorded, so
+  # `specify integration upgrade` would refuse to refresh it. What we write under
+  # .specify (the constitution, bug and assessment records) is still fixed.
   - repo: local
     hooks:
       - id: end-of-file-fixer
@@ -21,6 +26,7 @@ repos:
         language: python
         additional_dependencies: [pre-commit-hooks==6.0.0]
         types: [text]
+        exclude: &speckit-generated '^(\.specify/(?!memory/constitution\.md$|bugs/|assessments/)|\.(claude|agents)/skills/speckit-)'
         stages: [pre-commit]
         require_serial: true
       - id: trailing-whitespace
@@ -29,6 +35,7 @@ repos:
         language: python
         additional_dependencies: [pre-commit-hooks==6.0.0]
         types: [text]
+        exclude: *speckit-generated
         stages: [pre-commit]
         require_serial: true
       - id: ruff-check

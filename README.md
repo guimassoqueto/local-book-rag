@@ -24,7 +24,7 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvidia-smi
 
 ```bash
 make env        # copy devtools/.env.sample to .env (won't overwrite an existing one)
-make install    # create .venv with the locked dependencies and install the git hooks
+make install    # create .venv with the locked dependencies, Spec Kit's CLI among them, and install the git hooks
 ```
 
 Set `APP_UID` and `APP_GID` in `.env` if your user isn't 1000, so that the files the app writes
@@ -43,6 +43,24 @@ since the last `v*` tag and picks the bump (`fix`/`perf` patch, `feat` minor, `f
 release with the changes grouped by type. A merge of only `docs`, `chore`, `ci`, `test` or
 `refactor` commits releases nothing. The version lives in the tags: `pyproject.toml`'s
 `version` is not bumped, since nothing can push the commit that would bump it.
+
+## How changes are made
+
+Since v0.1.0, every change that isn't trivial goes through [Spec Kit](https://github.com/github/spec-kit),
+which keeps what was asked for, and why, next to the code that does it:
+
+| Change                 | Flow                                                                  | Its record                     |
+| ---------------------- | --------------------------------------------------------------------- | ------------------------------ |
+| A feature              | `/speckit-specify`, `-plan`, `-tasks`, `-implement`, `-converge`      | `specs/NNN-<name>/`            |
+| A bug                  | `/speckit-bug-assess`, `-fix`, `-test`                                | `.specify/bugs/<name>/`        |
+| An idea to weigh first | `/speckit-assess-intake`, `-research`, `-define`, `-shape`, `-decide` | `.specify/assessments/<name>/` |
+
+These are skills that run inside a coding agent, not terminal commands. They are generated for
+Claude Code in `.claude/skills/`, and in `.agents/skills/` for Codex, Cursor, Gemini CLI, Copilot,
+OpenCode and the other agents that read it, where Codex calls them as `$speckit-specify`. The rules
+every change has to respect are in `.specify/memory/constitution.md`, and `AGENTS.md` says which
+flow fits which change. The generated files are never edited by hand: after `make update` brings a
+new `specify-cli`, `make speckit-upgrade` regenerates them.
 
 ## Running
 
@@ -71,6 +89,7 @@ The interface is at <http://localhost:7860>. `docker compose exec app book-rag d
 | `make update-hooks`     | Bump the pinned hook revisions in `.pre-commit-config.yaml` |
 | `make check-updates`    | List what `make update` would upgrade, changing nothing     |
 | `make update`           | Upgrade all dependencies to their latest versions           |
+| `make speckit-upgrade`  | Regenerate Spec Kit's skills and scripts for a new version  |
 | `make reinstall`        | Delete `.venv` and run `make install` again                 |
 
 `docker compose down -v` is not a reset: it deletes the named volumes, with the downloaded
@@ -417,4 +436,8 @@ data/              # the library: originals, processed files, summaries and the 
 docs/              # what was decided and why, and what the benchmarks found
 tests/unit/        # no services needed: real files, real SQLite, embedded ChromaDB, fake models
 tests/integration/ # against the running stack and the real models
+specs/             # one directory per feature since v0.1.0: its spec, plan and tasks
+.specify/          # Spec Kit: the constitution, templates and scripts, and the bug and idea records
+.claude/skills/    # Spec Kit's skills for Claude Code, generated
+.agents/skills/    # the same skills for the agents that read .agents/skills, generated
 ```
