@@ -12,7 +12,9 @@ retrieval:
     stemming: true
     # Portuguese books: old spellings (Sophia, elle, facto) match modern ones (Sofia, ele, fato).
     # Needs stemming. Changes no stored data, so turning it on or off needs no reindex.
-    historical_spelling: true
+    # Off: on the benchmark it didn't improve lexical search by more than noise, and the default
+    # configuration came out the same (docs/benchmark-results.md, "Historical spelling").
+    historical_spelling: false
 
   fusion:
     # rrf merges ranks. weighted merges scores normalized within each list, by dense_weight.

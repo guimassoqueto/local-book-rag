@@ -180,6 +180,16 @@ def test_other_old_spellings_and_word_forms_are_found(query, text):
     assert texts(retriever(chunks, HISTORICAL).retrieve(query, scope("pt"))) == [text]
 
 
+@pytest.mark.parametrize(
+    ("query", "text"),
+    [("Theophilo", "Teófilo saiu cedo."), ("philosopho", "O filósofo de Barbacena.")],
+)
+def test_an_old_spelling_finds_a_modern_edition(query, text):
+    chunks = portuguese(text, "O Palha fechou a porta.")
+
+    assert texts(retriever(chunks, HISTORICAL).retrieve(query, scope("pt"))) == [text]
+
+
 OLD_SPELLINGS = "Sophia elle anno philosopho typo apparecer Thereza scena"
 
 

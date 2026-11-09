@@ -204,7 +204,7 @@ decides the default (SC-001, SC-002, SC-003).
 every file in `benchmarks/experiments/`. A run's rows then give the paired differences for
 *Quincas Borba*.
 
-- [ ] T018 [P] [US2] Create `benchmarks/experiments/historical_spelling.yaml` with
+- [X] T018 [P] [US2] Create `benchmarks/experiments/historical_spelling.yaml` with
   `name: historical_spelling`, `kind: retrieval` and a description: old Portuguese spellings in
   lexical search, with and without, alone and in the default configuration, the reranker on the
   GPU as in `retrieval.yaml`. Give it these four variants, exactly as in data-model.md:
@@ -215,13 +215,13 @@ every file in `benchmarks/experiments/`. A run's rows then give the paired diffe
     `retrieval: {strategy: hybrid, fusion: {method: rrf}, reranker: {enabled: true}, bm25: {historical_spelling: false}}`,
     plus `reranker: {device: cuda}`
   - `default_historical_spelling`: the same with `historical_spelling: true`
-- [ ] T019 [US2] Run `uv run pytest tests/unit/test_benchmark.py -q`. The new file validates
+- [X] T019 [US2] Run `uv run pytest tests/unit/test_benchmark.py -q`. The new file validates
   (depends on T018).
-- [ ] T020 [US2] With the stack up and the benchmark books fetched (quickstart prerequisites), run
+- [X] T020 [US2] With the stack up and the benchmark books fetched (quickstart prerequisites), run
   `make benchmark EXPERIMENT=historical_spelling`, which reads
   `benchmarks/experiments/historical_spelling.yaml`. Note the result directory under
   `benchmarks/results/`, and the commit it ran on (depends on T017, T018).
-- [ ] T021 [US2] Run quickstart.md's scenario 4:
+- [X] T021 [US2] Run quickstart.md's scenario 4:
   - `benchmark-report --baseline bm25_exact_spelling`
   - the paired-difference snippet on the `quincas_borba` rows
 
@@ -233,6 +233,11 @@ every file in `benchmarks/experiments/`. A run's rows then give the paired diffe
 
   If SC-001 or SC-002 fails, set `historical_spelling: false` in `config/retrieval.yaml` (spec,
   Assumptions). Keep the numbers for T024 (depends on T020).
+  - **Done 2026-11-09**, run `historical_spelling_20261109T021510676164Z`, on commit `608e9a4`:
+    - **SC-001 fails**: Recall@5 +0.030 on *Quincas Borba*, interval −0.030 to +0.120.
+    - **SC-002 passes**: 0.000 on every metric.
+    - **SC-003 passes**: 0 of 50 English questions differ.
+    - **Result**: `historical_spelling: false` in `config/retrieval.yaml`, as the spec settled.
 
 **Checkpoint**: the effect is measured, and the default is decided.
 
@@ -246,7 +251,7 @@ the other direction).
 **Independent Test**: with `HISTORICAL`, a "Theophilo" search of a modern Portuguese chunk returns
 the one that says "Teófilo".
 
-- [ ] T022 [P] [US3] In `tests/unit/test_bm25.py`, add retriever tests on modern Portuguese chunks
+- [X] T022 [P] [US3] In `tests/unit/test_bm25.py`, add retriever tests on modern Portuguese chunks
   with `HISTORICAL`: "Theophilo" returns the chunk with "Teófilo", and "philosopho" the one with
   "filósofo" (spec, US3 scenario 1). Run `uv run pytest tests/unit/test_bm25.py -q`. They pass with
   no new code, since folding is symmetric: if one fails, T014 is wrong (depends on T014).
@@ -259,7 +264,7 @@ the one that says "Teófilo".
 
 **Purpose**: the records that constitution VIII requires before the feature is done.
 
-- [ ] T023 [P] In `docs/decisions.md`, add an entry to the Indexing section, near "BM25 is built
+- [X] T023 [P] In `docs/decisions.md`, add an entry to the Indexing section, near "BM25 is built
   in memory for each search scope", in the file's style (a bold sentence, then why). It covers:
   - **The patterns, and where they apply**: y → i before stemming, because Snowball's Portuguese
     stemmer doesn't take y for a vowel, and tipo/typo failed otherwise. The others go on the key,
@@ -272,7 +277,7 @@ the one that says "Teófilo".
   - **Why it needs stemming, and stays out of the index fingerprint.**
   - **Where the measurement lives**: `devtools/measure_historical_spelling.py` reruns it after any
     change to a pattern.
-- [ ] T024 [P] In `docs/benchmark-results.md`, add a section for the experiment, with the commit it
+- [X] T024 [P] In `docs/benchmark-results.md`, add a section for the experiment, with the commit it
   ran on (T020) and the numbers and intervals from T021:
   - *Quincas Borba* for both pairs of variants, and the default configuration's differences
     whatever they are (SC-002)
@@ -280,7 +285,7 @@ the one that says "Teófilo".
 
   Update the Known limitations item "The novel's old spelling" to what remains, such as the names
   kept apart. Add the run to "Changes these benchmarks led to" if the default changed.
-- [ ] T025 [P] In `README.md`, in the Retrieval section:
+- [X] T025 [P] In `README.md`, in the Retrieval section:
   - **The `bm25` row of the strategy table**: add old Portuguese spellings matching the modern
     ones.
   - **A short paragraph**, saying:
@@ -288,9 +293,13 @@ the one that says "Teófilo".
     - that turning it on or off needs no reindex, only `docker compose restart app`
     - that it needs `stemming`
     - that the text shown is never changed
-- [ ] T026 Run `make lint-check`, `make test` and `uv run pre-commit run --all-files`, and fix
+- [X] T026 Run `make lint-check`, `make test` and `uv run pre-commit run --all-files`, and fix
   whatever fails. If *Quincas Borba* is in the library, run quickstart.md's scenario 5 (depends on
   T023 to T025).
+  - **Done 2026-11-09**:
+    - lint clean, 776 unit tests passing, `pre-commit run --all-files` clean
+    - scenario 5 on `book_003`: with the setting on, the "D. Sophia" passage's BM25 score rose
+      from 1.276 to 1.887, and two more Sophia passages entered through BM25
 
 ---
 

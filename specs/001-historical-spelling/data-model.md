@@ -7,7 +7,7 @@ everything else in memory, as it already does.
 
 | Field | Type | Required | In `config/retrieval.yaml` |
 | --- | --- | --- | --- |
-| `historical_spelling` | bool | yes, like every BM25 setting | `true` |
+| `historical_spelling` | bool | yes, like every BM25 setting | `false`. It was `true` until the benchmark failed SC-001 (spec, Assumptions) |
 
 Validation, at startup and on every experiment override:
 

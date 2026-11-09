@@ -94,7 +94,7 @@ specs/001-historical-spelling/
 ```text
 app/retrieval/bm25.py                           # Tokenizer: the patterns, the kept keys, a key per distinct word
 app/config/settings.py                          # BM25Config.historical_spelling, refused without stemming
-config/retrieval.yaml                           # historical_spelling: true
+config/retrieval.yaml                           # historical_spelling: true, then false once the benchmark failed SC-001
 benchmarks/experiments/historical_spelling.yaml # the four variants
 devtools/measure_historical_spelling.py         # the FR-003 measurement, repeatable (R7)
 tests/unit/test_bm25.py                         # pairs, curated collisions, switch, other languages, retrieval

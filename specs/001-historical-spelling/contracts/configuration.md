@@ -14,7 +14,7 @@ retrieval:
     stemming: true
     # Portuguese books: old spellings (Sophia, elle, facto) match modern ones (Sofia, ele, fato).
     # Needs stemming. Changes no stored data, so turning it on or off needs no reindex.
-    historical_spelling: true
+    historical_spelling: false   # true until the benchmark failed SC-001 (spec, Assumptions)
 ```
 
 | Situation | Result |

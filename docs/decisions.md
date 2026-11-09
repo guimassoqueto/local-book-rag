@@ -89,6 +89,43 @@ index part of a chunk as if it were whole.
 **BM25 is built in memory for each search scope.** It takes 60 ms for a 1,300-chunk book, so there
 is no second index on disk to keep in step with ChromaDB.
 
+**Old Portuguese spellings match modern ones in lexical search.** The benchmark's *Quincas Borba*
+prints Sophia, elle, anno and facto, where readers type Sofia, ele, ano and fato. 27 of the 46
+question words that never matched the book were in it in an older spelling.
+- **Only keys are folded.** Lexical search folds the keys it compares, never the text, so a
+  question in either spelling finds the other. Nothing stored changes, so turning
+  `bm25.historical_spelling` on or off needs no reindex, and it stays out of the index fingerprint,
+  like the query template.
+- **y → i comes before stemming.** Snowball's Portuguese stemmer doesn't take y for a vowel: it cuts
+  "tipo" to `tip` and leaves "typo" whole.
+- **The other ten patterns apply to the stemmed, accent-free key**, where they collide less. They are
+  ph, th, doubled consonants, ct, gn, bd, a leading sc, a final z, an h between vowels and oup. z → s
+  alone makes 72 groups of modern words identical when applied after stemming, and 124 before.
+- **It needs stemming**, because the words kept apart (below) are stemmed keys.
+- **It ships switched off.** On the benchmark, lexical search alone gained 0.030 Recall@5 on the
+  novel, with an interval from −0.03 to +0.12. The default configuration didn't change at all:
+  dense retrieval and the reranker already found those passages. One question gained its evidence,
+  and one lost part of it: once folded, its "Sofia" matched the book's 347 Sophias, which crowded
+  the evidence out. The spec had settled beforehand that a gain within noise ships the feature off
+  (`specs/001-historical-spelling`).
+
+**Modern words that a pattern would merge are left as they are.** The patterns were measured against
+Debian's `wbrazilian` 3.0~beta4-25: 274,246 forms of modern Brazilian Portuguese, making 44,858 keys.
+- **What the patterns would do**: they change 1,103 of those keys, and some would make different
+  words identical, such as pacto and pato, facção and facão, or signo and sino.
+- **Kept as they are**: the 97 keys involved keep their spelling, which is 34 for a final z, 20 for
+  ct, 14 for gn, 12 for doubled consonants, 9 for y, 4 for th, 2 for bd, and one each for h and
+  oup.
+- **The result**: no two words of the list collide, and all 28 of the spec's pairs match. Dropping
+  the colliding patterns instead would have left 5 of the 28.
+- **The cost**: some of the 97 are variants of one word or name, which then stay apart, such as
+  Souza and Sousa, Tereza and Teresa, or dactilógrafo and datilógrafo.
+- **"Modern" means Brazilian.** In Portugal, facto ("fact") and fato ("suit") are two words, so
+  European Portuguese readers get that false match.
+- **Rerunning it**: `devtools/measure_historical_spelling.py` reruns the measurement after any change
+  to a pattern, and fails while the kept keys in `app/retrieval/bm25.py` differ from what it finds.
+  The word list, which is GPL-2, stays out of the repository.
+
 ## Generation
 
 **Prompts are fitted before sending.** Ollama doesn't refuse a prompt that is too long. It cuts it

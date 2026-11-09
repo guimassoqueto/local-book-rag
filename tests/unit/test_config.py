@@ -76,8 +76,9 @@ def test_template_needs_a_placeholder(config_dir, edit_config):
         load_settings(config_dir)
 
 
-def test_historical_spelling_is_on_in_the_project_configuration(settings):
-    assert settings.retrieval.bm25.historical_spelling
+def test_historical_spelling_ships_switched_off(settings):
+    # The benchmark showed no gain beyond noise (specs/001-historical-spelling, SC-001).
+    assert not settings.retrieval.bm25.historical_spelling
 
 
 def test_historical_spelling_must_be_set(config_dir, edit_config):
