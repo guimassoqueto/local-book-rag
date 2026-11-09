@@ -19,6 +19,25 @@ Follow these rules:
 - If the passages don't answer the question at all, begin your reply with {NO_EVIDENCE_MARKER}, then say that the source doesn't contain enough information. Don't guess, and don't answer from general knowledge.
 - {{language_rule}}"""  # noqa: E501
 
+_ABSTENTION_CHECK_SYSTEM = "You read replies to questions about books, and say whether each one informs its reader."
+
+# The passages aren't sent: the check reads what the reply gives, not whether the passages support
+# it. Asked to weigh the evidence, gpt-oss abstained on questions its passages answer. Asked to
+# classify replies as answers or abstentions, gemma4 and qwen3.5 took partial answers that say
+# what is missing for abstentions (.specify/bugs/unmarked-abstentions).
+_ABSTENTION_CHECK_INSTRUCTIONS = """A reader asked the question below about a book, and got the reply below, written from passages of the book.
+
+Does the reply give the reader any of the information the question asks for?
+- YES if it gives what was asked, or some of it, even when it also says that something else is missing. An answer can be a negation, such as "No, he rejects it".
+- NO if it only says that the passages don't contain what was asked, perhaps with what they say around it. A vague stand-in, such as "someone" for who, gives nothing.
+
+Reply with one word: YES or NO.
+
+Question: {question}
+
+Reply:
+{reply}"""  # noqa: E501
+
 _SUMMARY_SYSTEM = """You write faithful summaries of book chapters, for a reader who needs to rely on them.
 
 Follow these rules:
@@ -184,6 +203,14 @@ def question_answering_messages(question: str, passages: Sequence[Chunk], langua
     return [
         Message("system", system),
         Message("user", f"Passages:\n\n{context}\n\nQuestion: {question}"),
+    ]
+
+
+def abstention_check_messages(question: str, reply: str) -> list[Message]:
+    """Ask whether a finished reply answers its question, or says the passages can't."""
+    return [
+        Message("system", _ABSTENTION_CHECK_SYSTEM),
+        Message("user", _ABSTENTION_CHECK_INSTRUCTIONS.format(question=question, reply=reply)),
     ]
 
 

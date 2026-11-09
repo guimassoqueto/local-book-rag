@@ -418,6 +418,20 @@ def test_an_abstention_records_whether_the_evidence_reached_the_model(lab, model
     assert "faithfulness" not in row
 
 
+def test_an_abstention_without_the_marker_is_recognized_as_the_application_does(lab, models):
+    runner, *_ = lab
+    models["gemma4:12b"] = (None, FakeLLM(["The passages don't say who did it [1].", "NO"]))
+    overrides = {"llm": {"model": "gemma4:12b"}, "llm_profiles": {"gemma4:12b": {"check_abstentions": True}}}
+    variant = VariantConfig(name="candidate", overrides=overrides)
+    experiment = Experiment(name="test", kind="generation", description="A test.", variants=(variant,), judge=JUDGE)
+
+    [row] = report_of(runner.run(experiment))["rows"]
+
+    assert row["abstained"] is True
+    assert row["answer"] == "The passages don't say who did it [1]."
+    assert "faithfulness" not in row
+
+
 def test_candidates_answer_at_their_own_settings(lab, models):
     runner, *_ = lab
 

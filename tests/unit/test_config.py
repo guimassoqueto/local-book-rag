@@ -69,6 +69,19 @@ def test_embedding_model_needs_a_profile(config_dir, edit_config):
         load_settings(config_dir)
 
 
+def test_the_abstention_check_takes_only_a_boolean(config_dir, edit_config):
+    edit_config("models.yaml", lambda c: c["llm_profiles"]["gpt-oss:20b"].update(check_abstentions="sometimes"))
+
+    with pytest.raises(ConfigurationError, match="check_abstentions"):
+        load_settings(config_dir)
+
+
+def test_the_abstention_check_is_off_unless_a_profile_asks(config_dir, edit_config):
+    edit_config("models.yaml", lambda c: c["llm_profiles"]["gpt-oss:20b"].pop("check_abstentions", None))
+
+    assert load_settings(config_dir).llm_profiles["gpt-oss:20b"].check_abstentions is False
+
+
 def test_template_needs_a_placeholder(config_dir, edit_config):
     edit_config("models.yaml", lambda c: c["embedding_profiles"]["bge-m3"].update(query_template="no placeholder"))
 

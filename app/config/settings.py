@@ -50,10 +50,19 @@ class LLMConfig(ConfigModel):
 
 
 class LLMProfile(ConfigModel):
-    """What is specific to one LLM: its tokenizer and what it accepts as a reasoning setting."""
+    """What is specific to one LLM.
+
+    Attributes:
+        tokenizer: counts tokens the way the model does.
+        reasoning: what it accepts as a reasoning setting.
+        check_abstentions: read each reply without the no-evidence marker again, with the same
+            model, for an abstention written only in words. For models that sometimes leave the
+            marker out; it costs one short call per answer.
+    """
 
     tokenizer: TokenizerConfig
     reasoning: bool | Literal["low", "medium", "high"] | None = None
+    check_abstentions: bool = False
 
 
 class EmbeddingConfig(ConfigModel):
