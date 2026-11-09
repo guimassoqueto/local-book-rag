@@ -233,11 +233,11 @@ docker compose exec app book-rag search "What is opportunity cost?" --book book_
 `search` shows what the system retrieves, with each stage's score. It accepts filters by
 book, chapter, section, language and page range. `config/retrieval.yaml` picks the strategy:
 
-| `strategy` | Finds passages through                                                 |
-| ---------- | ---------------------------------------------------------------------- |
-| `dense`    | Nearest neighbors in ChromaDB                                          |
-| `bm25`     | Term matching, stemmed in the book's language and ignoring accents     |
-| `hybrid`   | Both, merged by `fusion.method`: `rrf` on ranks, `weighted` on scores  |
+| `strategy` | Finds passages through                                                            |
+| ---------- | --------------------------------------------------------------------------------- |
+| `dense`    | Nearest neighbors in ChromaDB                                                     |
+| `bm25`     | Term matching, stemmed in the book's language, ignoring accents and old spellings |
+| `hybrid`   | Both, merged by `fusion.method`: `rrf` on ranks, `weighted` on scores             |
 
 Reranking is a separate stage on top of any of them, in `retrieval.reranker.enabled`. It runs
 inside the app through sentence-transformers, since Ollama has no reranking API. Both
@@ -251,6 +251,17 @@ top-k, a question comparing two books could come back with passages from only on
 The BM25 index is built in memory over exactly the chunks a search may return, about 60 ms
 for a 1,300-chunk book. So there is no second index on disk to keep in step with ChromaDB, and
 term rarity reflects the part of the book being searched.
+
+Portuguese books printed before the spelling reforms spell many words differently from today:
+*Quincas Borba* has Sophia, elle and facto where a reader types Sofia, ele and fato. With
+`bm25.historical_spelling` on, lexical search treats both spellings as one word, in either
+direction. It is off by default: on the benchmark, it didn't improve lexical search by more than
+noise, and the default configuration came out the same (`docs/benchmark-results.md`).
+- **Only the words it compares are folded.** Passages are shown as the book prints them, nothing
+  stored changes, and switching the setting needs `docker compose restart app`, not a reindex.
+- **It needs `stemming`**, and applies only to books in Portuguese.
+- **A few modern words are left as they are**, where a pattern would merge them with another, as
+  pacto with pato. `docs/decisions.md` has the measurement behind this.
 
 ## Questions
 

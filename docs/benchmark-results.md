@@ -1,6 +1,6 @@
 # Benchmark results
 
-What the five experiments in `benchmarks/experiments` found, on 2026-11-07 and 08. Result files
+What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 09. Result files
 stay out of the repository, so this page is their record. Every number in it comes from those
 files, and `book-rag benchmark-report` shows each run with the paired comparisons quoted below.
 
@@ -12,7 +12,8 @@ of six chapters, two per book.
 Extraction, retrieval and performance ran on commit `4fcd1cb`, generation on `f90a1b0` and
 summarization on `826c977`. The commits in between changed the summarizer, the summary prompts
 and the key points, none of which the other experiments use. The one after them, `c7dd6ac`,
-recognizes a translated no-evidence marker: see Generation.
+recognizes a translated no-evidence marker: see Generation. Historical spelling ran on `608e9a4`,
+on 2026-11-09.
 
 ## How far to trust these numbers
 
@@ -94,6 +95,49 @@ the reranker runs on the CPU, where it takes about 4 s per question.
   10 of them multi-section.
 
 Context recall is left out of the table because it equals Recall@5 here, by construction.
+
+## Historical spelling
+
+Lexical search with and without old Portuguese spellings matching modern ones
+(`bm25.historical_spelling`, `specs/001-historical-spelling`). The experiment
+`historical_spelling` ran it alone and in the default configuration, on the 25 answerable questions
+of *Quincas Borba*, the only Portuguese book.
+
+| Variant | Recall@5 | Recall@10 | MRR | nDCG@10 | Context precision |
+| --- | --- | --- | --- | --- | --- |
+| bm25_exact_spelling | 0.803 | 0.913 | 0.877 | 0.812 | 0.838 |
+| bm25_historical_spelling | 0.833 | 0.952 | 0.896 | 0.838 | 0.853 |
+| default_exact_spelling | 0.886 | 0.957 | 0.935 | 0.849 | 0.864 |
+| default_historical_spelling | 0.886 | 0.957 | 0.935 | 0.849 | 0.864 |
+
+- **Lexical search alone gains within noise.** Paired on the novel's 25 questions, the differences
+  were:
+
+  | Metric | Difference | 95% interval |
+  | --- | --- | --- |
+  | Recall@5 | +0.030 | −0.030 to +0.120 |
+  | Recall@10 | +0.039 | −0.016 to +0.127 |
+  | MRR | +0.019 | −0.019 to +0.059 |
+  | nDCG@10 | +0.026 | −0.006 to +0.066 |
+  | context precision | +0.014 | −0.028 to +0.068 |
+
+  Recall@5 was chosen before the run to decide, and its interval includes zero.
+- **Only two questions moved.** `factual_08` found its evidence, which it hadn't before. And
+  `multi_section_02` lost a quarter of it: once folded, its "Sofia" matched the book's 347
+  Sophias, a common word now, and those passages crowded one piece of evidence out of the top five.
+  Most questions with an old-spelled word also have words that already match, such as Rubião, so
+  they found their passages anyway.
+- **The default configuration doesn't change at all.** All five metrics are the same, question by
+  question: dense retrieval and the reranker already found those passages.
+- **The English books come out identical** under both pairs of variants, as they must, since the
+  setting applies only to Portuguese.
+- **Retrieval reproduces.** `bm25_exact_spelling` matches the `bm25` variant of the Retrieval run
+  above, 0.851 Recall@5 overall and 0.803 on the novel.
+
+So the setting ships switched off, as the spec had settled beforehand for a gain within noise. It
+still does what it was built for, matching 28 of 28 pairs with no collision among modern words
+(`docs/decisions.md`). A larger Portuguese dataset, or questions written without the book's words
+at hand, could show more.
 
 ## Generation
 
@@ -219,8 +263,10 @@ would cost.
   Christiano, or says what a letter's "eu" says of its writer, can lose its faithfulness even when
   the passage says exactly that.
 - **The novel's old spelling.** *Quincas Borba* writes Sophia, Theophilo and Christiano, and the
-  questions use the modern Sofia and Teófilo, as a reader would. BM25 can't match those names, and
-  nothing normalizes historical spelling.
+  questions use the modern Sofia and Teófilo, as a reader would. `bm25.historical_spelling` matches
+  those spellings, but ships switched off, since it gained within noise (see Historical spelling).
+  Christiano isn't covered: ch → c isn't among the patterns, because modern Portuguese keeps ch in
+  many words. Some modern variants of a name, such as Souza and Sousa, stay apart.
 - **Abstention quality counts the marker**, so an honest "the text doesn't say" without it counts
   as an answer.
 - **Each question searches only its own book.** Asked of the whole library after these runs,
@@ -272,6 +318,7 @@ docker compose exec app book-rag validate-benchmark
 
 make benchmark EXPERIMENT=extraction       # about a minute
 make benchmark EXPERIMENT=retrieval        # about 7 minutes, indexing four workspaces
+make benchmark EXPERIMENT=historical_spelling  # about 2 minutes
 make benchmark EXPERIMENT=performance      # about 3 minutes
 make benchmark EXPERIMENT=summarization    # about 45 minutes
 make benchmark EXPERIMENT=generation       # about 3.5 hours

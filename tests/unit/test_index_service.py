@@ -106,6 +106,16 @@ def test_the_query_template_can_change_without_a_reindex(settings, catalog, serv
     assert not service.needs_reindex()
 
 
+def test_historical_spelling_can_change_without_a_reindex(settings, catalog, server):
+    indexes(settings, catalog, server).require_writable()
+    current = settings.retrieval.bm25
+    bm25 = current.model_copy(update={"historical_spelling": not current.historical_spelling})
+
+    service = indexes(changed(settings, "retrieval", bm25=bm25), catalog, server)
+
+    assert not service.needs_reindex()
+
+
 def test_a_size_that_contradicts_the_model_stops_everything(settings, catalog, server):
     with pytest.raises(EmbeddingDimensionError, match="produces 768"):
         indexes(settings, catalog, server, FakeRuntime(dimensions=768)).require_writable()
