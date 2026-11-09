@@ -46,7 +46,7 @@ A single Python project, with `app/`, `config/`, `tests/`, `benchmarks/experimen
 
 **Purpose**: confirm the state the confirmation depends on, changing nothing.
 
-- [ ] T001 Check the starting state, and stop on any surprise. Don't pull a model: a new pull can
+- [X] T001 Check the starting state, and stop on any surprise. Don't pull a model: a new pull can
   bring new weights under the same tag. Check that:
   - the branch is `feat/gemma4-default-llm`, at `4e7284b` or later, with a clean tree;
   - `docker compose ps` shows `app`, `ollama` and `chromadb` running;
@@ -64,15 +64,15 @@ FR-004, nothing in `app/` or `config/` changes in this phase or in Phase 3.
 
 **⚠️ CRITICAL**: no user story can start until this phase is complete.
 
-- [ ] T002 [P] Create `benchmarks/experiments/default_llm_generation.yaml` as in
+- [X] T002 [P] Create `benchmarks/experiments/default_llm_generation.yaml` as in
   [contracts/configuration.md](contracts/configuration.md):
   - `name: default_llm_generation` and `kind: generation`;
   - the `judge` block copied byte for byte from `benchmarks/experiments/generation.yaml`;
   - only the variants `gpt_oss_20b` and `gemma4_12b`, as they are written there.
-- [ ] T003 [P] Create `benchmarks/experiments/default_llm_summarization.yaml` the same way, from
+- [X] T003 [P] Create `benchmarks/experiments/default_llm_summarization.yaml` the same way, from
   `benchmarks/experiments/summarization.yaml`, with `kind: summarization` and its judge block
   (`reasoning: medium`).
-- [ ] T004 [P] Create `devtools/default_llm.py` with:
+- [X] T004 [P] Create `devtools/default_llm.py` with:
   - **A module docstring** saying:
     - that it is the confirmation of `specs/002-gemma4-default-llm`;
     - that four subcommands run in the container, with
@@ -89,7 +89,7 @@ FR-004, nothing in `app/` or `config/` changes in this phase or in Phase 3.
   - **Imports**: only `app`, the application's own dependencies (`yaml`) and the standard library.
     The script is piped to the container, so it can import nothing next to it. Leave each
     subcommand's body raising `NotImplementedError` for now.
-- [ ] T005 Create `tests/unit/test_default_llm_devtool.py` (depends on T002 to T004).
+- [X] T005 Create `tests/unit/test_default_llm_devtool.py` (depends on T002 to T004).
   - **A module-level loader**:
     `importlib.util.spec_from_file_location("default_llm", PROJECT / "devtools" / "default_llm.py")`,
     registered in `sys.modules` before `exec_module`, with
@@ -123,7 +123,7 @@ All in `tests/unit/test_default_llm_devtool.py`, one after another, since they s
 fields of the real rows (`rows.jsonl`: `variant`, `question`, `book`, `category`, `abstained`, and
 the metric fields).
 
-- [ ] T006 [US1] Tests for the recorder (research R5, [records](contracts/records.md#promptsjsonl)):
+- [X] T006 [US1] Tests for the recorder (research R5, [records](contracts/records.md#promptsjsonl)):
   - **A pass-through record**: `RecordingLLM(inner, sink, label=lambda: ("gemma4_12b",
     "Inheritance"))` returns `inner`'s `Generation` unchanged from `generate`, and yields `inner`'s
     events unchanged from `stream`. It appends one record with the fields `variant`, `chapter`,
@@ -137,7 +137,7 @@ the metric fields).
       `RecordingLLM`;
     - after the block exits, even through an exception, it is the original function again;
     - `app.evaluation.benchmark.create_llm_provider`, the judge's path, is never replaced.
-- [ ] T007 [US1] Tests for `compare_environment(expected, actual, models, dataset_expected,
+- [X] T007 [US1] Tests for `compare_environment(expected, actual, models, dataset_expected,
   dataset_actual) -> list[Check]`, where `Check` holds `name`, `expected`, `actual` and `ok`.
   - Identical environments give only `ok` checks.
   - Each of these gives one check that isn't `ok`, naming what differs:
@@ -145,7 +145,7 @@ the metric fields).
     - a model missing from the reference;
     - a different Ollama version;
     - a different dataset checksum.
-- [ ] T008 [US1] Tests for `load_reading(path)` and `missing_entries(entries, required)`
+- [X] T008 [US1] Tests for `load_reading(path)` and `missing_entries(entries, required)`
   ([records](contracts/records.md#readingyaml)).
   - **`load_reading` raises `ReadingError` (a `ValueError`) for**:
     - an error kind outside `unsupported_claim`, `misattribution`, `unanswered_part`,
@@ -155,7 +155,7 @@ the metric fields).
     - a `label` on any other kind;
     - non-empty `errors` with an empty `note`.
   - **`missing_entries`** names each `(item, kind, model)` that is required and absent.
-- [ ] T009 [US1] Tests for `decide(generation_rows, summarization_rows, prompts, probe, reading,
+- [X] T009 [US1] Tests for `decide(generation_rows, summarization_rows, prompts, probe, reading,
   safety_margin, integration) -> Verdict`, covering every condition of spec FR-002.
   - **(a)**:
     - gemma4 lower on `faithfulness` on every question fails (a), naming `faithfulness`;
@@ -197,10 +197,10 @@ the metric fields).
 
 All in `devtools/default_llm.py`, one after another.
 
-- [ ] T010 [US1] Implement `RecordingLLM` and the `recording_llms(sink, label)` context manager
+- [X] T010 [US1] Implement `RecordingLLM` and the `recording_llms(sink, label)` context manager
   (research R5). The context manager replaces `app.container.create_llm_provider` with a function
   that wraps the original's result, and restores it in a `finally`. T006 passes.
-- [ ] T011 [US1] Implement `compare_environment` and the `preflight` subcommand (research R4,
+- [X] T011 [US1] Implement `compare_environment` and the `preflight` subcommand (research R4,
   [contract](contracts/devtool.md)). It reads, from the live stack:
   - `runtime.version()`;
   - `runtime.model_info(model).digest` for every model the experiment uses: each variant's
@@ -211,7 +211,7 @@ All in `devtools/default_llm.py`, one after another.
   It compares them with `--like`'s and `--dataset-like`'s `results.json["environment"]`, prints
   one `ok` or `DIFFERS` line per check with both values, and exits 1 on any difference. T007
   passes.
-- [ ] T012 [US1] Implement `summarize` ([contract](contracts/devtool.md)):
+- [X] T012 [US1] Implement `summarize` ([contract](contracts/devtool.md)):
   - **Refuses** an experiment whose `kind` isn't `summarization`, with exit 1.
   - **Runs**: `container = build_container()`, then
     `BenchmarkRunner(container.settings, container.environment, say=say).run(experiment,
@@ -222,7 +222,7 @@ All in `devtools/default_llm.py`, one after another.
       it is, and `packets` matches it against the rows by prefix.
   - **Writes** the records to `prompts.jsonl` in the directory `run` returns, then prints that
     directory.
-- [ ] T013 [US1] Implement `probe` (research R6, [contract](contracts/devtool.md)).
+- [X] T013 [US1] Implement `probe` (research R6, [contract](contracts/devtool.md)).
   - **Opening the workspace**:
     - `settings = load_settings(EnvironmentSettings().config_dir)`;
     - refuse a `--workspace` other than `index_key(settings)`;
@@ -255,7 +255,7 @@ All in `devtools/default_llm.py`, one after another.
     - `environment.json`, with the date, `runtime.version()`, each model's digest, and `complete`.
   - **`--smoke`**: one warm-up, one run of each whole-library question, one marker reply per
     language, no `analytical` summary, and `complete: false`.
-- [ ] T014 [US1] Implement `packets` ([contract](contracts/devtool.md), research R7), opening the
+- [X] T014 [US1] Implement `packets` ([contract](contracts/devtool.md), research R7), opening the
   workspace as T013 does.
   - **Multi-section**: for each of the 15 `multi_section` questions, rebuild the passages with
     `container.retrieval.search(question.question, workspace.filters(question),
@@ -275,7 +275,7 @@ All in `devtools/default_llm.py`, one after another.
   - **`reading.skeleton.yaml`**: every required entry, with `errors: []`, `note: ""`, and
     `label: null` for a `probe_reply`.
   - **`index.md`**: the list of all packets.
-- [ ] T015 [US1] Implement `load_reading`, `missing_entries`, `decide` and the `verdict`
+- [X] T015 [US1] Implement `load_reading`, `missing_entries`, `decide` and the `verdict`
   subcommand (research R12, [records](contracts/records.md#verdictmd)).
   - **Reads**: `safety_margin` from `load_settings(Path("config")).generation.context`.
   - **Refuses**, with exit 1:
@@ -286,7 +286,7 @@ All in `devtools/default_llm.py`, one after another.
   - **Writes**: `specs/002-gemma4-default-llm/verdict.md`, in the contract's order, with the
     commit given as `--commit`, and the SHA-256 of `reading.yaml`. It prints the same text.
   - T008 and T009 pass.
-- [ ] T016 [US1] Check the tooling before committing it:
+- [X] T016 [US1] Check the tooling before committing it:
   - **Locally**:
     - `make test`, and `make lint-check`;
     - `uv run ruff check devtools/default_llm.py` and
@@ -301,6 +301,14 @@ All in `devtools/default_llm.py`, one after another.
 
   Delete neither smoke directory. They are sampled, decide nothing (FR-005), and `verdict`
   refuses them. Don't read their numbers.
+  - **Done 2026-11-09**:
+    - 835 unit tests passing, lint clean;
+    - preflight `ok` on every line for both experiments;
+    - `default_llm_summarization_20261109T040045599208Z`: `complete: false`, 3 chapters per
+      variant, 28 prompts recorded, all from the variants' own models, none from the judge;
+    - `default_llm_probe_smoke_20261109T041047009259Z`: 1 warm-up, 2 whole-library and 4
+      marker replies per model, no errors, every wait timed;
+    - `data/metadata/catalog.db` unchanged.
 - [ ] T017 [US1] Commit T002 to T016 as `chore: add the default LLM confirmation's tooling`.
   - `git diff a647e1a -- app config` must be empty (FR-004).
   - Note the commit's hash: it goes into `verdict.md` with `--commit`.

@@ -93,9 +93,12 @@ The material for the reading.
 - **Checks**: each multi-section question's rebuilt passages against its row's
   `evidence_in_context`. A difference is written at the top of the packet, never hidden.
 
-## `verdict --generation RUN --summarization RUN --probe DIR --reading FILE --integration STATE --commit HASH`
+## `verdict --generation RUN --summarization RUN --probe DIR --earlier RUN... --reading FILE --integration STATE --commit HASH [--output FILE]`
 
 Applies FR-002, as research R12 describes.
+
+- **`--earlier`**: the same earlier runs as `packets`, which settle what a complete reading holds.
+- **`--output`**: where `verdict.md` goes. By default, `specs/002-gemma4-default-llm/verdict.md`.
 
 - **STATE** is `passed`, `failed` or `pending`.
 - **HASH** is the commit the runs started from, recorded in `verdict.md`'s inputs, since the
