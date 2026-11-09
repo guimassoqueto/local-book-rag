@@ -997,11 +997,18 @@ def render_verdict(verdict: Verdict, inputs: Mapping[str, Any]) -> str:
         "",
         *(f"- **{name}**: {value}" for name, value in inputs.items()),
     ]
+    # (e) runs only after (a) to (d) pass, so until then it is pending, not failed (contracts/records.md).
+    pending = verdict.conditions["e"].failures == ("pending",)
     for name in "abcde":
         condition = verdict.conditions[name]
-        status = "Passed" if condition.passed else f"Failed: {', '.join(condition.failures)}"
+        if condition.passed:
+            status = "Passed"
+        elif name == "e" and pending:
+            status = "Pending" if verdict.outcome == "pending" else "Pending: not run, since (a) to (d) didn't all pass"
+        else:
+            status = f"Failed: {', '.join(condition.failures)}"
         lines += ["", f"## {_TITLES[name]}", "", *condition.lines, "", f"**{status}**"]
-    failed = [name for name in "abcde" if not verdict.conditions[name].passed]
+    failed = [name for name in "abcde" if not verdict.conditions[name].passed and not (name == "e" and pending)]
     match verdict.outcome:
         case "switch":
             outcome = f"**Switch to {candidate}.** Every condition passed."

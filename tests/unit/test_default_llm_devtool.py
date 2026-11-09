@@ -609,6 +609,19 @@ def test_the_verdict_is_written_with_every_condition():
     assert "abc1234" in text
 
 
+def test_a_keep_names_only_the_conditions_that_failed_and_leaves_unrun_checks_pending():
+    verdict = _decide(generation=_generation_rows(), integration="pending")
+
+    text = default_llm.render_verdict(verdict, {"commit": "abc1234"})
+
+    checks = text.split("## (e)")[1].split("## Verdict")[0]
+    outcome = text.split("## Verdict")[1].split("## Follow-ups")[0]
+    assert "**Pending" in checks
+    assert "Failed" not in checks
+    assert "Keep" in outcome
+    assert "(e)" not in outcome
+
+
 def test_a_generation_reply_is_recorded_only_once_per_call():
     sink = []
     recorder = default_llm.RecordingLLM(FakeLLM(replies=["x"]), sink, lambda: (None, "y"))
