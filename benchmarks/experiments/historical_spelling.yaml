@@ -1,0 +1,34 @@
+name: historical_spelling
+kind: retrieval
+description: >-
+  Lexical search with and without old Portuguese spellings (Sophia, elle, facto) matching modern
+  ones (Sofia, ele, fato), alone and in the default configuration (specs/001-historical-spelling).
+  Only Quincas Borba is Portuguese: the English books must come out identical. Reranking runs on
+  the GPU here for speed, as in retrieval.yaml.
+
+variants:
+  - name: bm25_exact_spelling
+    overrides:
+      retrieval: {strategy: bm25, reranker: {enabled: false}, bm25: {historical_spelling: false}}
+
+  - name: bm25_historical_spelling
+    overrides:
+      retrieval: {strategy: bm25, reranker: {enabled: false}, bm25: {historical_spelling: true}}
+
+  - name: default_exact_spelling
+    overrides:
+      retrieval:
+        strategy: hybrid
+        fusion: {method: rrf}
+        reranker: {enabled: true}
+        bm25: {historical_spelling: false}
+      reranker: {device: cuda}
+
+  - name: default_historical_spelling
+    overrides:
+      retrieval:
+        strategy: hybrid
+        fusion: {method: rrf}
+        reranker: {enabled: true}
+        bm25: {historical_spelling: true}
+      reranker: {device: cuda}

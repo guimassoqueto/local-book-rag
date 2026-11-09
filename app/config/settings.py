@@ -129,6 +129,16 @@ class BM25Config(ConfigModel):
     k1: PositiveFloat
     b: float = Field(ge=0, le=1)
     stemming: bool
+    # Portuguese books: old spellings (Sophia, elle, facto) match modern ones (Sofia, ele, fato).
+    historical_spelling: bool
+
+    @model_validator(mode="after")
+    def check_historical_spelling(self) -> Self:
+        # The words kept apart from the patterns were found among stemmed keys, and would
+        # protect nothing without stemming.
+        if self.historical_spelling and not self.stemming:
+            raise ValueError("bm25.historical_spelling needs bm25.stemming")
+        return self
 
 
 class FusionConfig(ConfigModel):

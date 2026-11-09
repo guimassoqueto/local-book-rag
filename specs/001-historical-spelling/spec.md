@@ -16,8 +16,13 @@ benchmark's Project Gutenberg edition, writes Sophia, Theophilo, elle, anno, fac
 apparecer and apezar.
 
 Lexical search matches words by their stems, so a question in modern spelling never meets these
-words. Of the 46 distinct words, longer than two letters, in the novel's 30 benchmark questions that
-never occur in the book under today's lexical search, 28 are in it in an older spelling:
+words. The novel's 30 benchmark questions hold 46 distinct words, longer than two letters, that never
+occur in the book under today's lexical search. 27 of them are in it in an older spelling. The 28th
+pair in the table, apesar/apezar, is one the book spells both ways: "apezar" 15 times and "apesar"
+twice. Without the feature, a question finds only the second.
+
+The pair was first counted among the 27 by mistake. The check of the real book during
+implementation (task T017) caught it.
 
 | Typed today | In the book | Occurrences in the book |
 | --- | --- | --- |
@@ -29,7 +34,7 @@ never occur in the book under today's lexical search, 28 are in it in an older s
 | frase | phrase | 19 |
 | marquês | marquez | 18 |
 | diretor | director | 16 |
-| apesar | apezar | 15 |
+| apesar (also printed twice as "apesar") | apezar | 15 |
 | Teresa | Thereza | 15 |
 | filósofo | philosopho | 13 |
 | cupê | coupé | 13 |

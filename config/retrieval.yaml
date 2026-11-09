@@ -10,6 +10,9 @@ retrieval:
     k1: 1.5
     b: 0.75
     stemming: true
+    # Portuguese books: old spellings (Sophia, elle, facto) match modern ones (Sofia, ele, fato).
+    # Needs stemming. Changes no stored data, so turning it on or off needs no reindex.
+    historical_spelling: true
 
   fusion:
     # rrf merges ranks. weighted merges scores normalized within each list, by dense_weight.

@@ -76,6 +76,24 @@ def test_template_needs_a_placeholder(config_dir, edit_config):
         load_settings(config_dir)
 
 
+def test_historical_spelling_is_on_in_the_project_configuration(settings):
+    assert settings.retrieval.bm25.historical_spelling
+
+
+def test_historical_spelling_must_be_set(config_dir, edit_config):
+    edit_config("retrieval.yaml", lambda c: c["retrieval"]["bm25"].pop("historical_spelling"))
+
+    with pytest.raises(ConfigurationError, match="historical_spelling"):
+        load_settings(config_dir)
+
+
+def test_historical_spelling_needs_stemming(config_dir, edit_config):
+    edit_config("retrieval.yaml", lambda c: c["retrieval"]["bm25"].update(stemming=False, historical_spelling=True))
+
+    with pytest.raises(ConfigurationError, match="bm25.stemming"):
+        load_settings(config_dir)
+
+
 def test_environment_defaults_use_the_compose_network(monkeypatch):
     for name in ("OLLAMA_BASE_URL", "CHROMA_HOST", "CHROMA_PORT"):
         monkeypatch.delenv(name, raising=False)

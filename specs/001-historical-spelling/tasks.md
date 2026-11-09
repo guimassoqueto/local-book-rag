@@ -33,7 +33,7 @@ A single Python project: `app/`, `config/`, `tests/unit/`, `benchmarks/experimen
 
 **Purpose**: get the word list for the measurement. It stays outside the repository (research R1).
 
-- [ ] T001 Download and unpack Debian's `wbrazilian` 3.0~beta4-25, outside the repository, into
+- [X] T001 Download and unpack Debian's `wbrazilian` 3.0~beta4-25, outside the repository, into
   `/tmp/wbrazilian`:
   `mkdir -p /tmp/wbrazilian && cd /tmp/wbrazilian && apt-get download wbrazilian && dpkg-deb -x wbrazilian_*.deb extracted`.
   Check that `/tmp/wbrazilian/extracted/usr/share/dict/brazilian` exists, with about 275,000 lines.
@@ -47,34 +47,34 @@ A single Python project: `app/`, `config/`, `tests/unit/`, `benchmarks/experimen
 
 **⚠️ CRITICAL**: no user story can start until this phase is complete.
 
-- [ ] T002 In `app/config/settings.py`, add a required `historical_spelling: bool` field, with no
+- [X] T002 In `app/config/settings.py`, add a required `historical_spelling: bool` field, with no
   default, to `BM25Config`. Add a `model_validator(mode="after")` to `BM25Config` that raises
   `ValueError("bm25.historical_spelling needs bm25.stemming")` when `historical_spelling` is true
   and `stemming` is false (data-model.md: "`historical_spelling: true` together with
   `stemming: false` is refused, with a message that names both keys").
-- [ ] T003 [P] In `config/retrieval.yaml`, add `historical_spelling: true` under `retrieval.bm25`,
+- [X] T003 [P] In `config/retrieval.yaml`, add `historical_spelling: true` under `retrieval.bm25`,
   after `stemming`. Use the comment from contracts/configuration.md: Portuguese books only, needs
   stemming, no reindex.
-- [ ] T004 [P] In `tests/unit/test_config.py`, add three tests in the file's style (`config_dir`,
+- [X] T004 [P] In `tests/unit/test_config.py`, add three tests in the file's style (`config_dir`,
   `edit_config`, `pytest.raises(ConfigurationError, match=...)`):
   - the project's configuration has `settings.retrieval.bm25.historical_spelling` true
   - removing the key fails, matching `historical_spelling`
   - `historical_spelling: true` with `stemming: false` fails, matching `bm25.stemming`
-- [ ] T005 [P] In `tests/unit/test_index_service.py`, add
+- [X] T005 [P] In `tests/unit/test_index_service.py`, add
   `test_historical_spelling_can_change_without_a_reindex`, written like
   `test_the_query_template_can_change_without_a_reindex`. Build the index with the project's
   settings, then build an `IndexService` with `retrieval.bm25.historical_spelling` turned off,
   and assert `not service.needs_reindex()` (FR-006; data-model.md: the setting doesn't join the
   index fingerprint).
-- [ ] T006 In `tests/unit/test_bm25.py`, add `historical_spelling=False` to the module's `CONFIG`,
+- [X] T006 In `tests/unit/test_bm25.py`, add `historical_spelling=False` to the module's `CONFIG`,
   so that the existing tests keep testing today's behavior. Add a second
   `HISTORICAL = CONFIG.model_copy(update={"historical_spelling": True})` for the new tests.
-- [ ] T007 In `app/retrieval/bm25.py`, give `Tokenizer.__init__` a keyword parameter,
+- [X] T007 In `app/retrieval/bm25.py`, give `Tokenizer.__init__` a keyword parameter,
   `historical_spelling: bool = False`, and store whether folding applies: `language == "pt"`,
   stemming on and `historical_spelling` true. Make `BM25Retriever.retrieve` and
   `BM25Retriever._tokenize_book` pass `self._config.historical_spelling`. No folding yet, so the
   tokens are unchanged.
-- [ ] T008 Run `make test` over `tests/unit/`. Everything passes, the three new config tests and the
+- [X] T008 Run `make test` over `tests/unit/`. Everything passes, the three new config tests and the
   fingerprint test included (depends on T002 to T007).
 
 **Checkpoint**: the setting exists, is validated, and reaches the tokenizer.
@@ -92,7 +92,7 @@ pair gives different ones.
 
 ### Tests for User Story 1 (write first, and see them fail)
 
-- [ ] T009 [US1] In `tests/unit/test_bm25.py`, add a test parametrized over the spec's 28
+- [X] T009 [US1] In `tests/unit/test_bm25.py`, add a test parametrized over the spec's 28
   pairs, with each pair as the test's id. The pairs: sofia/sophia, ele/elle, ela/ella, eles/elles,
   benedita/benedicta, teófilo/theophilo, comissão/commissão, frase/phrase, marquês/marquez,
   diretor/director, apesar/apezar, teresa/thereza, filósofo/philosopho, cupê/coupé, ano/anno,
@@ -101,7 +101,7 @@ pair gives different ones.
   constelação/constellação, alegando/allegando, tipo/typo, catástrofes/catastrophes and
   súdito/subdito. For each, `Tokenizer("pt", True, historical_spelling=True).tokenize()` must give
   equal tokens for both spellings (SC-004).
-- [ ] T010 [US1] In `tests/unit/test_bm25.py`, add a test parametrized over the curated
+- [X] T010 [US1] In `tests/unit/test_bm25.py`, add a test parametrized over the curated
   collision pairs, checking that each gives different tokens with historical spelling on (FR-003,
   SC-005):
   - **The known ones**: facção/facão, pacto/pato, sessão/seção, seção/cessão, signo/sino,
@@ -109,14 +109,14 @@ pair gives different ones.
   - **One per pattern that needed kept keys** (research R3): Mathias/mate, Levy/leva, Bello/bel,
     espectador/espetar, compacta/compatível, cacto/catar, magna/man, abdicar/adição, reze/rês and
     Bahamas/Baamas.
-- [ ] T011 [US1] In `tests/unit/test_bm25.py`, add retriever tests on Portuguese chunks with
+- [X] T011 [US1] In `tests/unit/test_bm25.py`, add retriever tests on Portuguese chunks with
   `HISTORICAL`, written like `test_portuguese_is_stemmed_and_accents_do_not_matter`:
   - a "Sofia" query returns the chunk containing "Sophia", whose `chunk.text` is exactly the text
     given (FR-005)
   - a "Sophia" query still returns it (FR-004)
   - "filósofo" and "Teresa" return chunks containing "philosopho" and "Thereza" (spec, US1
     scenario 3)
-- [ ] T012 [US1] In `tests/unit/test_bm25.py`, add tests that the tokens are unchanged, byte
+- [X] T012 [US1] In `tests/unit/test_bm25.py`, add tests that the tokens are unchanged, byte
   for byte, from those of a tokenizer without the feature (FR-008, SC-003):
   - language `"en"` with the feature on
   - no language, with the feature on
@@ -126,7 +126,7 @@ pair gives different ones.
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] In `app/retrieval/bm25.py`, add the patterns as module constants, in
+- [X] T013 [US1] In `app/retrieval/bm25.py`, add the patterns as module constants, in
   data-model.md's order:
   - **Before stemming**: y → i.
   - **After stemming and accent stripping, compiled once**:
@@ -143,7 +143,7 @@ pair gives different ones.
 
   Add `_KEPT_KEYS: frozenset[str] = frozenset()` for now (T016 fills it), with a comment pointing
   to `devtools/measure_historical_spelling.py`.
-- [ ] T014 [US1] In `app/retrieval/bm25.py`, make `Tokenizer.tokenize` fold keys when folding
+- [X] T014 [US1] In `app/retrieval/bm25.py`, make `Tokenizer.tokenize` fold keys when folding
   applies, following data-model.md's "How a word becomes a key":
   1. The plain key: stemmed, stripped of accents.
   2. If it is in `_KEPT_KEYS`, keep it.
@@ -156,7 +156,7 @@ pair gives different ones.
   - **For the script (T015)**: expose the steps as module-level functions, so the script reuses
     them instead of repeating them.
   - **The docstring**: say what folding does and that it never touches the text.
-- [ ] T015 [US1] Write `devtools/measure_historical_spelling.py`, taking the word list's path as
+- [X] T015 [US1] Write `devtools/measure_historical_spelling.py`, taking the word list's path as
   its only argument (research R7):
   - **What it reuses**: the patterns and the key steps, imported from `app/retrieval/bm25.py`.
   - **Over the list's words**: casefold the words. Compute each plain key. Repeat until no
@@ -167,11 +167,11 @@ pair gives different ones.
   - **When it exits with an error**: if a collision remains, if fewer than 28 pairs match, or if
     the computed kept keys differ from `_KEPT_KEYS`. Then it prints both sets' differences.
   - **Its docstring**: how to get the list (T001), and that it isn't kept in the repository.
-- [ ] T016 [US1] Run `uv run python devtools/measure_historical_spelling.py
+- [X] T016 [US1] Run `uv run python devtools/measure_historical_spelling.py
   /tmp/wbrazilian/extracted/usr/share/dict/brazilian`. Paste the computed kept keys into
   `_KEPT_KEYS` in `app/retrieval/bm25.py`, sorted, and run it again until it exits 0. Research R3
   found 97 with this version. Keep the output for T023 (depends on T001, T013 to T015).
-- [ ] T017 [US1] Run `uv run pytest tests/unit/test_bm25.py -q`, then `make test`. T009 to T012
+- [X] T017 [US1] Run `uv run pytest tests/unit/test_bm25.py -q`, then `make test`. T009 to T012
   pass, and so does everything that passed before. Then check the real book, which is US1's
   Independent Test, without the stack:
   - **Tokenize it**: read the text of `benchmarks/books/quincas-borba.epub` as research R5 did,
@@ -182,6 +182,13 @@ pair gives different ones.
     in about 450 passages, so multiply the difference by 1,300 / 450 before comparing it with
     50 ms. That overestimates, since a larger book repeats more of its words, and its keys are
     computed once per distinct word.
+  - **Done 2026-11-08**:
+    - Speed: 47 ms off, 39 ms on, so 9 ms faster (−25 ms scaled), within SC-006.
+    - The 28 words: all present among the folded tokens. 27 were absent from the plain ones.
+      apesar wasn't: the book prints it twice besides "apezar" 15 times. The spec's Context
+      had counted it among the missing words by mistake, and is corrected.
+    - The pair lists live in `tests/historical_spelling.py`, shared with the measurement script.
+      The bd collision is abdicai/adição, which the measurement found, not abdicar/adição.
 
 **Checkpoint**: User Story 1 works and is tested, and is the MVP.
 
