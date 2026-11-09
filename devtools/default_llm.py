@@ -11,7 +11,7 @@ container mounts benchmarks/ but not devtools/, so the script is piped to its Py
 
     docker compose exec -T app python - preflight … < devtools/default_llm.py
     docker compose exec -T app python - summarize … < devtools/default_llm.py
-    docker compose exec -T app python - probe … < devtools/default_llm.py
+    docker compose exec -T app python - probe --commit "$(git rev-parse --short HEAD)" … < devtools/default_llm.py
     docker compose exec -T app python - packets … < devtools/default_llm.py
 
 The fifth only reads files, and runs on the host:
@@ -293,11 +293,11 @@ def _probe(arguments: argparse.Namespace) -> int:
     from app.generation.summarization import without_references
     from app.ingestion.language import detect_language, normalize_language
     from app.retrieval.base import RetrievalFilters
-    from app.storage.catalog import utc_now
 
     settings, environment = _workspace_settings(arguments.workspace)
     dataset = load_dataset(environment.benchmarks_dir / "datasets")
-    models = _variant_models(settings, load_experiment(environment.benchmarks_dir / MODELS_FROM))
+    experiment = load_experiment(environment.benchmarks_dir / MODELS_FROM)
+    models = _variant_models(settings, experiment)
     missing = set(MARKER_LANGUAGES) - set(settings.generation.response_languages)
     if missing:
         raise CheckFailed(f"generation.response_languages doesn't offer {', '.join(sorted(missing))}")
@@ -317,13 +317,11 @@ def _probe(arguments: argparse.Namespace) -> int:
     records = directory / "probe.jsonl"
     prompts: list[dict[str, Any]] = []
     summarizing: dict[str, str | None] = {"item": None}
-    runtime = None
 
     for variant in (BASELINE, CANDIDATE):
         model = models[variant]
         with recording_llms(prompts, lambda: None if summarizing["item"] is None else (None, summarizing["item"])):
             container, variant_settings = _open_workspace(settings, environment, arguments.workspace, model)
-        runtime = container.runtime
         books = _workspace_books(container, dataset)
         workspace = Workspace(container, variant_settings, books, {})
 
@@ -364,21 +362,39 @@ def _probe(arguments: argparse.Namespace) -> int:
             _append_jsonl(records, record)
 
     _write_jsonl(directory / "prompts.jsonl", prompts)
-    used = sorted({*models.values(), settings.embedding.model})
-    (directory / "environment.json").write_text(
-        json.dumps(
-            {
-                "date": utc_now(),
-                "ollama_version": runtime.version(),
-                "models": {model: runtime.model_info(model).digest for model in used},
-                "workspace": arguments.workspace,
-                "complete": not arguments.smoke,
-            },
-            indent=1,
-        )
+    recorded = probe_environment(
+        settings,
+        environment,
+        experiment,
+        workspace=arguments.workspace,
+        commit=arguments.commit,
+        complete=not arguments.smoke,
     )
+    (directory / "environment.json").write_text(json.dumps(recorded, ensure_ascii=False, indent=1, default=str))
     print(f"Probe: {directory}")
     return 0
+
+
+def probe_environment(
+    settings: Any, environment: Any, experiment: Any, *, workspace: str, commit: str | None, complete: bool
+) -> dict[str, Any]:
+    """What the probe's numbers mean nothing without, as a benchmark's results.json records it.
+
+    That is the runner's own description (constitution VI): the dataset's checksum, the
+    configuration, each model's digest and quantization, the Ollama and package versions, Python
+    and the hardware. To it, what only the probe knows: the override it applied for each model, the
+    workspace it read, the commit it was told it runs from (the container has no git), and whether
+    it was complete. The date is when it finished.
+    """
+    from app.evaluation.benchmark import BenchmarkRunner
+
+    described = BenchmarkRunner(settings, environment, say=lambda message: None)._describe_environment(experiment)
+    return described | {
+        "overrides": {model: {"llm": {"model": model}} for model in _variant_models(settings, experiment).values()},
+        "workspace": workspace,
+        "commit": commit,
+        "complete": complete,
+    }
 
 
 def _ask(
@@ -1123,6 +1139,7 @@ def _parser() -> argparse.ArgumentParser:
     probe = commands.add_parser("probe", help="what the benchmarks don't cover")
     probe.add_argument("--workspace", required=True, help="the benchmark workspace's key")
     probe.add_argument("--smoke", action="store_true", help="a few of each, deciding nothing")
+    probe.add_argument("--commit", help="the commit it runs from, recorded as given: the container has no git")
     probe.set_defaults(handler=_probe)
 
     packets = commands.add_parser("packets", help="the material for the reading")

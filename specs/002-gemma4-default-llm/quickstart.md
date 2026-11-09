@@ -63,7 +63,7 @@ template adds.
 ## 3. The probe (about 20 min)
 
 ```sh
-dl probe --workspace 71026d902d
+dl probe --workspace 71026d902d --commit "$(git rev-parse --short HEAD)"
 ```
 
 **Expect**: `probe.jsonl` with these lines per model:
@@ -71,6 +71,9 @@ dl probe --workspace 71026d902d
 - 6 `whole_library`;
 - 60 `marker`;
 - 1 `analytical`.
+
+`environment.json` records what a benchmark's `results.json` does, with the commit and
+`complete: true`.
 
 The real library's `data/` is untouched: `git status` and the catalog's modification time show
 no change.

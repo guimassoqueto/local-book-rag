@@ -49,7 +49,7 @@ The summarization confirmation.
   ([records](records.md#promptsjsonl)).
 - **Refuses**: an experiment whose kind isn't `summarization`.
 
-## `probe --workspace KEY [--smoke]`
+## `probe --workspace KEY [--smoke] [--commit HASH]`
 
 The probe of FR-008, against `benchmarks/workspace/KEY`. It reads the workspace and writes nothing
 into it.
@@ -66,8 +66,14 @@ into it.
 - **Writes**: `benchmarks/results/default_llm_probe_<stamp>/`, holding:
   - `probe.jsonl` ([records](records.md#probejsonl));
   - `prompts.jsonl`;
-  - `environment.json`: the date, the Ollama version, the digest of each model used, and
-    `complete`.
+  - `environment.json`: what a benchmark's `results.json` records about its environment
+    (constitution VI), plus the override applied for each model, the workspace, `--commit` as
+    given, and `complete`.
+    - It holds the date, the dataset's checksum, the configuration, each model's digest and
+      quantization, the Ollama and package versions, Python and the hardware.
+    - The container has no git, so the caller passes the commit.
+    - The confirmation's probe ran before this was added (tasks T041). Its record has only the
+      date, the Ollama version, the digests, the workspace and `complete`.
 - **Refuses**: a workspace that doesn't hold the three benchmark books, indexed.
 
 ## `packets --generation RUN --summarization RUN --probe DIR --earlier RUN...`

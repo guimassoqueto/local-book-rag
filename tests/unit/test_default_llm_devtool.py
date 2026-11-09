@@ -13,10 +13,13 @@ import pytest
 
 import app.container
 import app.evaluation.benchmark
+from app.config.loader import load_settings
+from app.config.settings import EnvironmentSettings
 from app.evaluation.benchmark import load_experiment
+from app.evaluation.dataset import dataset_checksum
 from app.evaluation.report import paired_difference
 from app.generation.base import Generation, GenerationParameters, Message
-from tests.fakes import FakeLLM
+from tests.fakes import FakeLLM, FakeRuntime
 
 PROJECT = Path(__file__).resolve().parents[2]
 EXPERIMENTS = PROJECT / "benchmarks" / "experiments"
@@ -195,6 +198,38 @@ def test_preflight_names_what_differs(expected, actual, dataset_actual, differs)
 
     assert len(failed) == 1
     assert differs in failed[0].name
+
+
+# The probe's environment
+
+
+def test_the_probe_records_what_a_benchmark_result_records(monkeypatch, tmp_path):
+    monkeypatch.setattr(app.evaluation.benchmark, "OllamaRuntime", lambda url, timeout: FakeRuntime())
+    settings = load_settings(PROJECT / "config")
+    environment = EnvironmentSettings(benchmarks_dir=PROJECT / "benchmarks", data_dir=tmp_path / "data")
+    experiment = load_experiment(EXPERIMENTS / "default_llm_generation.yaml")
+
+    recorded = default_llm.probe_environment(
+        settings, environment, experiment, workspace="71026d902d", commit="abc1234", complete=True
+    )
+
+    assert recorded["dataset_sha256"] == dataset_checksum(PROJECT / "benchmarks" / "datasets")
+    assert recorded["configuration"] == settings.model_dump()
+    assert recorded["overrides"] == {model: {"llm": {"model": model}} for model in MODELS.values()}
+    assert {*MODELS.values(), settings.embedding.model} <= set(recorded["models"])
+    assert all(info["digest"] and info["quantization"] for info in recorded["models"].values())
+    assert recorded["ollama_version"] == "0.0.test"
+    assert set(recorded["hardware"]) == {"cpu", "gpu", "gpu_memory_mb", "gpu_driver"}
+    assert recorded["python"] and recorded["packages"]
+    assert (recorded["workspace"], recorded["commit"], recorded["complete"]) == ("71026d902d", "abc1234", True)
+    assert recorded["date"]
+
+
+def test_the_probe_takes_the_commit_it_runs_from():
+    parse = default_llm._parser().parse_args
+
+    assert parse(["probe", "--workspace", "k", "--commit", "abc1234"]).commit == "abc1234"
+    assert parse(["probe", "--workspace", "k"]).commit is None
 
 
 # The reading record

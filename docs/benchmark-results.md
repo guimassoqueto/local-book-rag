@@ -250,6 +250,13 @@ directory. The runs:
 - **Generation**: `default_llm_generation_20261109T041359173775Z`, 1 h 47 min.
 - **Summarization**: `default_llm_summarization_20261109T060210125028Z`, 20 min.
 - **The probe**: `default_llm_probe_20261109T062308173324Z`, 17 min.
+  - Its own record has only the Ollama version and the digests. The script now writes everything a
+    benchmark's `results.json` holds, but this probe ran before that.
+  - It ran right after the summarization run, in the same `app` and `ollama` containers, neither
+    restarted in between. That run's `results.json` holds the hardware, Python, packages and
+    configuration they shared.
+  - The dataset's checksum, recomputed, is still `767e4cceb315`: `benchmarks/datasets` last
+    changed in `826c977`, before both runs.
 
 Both runs had only these two models, with gpt-oss judging as in the experiments above. **gpt-oss:20b
 stays the default**: see `docs/decisions.md`.
@@ -427,7 +434,7 @@ dl() { docker compose exec -T app python - "$@" < devtools/default_llm.py; }
 dl preflight benchmarks/experiments/default_llm_generation.yaml --like <run> --dataset-like <run>
 make benchmark EXPERIMENT=default_llm_generation          # about 2 hours
 dl summarize benchmarks/experiments/default_llm_summarization.yaml   # about 20 minutes
-dl probe --workspace <key>                                # about 20 minutes
+dl probe --workspace <key> --commit "$(git rev-parse --short HEAD)"   # about 20 minutes
 dl packets --generation <run> --summarization <run> --probe <run> --earlier <runs>
 uv run python devtools/default_llm.py verdict ... --reading <file> --integration pending
 ```

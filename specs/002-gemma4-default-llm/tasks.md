@@ -682,3 +682,46 @@ Each step is committed, so a "keep" stops cleanly after US1 and goes straight to
 - No run is repeated to settle the judge's noise. Only a run that didn't complete is replaced, once
   (FR-005).
 - Smoke and sample runs (T016, T033) decide nothing, and their numbers aren't read.
+
+---
+
+## Phase 7: Convergence
+
+- [X] T041 CRITICAL: Record the probe's full environment, as a benchmark result records it, per
+  Constitution VI (partial)
+  - **The gap**: `probe` writes `environment.json` with only the date, the Ollama version, the
+    digests, the workspace and `complete` (`_probe` in `devtools/default_llm.py`). A benchmark's
+    `results.json` also records the dataset's checksum, the full configuration, each model's
+    quantization, the hardware, Python and the package versions (`_describe_environment` in
+    `app/evaluation/benchmark.py`). The probe's waits, token counts and marker replies depend on
+    them.
+  - **The tool**: make `probe` write those fields too, and the commit it ran from. Call
+    `_describe_environment` rather than copying it, if that needs no change to `app/` (FR-016).
+    Test the fields in `tests/unit/test_default_llm_devtool.py`.
+  - **The probe already run**: don't run it again. In the Default LLM section of
+    `docs/benchmark-results.md`, say what `default_llm_probe_20261109T062308173324Z` ran with,
+    from what is recorded:
+    - it ran from `f6f53a8`, in the same `app` and `ollama` containers as
+      `default_llm_summarization_20261109T060210125028Z` just before it (neither restarted between
+      them), whose `results.json` holds the hardware, Python, packages and configuration;
+    - the dataset's checksum, recomputed, is `767e4cceb315`, and `benchmarks/datasets` last
+      changed in `826c977`, before both.
+  - Leave `verdict.md` and `reading.yaml` as they are. The verdict doesn't move: (d) failed on
+    unrecognized abstentions, which no environment field changes.
+  - **Done 2026-11-09**:
+    - **The tool**: `probe_environment` adds to the runner's own `_describe_environment` the
+      override applied for each model, the workspace, the commit and `complete`. The probe takes
+      `--commit`, since the container has no git. `app/` is unchanged.
+    - **Tests**: two new ones, written first and seen failing. 838 unit tests pass, and lint is
+      clean.
+    - **Smoke pass** (`default_llm_probe_smoke_20261109T115315936970Z`):
+      - its `environment.json` has every field `results.json` has, plus the four above;
+      - the dataset is `767e4cceb315`, the digests are the confirmation's, and quantization,
+        hardware, Python and packages are filled;
+      - no errors, and nothing was written to `data/` or the workspace;
+      - it is a smoke pass, and decides nothing.
+    - **The records**:
+      - `docs/benchmark-results.md` says what the confirmation's probe ran with, and that its own
+        record is the shorter one;
+      - the contract, the quickstart and Reproducing pass `--commit`.
+    - `verdict.md` still reproduces from the recorded files, and `reading.yaml` is unchanged.
