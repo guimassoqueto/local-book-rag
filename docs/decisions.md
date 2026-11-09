@@ -280,7 +280,10 @@ renders an extension's skills for the default integration only (Spec Kit issue #
 with Claude as the default, the bug and assessment skills were in `.claude/skills/` and missing from
 `.agents/skills/`. `specify integration use codex` renders them, and switching back to Claude
 changed nothing else, every other file byte for byte. `make speckit-upgrade` does the same after
-each upgrade.
+each upgrade. The switch has one side effect: `integration use` rewrites the shared scripts in
+`.specify/scripts/bash/` without their executable bit, so they were committed that way, and the
+first `/speckit-specify` failed with "Permission denied". The target puts the bit back, and git
+records it.
 
 **In Claude Code, only the user can start a core skill.** Installed with `--no-model-invocation`,
 Claude doesn't start a specification on its own when asked for a small change, and nine skill
