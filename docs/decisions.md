@@ -282,10 +282,11 @@ with Claude as the default, the bug and assessment skills were in `.claude/skill
 changed nothing else, every other file byte for byte. `make speckit-upgrade` does the same after
 each upgrade.
 
-**Only the user can start a core skill.** Installed with `--no-model-invocation`, Claude doesn't
-start a specification on its own when asked for a small change, and nine skill descriptions stay out
-of its context. Extension skills can't be restricted this way, because Spec Kit's mandatory hooks
-rely on the model invoking them.
+**In Claude Code, only the user can start a core skill.** Installed with `--no-model-invocation`,
+Claude doesn't start a specification on its own when asked for a small change, and nine skill
+descriptions stay out of its context. Extension skills can't be restricted this way, because Spec
+Kit's mandatory hooks rely on the model invoking them. Neither can Codex's copies: Spec Kit's Codex
+integration has no such option, so `AGENTS.md` asks the other agents to keep to the rule.
 
 **No git extension.** It names branches `{number}-{slug}` under one fixed prefix, while branches
 here are named by type (`feat/…`, `fix/…`). Its automatic commits, such as `[Spec Kit] Add
