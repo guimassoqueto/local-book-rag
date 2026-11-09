@@ -13,45 +13,59 @@ by the author before `/speckit-implement`.
 
 ## Requirement Clarity
 
-- [ ] CHK001 Does "the same word" in FR-001 say whether inflected forms of an old spelling (Sophias, elles, apparecendo) must match too, or only the forms listed? [Clarity, Spec §FR-001]
+- [x] CHK001 Does "the same word" in FR-001 say whether inflected forms of an old spelling (Sophias, elles, apparecendo) must match too, or only the forms listed? [Clarity, Spec §FR-001]
+  - Resolved 2026-11-08 (clarify): FR-001 now covers every form lexical search treats as one word,
+    e.g. aparecer → apparecia, Sofia → Sophias.
 - [ ] CHK002 Is "a different modern word" in FR-003 defined for proper names and for variant spellings of one word? The Edge Cases allow Thaís and Taís to match, while the plan keeps Souza/Sousa and Tereza/Teresa apart. [Ambiguity, Spec §FR-003, Spec §Edge Cases, Research R3]
-- [ ] CHK003 Does FR-004 ("keeps matching every passage it matches today") say whether a passage's score and rank may change, as long as it still matches? [Clarity, Spec §FR-004]
+- [x] CHK003 Does FR-004 ("keeps matching every passage it matches today") say whether a passage's score and rank may change, as long as it still matches? [Clarity, Spec §FR-004]
+  - Resolved 2026-11-08 (clarify): FR-004 now says passages found today must still be found, but
+    their scores and positions may change.
 
 ## Requirement Consistency
 
-- [ ] CHK004 Do FR-001's patterns ("z for s", "ou for u", "an h inside a word") match the narrower forms the plan settled on: z only at the end of the key, oup → up, an h only between vowels, sc only at the start? [Conflict, Spec §FR-001, Research R3]
+- [x] CHK004 Do FR-001's patterns ("z for s", "ou for u", "an h inside a word") match the narrower forms the plan settled on: z only at the end of the key, oup → up, an h only between vowels, sc only at the start? [Conflict, Spec §FR-001, Research R3]
   - Fixed 2026-11-08: FR-001 now lists each pattern in its narrowed form, with an example from the
     book, and says the measurement narrowed them.
-- [ ] CHK005 Is it consistent with FR-002's precedence rule that the plan resolves collisions by leaving 97 modern keys unchanged rather than by leaving pairs out, and does the spec say which of the two it expects first? [Consistency, Spec §FR-002, Spec §FR-003, Research R3]
+- [x] CHK005 Is it consistent with FR-002's precedence rule that the plan resolves collisions by leaving 97 modern keys unchanged rather than by leaving pairs out, and does the spec say which of the two it expects first? [Consistency, Spec §FR-002, Spec §FR-003, Research R3]
   - Addressed 2026-11-08 (analyze I1): FR-003 now says that the modern words a pattern would make
     identical are left as they are, and that a pair is left out under FR-002 only when that can't keep it.
 
 ## Requirement Completeness
 
-- [ ] CHK006 Is each of the 28 pairs traceable to the pattern or patterns it relies on, so that a pattern dropped later shows which pairs it takes with it? [Traceability, Spec §FR-001, Spec §FR-002]
-- [ ] CHK007 Does FR-003 say which collisions become permanent tests: all 97 kept keys, a sample of them, or only the known pairs plus a chosen few? [Gap, Spec §FR-003]
-- [ ] CHK008 Is the side effect of the kept keys stated as accepted behavior: words such as Souza, Queiroz or Tereza don't gain the old-spelling matching? [Gap, Spec §FR-003, Research R3]
+- [x] CHK006 Is each of the 28 pairs traceable to the pattern or patterns it relies on, so that a pattern dropped later shows which pairs it takes with it? [Traceability, Spec §FR-001, Spec §FR-002]
+  - Resolved 2026-11-08: research R3 now maps each of the 28 pairs to the pattern or patterns it
+    relies on.
+- [x] CHK007 Does FR-003 say which collisions become permanent tests: all 97 kept keys, a sample of them, or only the known pairs plus a chosen few? [Gap, Spec §FR-003]
+  - Resolved 2026-11-08: FR-003 now names the permanent tests as the known pairs plus one found pair
+    per pattern that needed words left as they are. The measurement checks the rest.
+- [x] CHK008 Is the side effect of the kept keys stated as accepted behavior: words such as Souza, Queiroz or Tereza don't gain the old-spelling matching? [Gap, Spec §FR-003, Research R3]
   - Addressed 2026-11-08 (analyze I1): FR-003 now states it as accepted behavior: such words keep
     matching themselves, don't gain the old-spelling matching, and spellings of one name (Souza/Sousa,
     Tereza/Teresa) stay apart.
 
 ## Acceptance Criteria Quality
 
-- [ ] CHK009 Does SC-001 say whether it is measured on all 25 answerable *Quincas Borba* questions, or on those that contain an old spelling? Questions without one can only dilute the effect. [Measurability, Spec §SC-001]
+- [x] CHK009 Does SC-001 say whether it is measured on all 25 answerable *Quincas Borba* questions, or on those that contain an old spelling? Questions without one can only dilute the effect. [Measurability, Spec §SC-001]
   - Fixed 2026-11-08: SC-001 keeps all 25 and says why. 21 of them contain an old-spelled word, so
     a subset would change little, and choosing one after seeing results would bias them. The other
     4 can change too, since merging spellings changes how rare a word counts as.
-- [ ] CHK010 Is SC-001's "Recall@5 or MRR" justified, and is the risk of reading two metrics, and five in SC-002, for a significant result acknowledged? [Measurability, Spec §SC-001, Spec §SC-002]
-- [ ] CHK011 Can SC-003 ("the same passages, in the same order and with the same scores") be measured from what a benchmark run records? Its rows hold metrics per question, not the ranked passages. [Conflict, Spec §SC-003, Research R6]
+- [x] CHK010 Is SC-001's "Recall@5 or MRR" justified, and is the risk of reading two metrics, and five in SC-002, for a significant result acknowledged? [Measurability, Spec §SC-001, Spec §SC-002]
+  - Resolved 2026-11-08 (clarify): Recall@5 alone decides SC-001, chosen before the run. The other
+    metrics are reported, not judged.
+- [x] CHK011 Can SC-003 ("the same passages, in the same order and with the same scores") be measured from what a benchmark run records? Its rows hold metrics per question, not the ranked passages. [Conflict, Spec §SC-003, Research R6]
   - Fixed 2026-11-08: SC-003 now rests on what can be measured. The words lexical search compares
     are identical for books that aren't Portuguese, which a unit test shows, and from which the
     same passages, order and scores follow. The benchmark adds the same metrics question by
     question. The quickstart's scenario 4 says so too.
-- [ ] CHK012 Is SC-004's exception ("except those recorded under FR-002") bounded, or could every pair be recorded as an exception and SC-004 still pass? [Measurability, Spec §SC-004]
+- [x] CHK012 Is SC-004's exception ("except those recorded under FR-002") bounded, or could every pair be recorded as an exception and SC-004 still pass? [Measurability, Spec §SC-004]
+  - Resolved 2026-11-08 (clarify): SC-004 now requires all 28 pairs, and leaving one out needs the
+    spec changed first.
 
 ## Dependencies & Assumptions
 
-- [ ] CHK013 Does SC-005 say which word list and version it holds for, and what happens when a newer list finds new collisions? [Assumption, Spec §SC-005, Research R1]
+- [x] CHK013 Does SC-005 say which word list and version it holds for, and what happens when a newer list finds new collisions? [Assumption, Spec §SC-005, Research R1]
+  - Resolved 2026-11-08 (clarify): SC-005 is judged against wbrazilian 3.0~beta4-25. A newer list is
+    a new measurement and a later change.
 - [ ] CHK014 Is "only a clear difference will show" quantified, for example as the smallest difference 25 questions can detect, so that a failed SC-001 can be read as no effect rather than too little data? [Assumption, Spec §Assumptions]
 
 ## Notes

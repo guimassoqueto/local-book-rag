@@ -59,6 +59,23 @@ pairs it matches on its own: some pairs need two patterns.
 | h between vowels → removed | 1 | 1 | Bahamas/Baamas |
 | oup → up | 1 | 1 | garoupa/garupa |
 
+Which patterns each of the 28 pairs relies on, worked out by the measurement's own code, so that a
+pattern dropped later shows which pairs go with it:
+
+| Pattern | Pairs that rely on it (old spelling) |
+| --- | --- |
+| ph → f | Sophia, Theophilo, phrase, philosopho, typographico, catastrophes |
+| th → t | Theophilo, Thereza |
+| y → i | typographico, typo |
+| doubled consonant | elle, ella, elles, commissão, anno, officio, apparecer, allegoria, constellação, allegando |
+| ct → t | Benedicta, director, facto |
+| gn → n | assignasse |
+| bd → d | subdito |
+| sc at the start | scena |
+| z at the end | marquez, apezar, Thereza |
+| h between vowels | comprehende |
+| oup → up | coupé |
+
 z → s everywhere (72 collisions) and ou → u (43) were tried and dropped in favor of the
 narrower forms above. Those cover the same pairs: z → s at the end of the key matches apezar,
 marquez and Thereza, whose z ends up last once stemmed, and oup → up matches coupé.

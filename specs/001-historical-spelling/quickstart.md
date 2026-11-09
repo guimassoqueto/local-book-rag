@@ -72,8 +72,8 @@ EOF
 
 Expected:
 
-- **SC-001:** for `bm25_historical_spelling`, Recall@5 or MRR has an interval that excludes zero,
-  above it.
+- **SC-001:** for `bm25_historical_spelling`, Recall@5 has an interval above zero. Recall@5 alone
+  decides. MRR and the other metrics are reported, not judged.
 - **SC-002:** for `default_historical_spelling`, no metric has an interval wholly below zero. Its
   differences go into `docs/benchmark-results.md` whatever they are.
 - **SC-003:** for `think_python` and `on_liberty`, every row is identical between each pair of

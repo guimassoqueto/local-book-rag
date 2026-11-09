@@ -65,7 +65,8 @@ are among the results, shown exactly as the book prints them.
 1. **Given** *Quincas Borba* in the library, **When** a reader searches for "Sofia", **Then**
    passages containing "Sophia" are returned, with their text as printed.
 2. **Given** the same book, **When** a reader searches for a word in the book's own spelling, such
-   as "Sophia", **Then** every passage that matched before still matches.
+   as "Sophia", **Then** every passage that matched before still matches, though its score and
+   position may change.
 3. **Given** the same book, **When** a reader searches for "filósofo" or "Teresa", **Then**
    passages containing "philosopho" or "Thereza" are returned.
 
@@ -147,6 +148,22 @@ table above, and check that the passages with the modern spelling are returned.
   modern words identical.
 - Q: When a passage is found only because of a spelling equivalence, should the search diagnostics
   say so? → A: No. The diagnostics stay as they are.
+- Q: Must all 28 pairs in the Context table match, or may some be left out if a future pattern can
+  only match them by making two modern words identical? → A: All 28 must match for this feature.
+  Leaving out any pair fails SC-004, and needs the spec changed first.
+- Q: When an old spelling appears in another form of the same word, must it match the modern word
+  too, or only the forms the spec lists? → A: Every form lexical search already treats as one
+  word matches across spellings.
+- Q: When a reader searches with the book's own spelling, may the passages they already found move
+  up or down, as long as they're still found? → A: Yes. Every passage found today must still be
+  found, but its score and position may change. The benchmark judges whether the ranking improved.
+- Q: Should lexical search's gain on *Quincas Borba* be judged by one metric chosen now, or may it
+  pass on either Recall@5 or MRR? → A: Recall@5 alone decides SC-001. MRR and the other metrics
+  are reported, not judged.
+- Q: Should "no two modern words collide" be judged against the exact word list measured, or
+  against whatever version is newest when the check runs? → A: Against `wbrazilian`
+  3.0~beta4-25, named in the spec. A newer list means a new measurement, and any new collisions are
+  a later change.
 
 ## Requirements *(mandatory)*
 
@@ -154,8 +171,10 @@ table above, and check that the passages with the modern spelling are returned.
 
 - **FR-001**: Lexical search on a Portuguese book MUST treat a word's old spelling and its modern
   spelling as the same word, in both directions: a modern spelling in the question finds the old
-  one in the text, and an old spelling finds the modern one. The equivalences are the spelling
-  patterns behind the pairs in the Context table, applied to every word, not only to those pairs.
+  one in the text, and an old spelling finds the modern one. This holds for every form that lexical
+  search already treats as one word: "aparecer" finds "apparecia", and "Sofia" finds "Sophias". The
+  equivalences are the spelling patterns behind the pairs in the Context table, applied to every
+  word, not only to those pairs.
   The measurement in FR-003 narrowed each one to the smallest form that still matches its pairs:
   - ph for f, th for t and y for i
   - a doubled consonant for a single one, except rr and ss, which modern spelling keeps
@@ -169,7 +188,8 @@ table above, and check that the passages with the modern spelling are returned.
   Accents need no pattern, since lexical search already ignores them.
 - **FR-002**: Every word pair in the Context table MUST match in both directions, unless it can
   only match by making two modern words identical. FR-003 takes precedence: such a pair is left
-  out, and recorded in `docs/decisions.md` with the collision that rules it out.
+  out, and recorded in `docs/decisions.md` with the collision that rules it out. For this feature,
+  leaving one out fails SC-004 until the spec is changed.
 - **FR-003**: The feature MUST NOT make a modern Portuguese word match a different modern word.
   "Modern" means today's Brazilian spelling. This is checked in two ways:
   - **Once, by a measurement.** While the equivalences are being designed, they are measured
@@ -177,9 +197,10 @@ table above, and check that the passages with the modern spelling are returned.
     the equivalences would make identical. The word list, the count it found and how each collision
     was resolved are recorded in `docs/decisions.md`. The word list isn't kept in the repository or
     in the tests.
-  - **Permanently, by curated pairs.** The pairs at risk are kept as tests, and must stay apart:
-    the ones the measurement found, plus the known ones (facção/facão, pacto/pato,
-    sessão/seção/cessão).
+  - **Permanently, by curated pairs.** The pairs at risk are kept as tests, and must stay apart.
+    They are the known ones (facção/facão, pacto/pato, sessão/seção/cessão, and the others listed
+    in the tasks), plus one pair the measurement found for each pattern that needed words left as
+    they are. The measurement checks all the others whenever it runs.
 
   Where a pattern would make two modern words identical, the modern words involved are left as
   they are. They keep matching themselves, and don't gain the old-spelling matching. A pair is left
@@ -189,7 +210,8 @@ table above, and check that the passages with the modern spelling are returned.
   - **The pairs aren't affected**: Thereza still matches Teresa, since its old spelling isn't one
     of the words left as they are.
 - **FR-004**: A word spelled as the book spells it MUST keep matching every passage it matches
-  today.
+  today. Those passages' scores and positions may change, since merging spellings changes how rare
+  a word counts as. Whether the ranking improved is for SC-001 and SC-002 to judge.
 - **FR-005**: The text the reader sees MUST stay exactly as the book prints it: passages,
   citations, the quotes in a summary's references, and the passages shown in diagnostics. The
   diagnostics show what they show today, and don't say which words matched through an
@@ -215,8 +237,11 @@ table above, and check that the passages with the modern spelling are returned.
 ### Measurable Outcomes
 
 - **SC-001**: On the 25 answerable *Quincas Borba* questions, lexical search alone improves Recall@5
-  or MRR over the same configuration without the feature, with a paired bootstrap interval (4,000
+  over the same configuration without the feature, with a paired bootstrap interval (4,000
   resamples, 95%) that excludes zero.
+  - **Recall@5 alone decides**, chosen before the run: two chances at a significant result would
+    raise the odds of a lucky pass. MRR, Recall@10, nDCG@10 and context precision are reported,
+    not judged.
   - **Why all 25, not only those with an old-spelled word**: 21 of the 25 contain one, so
     restricting to them would change little, and a subset chosen after seeing results would bias
     them.
@@ -228,11 +253,13 @@ table above, and check that the passages with the modern spelling are returned.
   are the same with the feature on and off. So every search on them returns the same passages, in
   the same order and with the same scores. In the benchmark, *Think Python* and *On Liberty* get
   the same metrics, question by question, under both settings.
-- **SC-004**: Each of the 28 word pairs in the Context table matches in both directions, except
-  those recorded under FR-002 as impossible without a collision.
-- **SC-005**: The measurement against a modern Brazilian Portuguese word list finds no pair of
-  distinct words that the final equivalences make identical, and every curated pair still stays
-  apart.
+- **SC-004**: All 28 word pairs in the Context table match in both directions. Leaving any pair out
+  fails this criterion, and needs the spec changed first.
+- **SC-005**: The measurement against the modern Brazilian Portuguese word list in Debian's
+  `wbrazilian` package, version 3.0~beta4-25, finds no pair of distinct words that the final
+  equivalences make identical, and every curated pair still stays apart. A newer list is a new
+  measurement: any new collisions it finds are a later change, which reruns the measurement and is
+  recorded in `docs/decisions.md`.
 - **SC-006**: Searching stays as responsive as today: a search on a book of about 1,300 passages
   takes at most 50 ms longer the first time the book is searched, and no longer after that.
 

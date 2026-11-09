@@ -219,7 +219,8 @@ every file in `benchmarks/experiments/`. A run's rows then give the paired diffe
   - the paired-difference snippet on the `quincas_borba` rows
 
   Decide each criterion:
-  - **SC-001**: Recall@5 or MRR has an interval above zero, for `bm25_historical_spelling`.
+  - **SC-001**: Recall@5 has an interval above zero, for `bm25_historical_spelling`. Recall@5 alone
+    decides. MRR and the other metrics are reported.
   - **SC-002**: no metric has an interval wholly below zero, for `default_historical_spelling`.
   - **SC-003**: the `think_python` and `on_liberty` rows are identical across each pair of variants.
 
