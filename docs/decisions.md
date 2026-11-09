@@ -178,6 +178,48 @@ result. A bracket that opens with `[NO-EVID` and closes within a word counts as 
 The prompt still asks for it in English: changing the prompt would have changed what the
 generation benchmark measured.
 
+**The default LLM is chosen by a rule fixed before its runs.** gpt-oss:20b stays the default.
+
+Why gpt-oss was the first default:
+- The first version's spec (`.TASK/task.md` § 3.1) recommended it for "Reasoning and
+  summarization", with gemma4:12b as the alternative.
+- That was before the comparison its § 15.3 asked for. When that comparison ran, it leaned toward
+  gemma4 (see `docs/benchmark-results.md`).
+
+So `specs/002-gemma4-default-llm` wrote down, before any confirmation run, what gemma4 would have to
+show. The confirmation:
+- **Generation**: `default_llm_generation_20261109T041359173775Z`.
+- **Summarization**: `default_llm_summarization_20261109T060210125028Z`.
+- **The probe**: what the benchmark doesn't cover.
+- **The reading** of the outputs.
+
+All of it ran on 2026-11-09, from commit `f6f53a8`, with only these two models and gpt-oss judging.
+How each condition came out:
+- **(a) No gated metric worse, by an interval excluding zero**: passed.
+- **(b) The earlier wins repeat**:
+  - **Passed**: fewer wrong abstentions (0 against 1), and higher coverage of the novel (0.633
+    against 0.261).
+  - **Failed**: faster summaries. The −13.5 s and −1.33 steps a chapter both have intervals that
+    reach zero.
+  - **Why**: gemma4 took the same steps on every chapter in all three runs. gpt-oss's steps depend
+    on how often its replies overrun their limits, and that varies from run to run. The 104 s
+    recorded before was its slowest run.
+- **(c) No error kind that gemma4 makes and gpt-oss doesn't, in 3 answers or 2 summaries**:
+  passed, with one.
+- **(d) Nothing the probe finds worse for gemma4**: failed.
+  - 8 of its 60 abstentions in Spanish, French and German explained what the passages do say,
+    without the no-evidence marker. So the application showed them as answers. None of gpt-oss's
+    did.
+  - In the probe, gemma4 also wrote the first visible word sooner, 0.32 s against 0.64 s.
+- **(e) The real-model checks with gemma4 configured**: not run, since the switch needs (a) to
+  (d).
+
+What would reopen the question: unmarked abstentions no more frequent than gpt-oss's, through the
+`fix/unmarked-abstentions` follow-up, and a speed win that holds across more chapters than the
+dataset's six. A new spec would be needed, since this one is delivered. The reading also found
+gpt-oss making more errors than gemma4 in its multi-section answers, 10 of 15 against 5. The
+judge's scores didn't show that, and they still decide.
+
 ## Library lifecycle
 
 **Chunks carry a book revision.** A replacement is indexed next to the live revision and one SQLite

@@ -1,0 +1,559 @@
+# The reading of the default LLM's confirmation (spec FR-006, FR-007; tasks T022).
+#
+# Packets: benchmarks/results/default_llm_reading_20261109T064021244039Z, built by `dl packets` from
+# default_llm_generation_20261109T041359173775Z, default_llm_summarization_20261109T060210125028Z,
+# default_llm_probe_20261109T062308173324Z and the two earlier summarization runs. No packet's
+# rebuilt passages differ from its run's.
+#
+# How it was read:
+# - Each item's two entries were read side by side, by the same standard, against the passages the
+#   models were given (answers) or the chapter's chunks (summaries).
+# - Summaries record only unsupported_claim and misattribution. Their [n] citations are computed by
+#   the application's lookup, not written by the model (constitution VII), so a lookup that lands
+#   on the wrong chunk is noted, not counted as false_citation. Omissions are what the coverage
+#   metrics measure, so they aren't errors here.
+# - The probe doesn't keep a marker reply's passages, so a reply's side claims were checked against
+#   the book's chunks in the benchmark workspace.
+# - Where the reading departs from the judge's score, the note says so. The score still decides.
+
+- item: on_liberty_multi_section_01
+  kind: answer
+  model: gpt-oss:20b
+  errors: [misattribution, unsupported_claim]
+  note: >-
+    No passage holds Mill's resolution (the "definite damage" and "constructive injury" text wasn't
+    retrieved). The answer's second paragraph says "In Chapter IV he argues" that private conduct
+    touches others, citing [2]. But [2] is the objection Mill puts in opponents' mouths ("many
+    persons will refuse to admit... it may be asked"), not his own view: a misattribution. The
+    conclusion, that Mill concedes "society has a legitimate interest in regulating conduct that,
+    even indirectly, detracts from the general good or misleads others", is supported by no passage,
+    and is the reverse of the book's answer. The judge's faithfulness of 0.500 is lenient; the
+    reading agrees with its low correctness.
+- item: on_liberty_multi_section_01
+  kind: answer
+  model: gemma4:12b
+  errors: []
+  note: >-
+    Says the passages don't contain how Mill finally deals with the objection, quoting [1]'s promise
+    that it "will receive consideration in the sequel". That is right: none of the five passages
+    holds the resolution, so this isn't an abstention with evidence. It is an abstention in
+    substance without the no-evidence marker, shown as an answer (abstained False). The judge's
+    answer_relevance of 0.000 scores it as a failed answer; the reading finds no error.
+- item: on_liberty_multi_section_02
+  kind: answer
+  model: gpt-oss:20b
+  errors: []
+  note: >-
+    Its three stages are each grounded in a passage. The quotes from [4] (opinion to action) and
+    from [1] (a general State education moulds people alike, a "despotism over the mind", State
+    education only "as one among many competing experiments") are verbatim, and each citation says
+    what is claimed. The extension to "governmental models" goes beyond [1], which speaks only of
+    education, but it is labelled as an inference and matches the book. It doesn't use [5]'s
+    "fair-play to all sides of the truth", but names the opinion stage. The reading departs from the
+    judge's faithfulness 0.000 and citation_accuracy 0.000.
+- item: on_liberty_multi_section_02
+  kind: answer
+  model: gemma4:12b
+  errors: [unanswered_part]
+  note: >-
+    The opinion-to-action step is right and well quoted from [4]. But the question's last step, "the
+    way public business is conducted", is left unanswered, though passage [1] answers it: State
+    education only "as one among many competing experiments", diversity of education as of "the same
+    unspeakable importance". The answer never uses [1]. Its "To Public Business and Politics" bullet
+    instead restates [5]'s point on parties of order and progress, which is the Chapter II argument
+    for diversity of opinion itself, not how public business is conducted. Everything it states is
+    in [4] and [5]. The reading departs from the judge's correctness of 0.833.
+- item: on_liberty_multi_section_03
+  kind: answer
+  model: gpt-oss:20b
+  errors: []
+  note: >-
+    The China warning is quoted correctly from [1]: impressing wisdom on every mind, people made
+    "all alike", "stationary" for thousands of years, a danger for Europe. The State-education
+    quotes are verbatim from [2]. The link it draws, uniformity in both, is the book's. It describes
+    his position as a critique of "State-directed" education without saying he still favours the
+    State enforcing education, which [2] states, but it misstates nothing. Citations checked: [1]
+    and [2] each support their sentences.
+- item: on_liberty_multi_section_03
+  kind: answer
+  model: gemma4:12b
+  errors: []
+  note: >-
+    Covers the China warning ([1], [3]: "all alike", "stationary", public opinion as the unorganised
+    form of China's systems, Europe tending to become another China), Europe's "plurality of paths"
+    ([3]), and State education as moulding people alike, deprecating the State's direction of
+    education, with diversity of education essential ([2]). Every claim and citation checks against
+    its passage.
+- item: on_liberty_multi_section_04
+  kind: answer
+  model: gpt-oss:20b
+  errors: [misattribution, unsupported_claim]
+  note: >-
+    Passage [1] is Courtney's introduction, not Mill. The answer calls it "Mill's own discussion",
+    and has Mill "explicitly" note that individuals "deliberately formed a Social State, either by a
+    contract or otherwise", and that the rights he advocates are "slowly acquired in the growth and
+    development of the social state". These are Courtney's accounts of the eighteenth-century view
+    and of the nineteenth-century view, which Courtney says restricts Mill's liberty: a
+    misattribution. Its conclusion, "Mill's argument rests on the idea of a social contract", is
+    supported by no passage, and is the reverse of the book's answer. The reading departs from the
+    judge's faithfulness of 1.000.
+- item: on_liberty_multi_section_04
+  kind: answer
+  model: gemma4:12b
+  errors: []
+  note: >-
+    Says the passages don't state whether Mill himself rests his argument on abstract rights or a
+    contract. That is right: Mill's own statements, foregoing abstract right and saying society is
+    not founded on a contract, weren't retrieved. Its context is accurate and correctly attributed
+    to Courtney: Mill advocating "the rights of the individual as against Society" ([1]), the
+    eighteenth- and nineteenth-century views ([1]), and Liberty "based on a suggestion derived from
+    Von Humboldt" ([4], [5]). Every citation checks.
+- item: on_liberty_multi_section_05
+  kind: answer
+  model: gpt-oss:20b
+  errors: [misattribution, unsupported_claim]
+  note: >-
+    It writes "In Chapter III he writes that 'Society can punish him for acts or even opinions which
+    are anti-social in character'", citing [4]. But [4] is Courtney's introduction (section III),
+    describing a view of society that he says "seriously restricts that liberty of the individual
+    for which Mill pleads": a misattribution. Its conclusion, that Mill accepts punishment when an
+    opinion is "anti-social... or threatens the social order", is supported by no passage. The
+    corn-dealer and tyrannicide passages weren't retrieved. It also quotes "a lone dissenter" as
+    Mill's words, though [1] says "that one person".
+- item: on_liberty_multi_section_05
+  kind: answer
+  model: gemma4:12b
+  errors: [misattribution]
+  note: >-
+    Its first three points are accurate to [1], [2] and [5]: coercion of opinion is illegitimate,
+    all silencing assumes infallibility, and the Dr. Johnson "ordeal" argument is the opponents',
+    which Mill rejects, correctly attributed. But its fourth point says "Mill notes that the
+    individual has 'no rights' against the 'social organism' and that society can punish acts or
+    opinions that are 'anti-social in character'", citing [4]. That is Courtney's description of a
+    view that restricts Mill's liberty: the same misattribution gpt-oss makes on this item. It
+    doesn't build a conclusion on it. Its opening, that the passages show Mill accepting no
+    punishment, is right given that the instigation passages weren't retrieved.
+- item: quincas_borba_multi_section_01
+  kind: answer
+  model: gpt-oss:20b
+  errors: [unsupported_claim, misattribution, false_citation]
+  note: >-
+    Says Rubião "não tinha certeza de quem o havia escrito" and concluded the note "havia sido
+    redigida por Sofia". Passage 1, the very sentence it quotes, says Palha wrote it ("redigido por
+    elle mesmo") and Sophia only copied, signed and sent it. So the authorship goes to the wrong
+    person, the uncertainty is unsupported, and the quote cited as [1] says the opposite of the
+    claim. Its account of Rubião's reading ("afeto ou carinho") is thin next to passage 3's mystery,
+    "capitulação" and "metaphora", but it is there. The judge's faithfulness of 0.833 and citation
+    accuracy of 1.000 miss the reversed authorship.
+- item: quincas_borba_multi_section_01
+  kind: answer
+  model: gemma4:12b
+  errors: []
+  note: >-
+    Rubião's reading (a mystery, the "candidez" of the first words, kissing the name) matches
+    passage 3, and the authorship (Palha wrote it, Sophia copied, signed and sent it) matches
+    passage 1. Both citations check out. "Palha revelou" overstates it: passage 1 narrates his
+    thoughts rather than a disclosure, but the fact is right. It leaves out "capitulação" and
+    "metaphora", but answers the part.
+- item: quincas_borba_multi_section_02
+  kind: answer
+  model: gpt-oss:20b
+  errors: [unsupported_claim, unanswered_part]
+  note: >-
+    The request is garbled ("que fitar o Cruzeiro – isto é, que a observasse e a contemplasse"). It
+    leaves out what passage 3 states: every night at ten, he would look too, and their thoughts
+    would meet. It also skips Rubião's regret that she didn't consent (passage 1). "Já o venera em
+    alguns servidores públicos" misreads "venera" (the decoration he had seen on officials' chests),
+    and "lembrando-se dele sempre que a estrela aparece no céu" is in no passage. The last sentence
+    is correct (passage 5). It cites nothing, which the judge's citation accuracy of 0.000 reflects.
+- item: quincas_borba_multi_section_02
+  kind: answer
+  model: gemma4:12b
+  errors: []
+  note: >-
+    The request (every night at ten, both looking, thoughts meeting) is from passage 3. The regret
+    ("outra teria sido a vida de ambos") and the idea of a national distinction are from passages 1
+    and 2, and the closing sentence of the novel is from passage 5. Every citation checks out.
+    "Bela" and "rara" describe the decoration in passage 1, not the idea: a slip, not an error.
+- item: quincas_borba_multi_section_03
+  kind: answer
+  model: gpt-oss:20b
+  errors: [abstention_with_evidence]
+  note: >-
+    Abstains, saying the passages don't say which letter or what he did with it. Passage 1 has the
+    letter in Sophia's hand addressed to Carlos Maria, found by a flower bed, and passage 3 has him
+    handing it to her. The reply even concedes he "a entregou a Sofia". Only the letter's content
+    (the Alagoas circular) is missing from the passages. The judge's abstention_quality of 0.000
+    agrees.
+- item: quincas_borba_multi_section_03
+  kind: answer
+  model: gemma4:12b
+  errors: []
+  note: >-
+    The letter found by the flower bed, in Sophia's hand and addressed to Carlos Maria, is from
+    passage 1. His choice to hand it to her and watch her face is from passage 5, and her pallor,
+    her plea that he open it and his leaving are from passage 3. It rightly says the passages don't
+    give the content, which they don't: the circular isn't in them. Every citation checks out. The
+    judge's faithfulness of 0.556 is lower than this reading finds: no unsupported claim was found.
+- item: quincas_borba_multi_section_04
+  kind: answer
+  model: gpt-oss:20b
+  errors: [unsupported_claim, false_citation, unanswered_part]
+  note: >-
+    The rescue on the rua da Ajuda is right (passage 1). It then says that in chapter CLXXXII
+    "Rubião intervém para retirar o menino da carruagem" [3], but passage 3 is the jeering scene,
+    where Deolindo joins the mob shouting "Ó gira!", with no carriage and no rescue. It ends by
+    saying there's no other link, leaving out Deolindo's part in the jeering, which passage 3 shows.
+- item: quincas_borba_multi_section_04
+  kind: answer
+  model: gemma4:12b
+  errors: [unanswered_part]
+  note: >-
+    The rescue is right (passage 1), and so is the delirium in the same street (passages 2 and 3).
+    But it reduces Deolindo in the second scene to being called home by his mother, "apenas um
+    elemento do cenário". Passage 3 shows him joining the jeering and shouting "Ó gira! ó gira!" at
+    the man who saved him, which is the link the question asks about. Its citations check out.
+- item: quincas_borba_multi_section_05
+  kind: answer
+  model: gpt-oss:20b
+  errors: [unsupported_claim]
+  note: >-
+    Lists rua da Princeza first and rua Dous de Dezembro second, as "ordem cronológica". But passage
+    3 (chapter LXXVIII) has the move to Dous de Dezembro, and passage 1 (chapter CLXXX) the later
+    move to the Cajueiros ("já não estamos na mesma casa"), so the order is reversed. It lists rua
+    das Mangueiras as a residence, but passage 5 only has Rubião turning that corner. The two real
+    moves the passages hold are named. Senado and Barbonos aren't in the passages.
+- item: quincas_borba_multi_section_05
+  kind: answer
+  model: gemma4:12b
+  errors: [unsupported_claim]
+  note: >-
+    Lists "Rua dos Invalidos" as the first move, but passage 3 has Rubião going there to look for
+    Carlos Maria, not the major or D. Tonica living there. Dous de Dezembro (passage 3), then the
+    Cajueiros and rua da Princeza (passage 1), are right and in order. Senado and Barbonos aren't in
+    the passages. The judge gave no answer_correctness.
+- item: think_python_multi_section_01
+  kind: answer
+  model: gpt-oss:20b
+  errors: [unsupported_claim, false_citation]
+  note: >-
+    The print difference is right (passage 1). The division row is cited to [2], which says nothing
+    about division, and the reply admits "the exact wording is not quoted here". No passage covers
+    division. The input row says Python 3's input() "evaluates the user's input as Python code",
+    which contradicts passage 3 ("returns what the user typed as a string"). It also cites [3] for
+    "text = input() (Python 2)", but passage 3 shows that as Python 3's input.
+- item: think_python_multi_section_01
+  kind: answer
+  model: gemma4:12b
+  errors: []
+  note: >-
+    print (passage 1) and input versus raw_input (passage 3) are right, with correct citations. It
+    says the passages don't cover the division operator, which is true: none of the five mentions
+    it, so this isn't an abstention with evidence. The judge's answer_correctness of 0.410 counts
+    the missing division part against it, though the passages don't hold it.
+- item: think_python_multi_section_02
+  kind: answer
+  model: gpt-oss:20b
+  errors: []
+  note: >-
+    The cause (n isn't an integer, so the recursion never reaches n == 0) is from passage 2, and the
+    advice (print the parameters at the start, see whether they move toward the base case) is from
+    passage 1. "(And optionally their types)" comes from passage 4, though only [1] is cited: too
+    minor to count. It leaves out the 0.5, −0.5 sequence, but the reason is given.
+- item: think_python_multi_section_02
+  kind: answer
+  model: gemma4:12b
+  errors: []
+  note: >-
+    The cause, with the 0.5 and −0.5 sequence, is from passage 2, and the print-the-parameters
+    advice from passage 1. The extra steps (preconditions, return values, flow of execution) are
+    supported by passages 4 and 5. Every citation checks out. The judge's answer_correctness (0.648)
+    is lower than gpt-oss's (0.928), but this reading finds both correct.
+- item: think_python_multi_section_03
+  kind: answer
+  model: gpt-oss:20b
+  errors: []
+  note: >-
+    Prefixes must be dictionary keys, which rules out lists, and shift builds a new tuple: passage
+    1. Keys must be hashable, and lists are unhashable (TypeError): passage 5. The quoted sentence
+    cited [3][4] is in passage 3, with passage 4 adding that tuples are used as keys because lists
+    can't be. The judge's citation accuracy of 0.000 is lower than this reading finds.
+- item: think_python_multi_section_03
+  kind: answer
+  model: gemma4:12b
+  errors: []
+  note: >-
+    Prefixes as keys, which rules out lists: passage 1. Immutable types as keys: passage 3. The
+    hashtable, keys that must be hashable, and the TypeError: passage 5. Every citation checks out.
+    Neither model explains a modified key hashing to a new location, which the passages don't hold.
+- item: think_python_multi_section_04
+  kind: answer
+  model: gpt-oss:20b
+  errors: []
+  note: >-
+    All four operations are right, with the book's examples: * gathering into a tuple and scattering
+    with divmod(*t) from passage 1; ** gathering into a keyword dictionary and scattering with
+    Point(**d) from passage 2. Every citation checks out.
+- item: think_python_multi_section_04
+  kind: answer
+  model: gemma4:12b
+  errors: []
+  note: >-
+    All four operations are right: * gathers and scatters (passages 1 and 3); * doesn't gather
+    keyword arguments, ** gathers them into a dictionary and scatters a dictionary (passage 2).
+    Every citation checks out.
+- item: think_python_multi_section_05
+  kind: answer
+  model: gpt-oss:20b
+  errors: [unsupported_claim, false_citation, unanswered_part]
+  note: >-
+    Invents data-encapsulation steps that mirror the function plan step for step ("identify a
+    coherent piece of code ... as a method", "generalize the method by adding parameters",
+    refactor). No passage has them, and it defines data encapsulation as "turning a sequence of
+    statements into a method". It cites [1] for "these parallels", quoting the Liskov-substitution
+    advice on overriding methods, which isn't about the parallel. What passage 1 does show (global
+    variables read and written by functions, state encapsulated in an object, functions turned into
+    methods) is missing. The function plan's steps (passage 3) are right. The judge's faithfulness
+    of 0.000 agrees.
+- item: think_python_multi_section_05
+  kind: answer
+  model: gemma4:12b
+  errors: [unanswered_part]
+  note: >-
+    The function plan (passage 3) is right, and so is the Markov example of moving global state into
+    an object (passage 1). But it says the text "does not provide a direct step-by-step parallel",
+    and leaves out passage 1's "Next, we transform the functions into methods". That step, after
+    starting from globals and encapsulating state, is the parallel the question asks for. Its
+    citations check out.
+- item: Fruitful functions@default_llm_summarization_20261109T060210125028Z
+  kind: summary
+  model: gpt-oss:20b
+  errors: [unsupported_claim]
+  note: >-
+    Main arguments 2 says a missing return "may return None unintentionally, producing dead code",
+    and Important conclusions repeats that returning on every path avoids "dead code". The chunks
+    define dead code as code after a return or unreachable, which a missing return doesn't produce.
+    Relationships also says incremental development "helps detect dead code and ensures all paths
+    return", which the chunks don't link. Supporting examples calls the composed function
+    `area_of_circle`, but the chunks' name is `circle_area`. It also says the chapter "discusses the
+    rapid growth of the call stack" for Fibonacci, where the chunks only say following the flow
+    "your head explodes". The judge gave factual_consistency 1.000; this reading finds more
+    unsupported statements here than in gemma4's summary of the same chapter.
+- item: Fruitful functions@default_llm_summarization_20261109T060210125028Z
+  kind: summary
+  model: gemma4:12b
+  errors: []
+  note: >-
+    Every statement is in the chapter's chunks. The "Turing Thesis" entry ("capable of evaluating
+    any recursively defined mathematical function") reframes the thesis. Its substance is chunk
+    0138's "If you can write a recursive definition of something, you can write a Python program to
+    evaluate it", so it isn't counted. The judge's factual_consistency of 0.500 isn't borne out by
+    this reading. The overview's "covers ... recursion. [17]" lookup lands on the dead-code glossary
+    chunk, which is the application's lookup, not the model's.
+- item: CHAPTER II. OF THE LIBERTY OF THOUGHT AND DISCUSSION.@default_llm_summarization_20261109T060210125028Z
+  kind: summary
+  model: gpt-oss:20b
+  errors: [unsupported_claim, misattribution]
+  note: >-
+    Unsupported: (1) Chapter overview, first sentence: the liberty of the press "is no longer a
+    necessary defense ... because the idea that a legislature or executive can prescribe opinions
+    has long been accepted". Chunk 1 says the reverse: no argument is now needed against letting a
+    legislature prescribe opinions, so only the defence of the liberty of the press is no longer
+    needed. (2) Main thesis: "He maintains that opinions are personal possessions; silencing them is
+    a private injury" makes Mill's rejected hypothesis ("Were an opinion a personal possession ...")
+    his view. Chunk 2 goes on that the peculiar evil is "robbing the human race". (3) Main argument
+    5 and the supporting examples cite Socrates, Jesus and the early Christians "to illustrate that
+    persecution can succeed in stifling the spread of new ideas". The chunks use them for the best
+    men condemned by sincere persecutors, and say the Socratic philosophy and the Christian church
+    spread anyway (chunks 19-20). The examples of successful suppression are Arnold of Brescia,
+    Savonarola, the Lollards and the others (chunk 16). Minor: "any claim to infallibility ...
+    merely shifts the burden of proof" garbles chunk 8, where the assumption of infallibility shifts
+    from truth to usefulness. Misattribution (borderline): main argument 2, "The author insists that
+    humans must act on their best judgments, even though absolute certainty is impossible" [5],
+    takes the objector's words ("such reasoners may say ... There is no such thing as absolute
+    certainty", chunks 4-5) as Mill's insistence. Mill answers "it is assuming very much more",
+    though he grants acting on an opinion left open to contradiction. Lookups, not counted: [21] for
+    "dead dogma" lands on chunk 21, which doesn't say it (chunk 23 does). [48] is weak for the
+    conclusion it ends. The judge's factual consistency of 1.000 misses all of these.
+- item: CHAPTER II. OF THE LIBERTY OF THOUGHT AND DISCUSSION.@default_llm_summarization_20261109T060210125028Z
+  kind: summary
+  model: gemma4:12b
+  errors: [unsupported_claim]
+  note: >-
+    Unsupported: main arguments, "Truth and Utility": "one cannot forbid a heretic from arguing for
+    an opinion's utility while allowing them to dispute its truth" reverses chunks 8-9: "it will not
+    do to say that the heretic may be allowed to maintain the utility or harmlessness of his
+    opinion, though forbidden to maintain its truth". Minor overstatements, not counted: - social
+    intolerance "forces dissenters to abandon their convictions", where chunk 20 says they disguise
+    them and keep them "within their own breasts"; - "robbery of the human race" in quotes, where
+    chunk 2 says "robbing the human race"; - "judicial iniquity", which Mill uses for the trials of
+    Socrates and Jesus (chunk 12), applied to any suppression; - "deep slumber of a decided
+    opinion", a phrase Mill quotes from "a contemporary author" and endorses (chunk 33), given
+    unattributed. No misattribution: Socrates (impiety), Jesus (blasphemer), Marcus Aurelius, the
+    1857 Cornwall case, the jurymen, Rousseau and the four grounds are all as the chunks have them.
+    Lookup, not counted: [20] for the Reformation's "yoke of authority" and "deep slumber" lands on
+    chunk 20, and neither phrase is there (chunks 22 and 33 hold them). The reversal could justify a
+    factual consistency below 1. But by the same standard gpt-oss's summary has more and graver
+    distortions and scored 1.000, so the reading departs from the judge's 0.500 against 1.000. The
+    score still decides.
+- item: Inheritance@summarization_20261108T170744515174Z
+  kind: summary
+  model: gpt-oss:20b
+  errors: []
+  note: >-
+    Every statement is in the chapter's chunks. Two borderline phrasings aren't counted. The
+    overview's "how inheritance can complicate debugging, data encapsulation, and interface design"
+    can be read as a list of topics. "Encapsulation hides internal state" is a general gloss, not
+    the chapter's stated purpose of keeping analyses separate.
+- item: Inheritance@summarization_20261108T170744515174Z
+  kind: summary
+  model: gemma4:12b
+  errors: []
+  note: >-
+    No unsupported or misattributed statement. The encoding, the Liskov rule, MRO, IS-A and HAS-A,
+    multiplicity and the Markov refactoring all match the chunks. But the whole summary is in
+    Portuguese ("Resumo do capítulo", "Visão geral do capítulo"), though the book is in English:
+    that's a language failure, not an FR-006 kind. Nothing in its content would justify the judge's
+    factual_consistency of 0.500; the language may have weighed on it.
+- item: Fruitful functions@summarization_20261108T213459590645Z
+  kind: summary
+  model: gpt-oss:20b
+  errors: []
+  note: >-
+    Every statement is in the chapter's chunks. Relationships calls recursion something that "builds
+    on function composition", which is interpretive but not contradicted.
+- item: Fruitful functions@summarization_20261108T213459590645Z
+  kind: summary
+  model: gemma4:12b
+  errors: []
+  note: >-
+    Every statement is in the chapter's chunks. The Turing Thesis gloss ("any computable problem can
+    be expressed") matches chunk 0137, apart from saying "covered in the chapter" for the subset
+    covered so far in the book. Nothing in it would justify the judge's factual_consistency of
+    0.500.
+- item: Inheritance@summarization_20261108T213459590645Z
+  kind: summary
+  model: gpt-oss:20b
+  errors: [unsupported_claim]
+  note: >-
+    The overview says the chapter "begins by defining key terminology—inheritance, IS-A, HAS-A, and
+    dependency relationships—and explains how class diagrams..." and "then" shows move_cards and
+    Hand. The chunks begin with Card objects, and class diagrams come after Hand and move_cards.
+    Main arguments 5, the concepts and the relationships give the Markov encapsulation the purpose
+    of "protecting data integrity" and protecting "data from unintended modification". The chunks'
+    purpose is to run multiple analyses and keep them separate. Main argument 1's move_cards lookup
+    [14] lands on the data-encapsulation chunk (lookup, not counted). This agrees with the judge's
+    factual_consistency of 0.500.
+- item: Inheritance@summarization_20261108T213459590645Z
+  kind: summary
+  model: gemma4:12b
+  errors: []
+  note: >-
+    Every statement is in the chapter's chunks: modules spreading definitions, the Liskov rule and
+    "collapse", data encapsulation with suffix_map and prefix, and Card.rank_names[self.rank].
+    Calling data encapsulation a way to approach "object-oriented design" relabels the chunks' two
+    development plans slightly, but isn't counted. Nothing would justify the judge's
+    factual_consistency of 0.500.
+- item: Inheritance@probe
+  kind: probe_summary
+  model: gpt-oss:20b
+  errors: [unsupported_claim]
+  note: >-
+    Analytical, English, 7 steps. The overview invents why the cards were chosen ("familiar, small
+    enough to be coded in a few dozen lines, and rich enough"). Relationships and conclusion 5 say
+    "The Markov example demonstrates how inheritance can be combined with encapsulation", though the
+    chunks' Markov example uses no inheritance (the summary itself concedes "The inheritance
+    hierarchy is not explicit"). Main argument 6 and conclusions 3 and 6 make the data-encapsulation
+    plan advice for when "the hierarchy is ... murky". In the chunks, it's for when it's unclear
+    what objects are needed. They also say the chapter "ends by encouraging the reader to reflect",
+    but it ends with a glossary and exercises. Example 6 says dependencies "are omitted for
+    clarity", where the chunks say "There are no dependencies in this diagram". Main argument 2's
+    Hand.__init__ lookup [3] lands on Card's __init__ (lookup, not counted).
+- item: Inheritance@probe
+  kind: probe_summary
+  model: gemma4:12b
+  errors: [unsupported_claim]
+  note: >-
+    Analytical, English, 3 steps. Main arguments open with "The Necessity of Proper Class Design:
+    Before introducing inheritance, the author argues that a class must be well-designed to be
+    useful", an argument the chunks don't make: they just build Card. Its lookup [11] lands on the
+    class-diagram chunk. Relationships says the data-encapsulation plan uses "the principles of
+    class construction and inheritance", but the chunks' four steps and the Markov class involve no
+    inheritance. Calling pop_card a veneer is not counted: the chunks name add_card, but the
+    glossary's definition fits pop_card too. gpt-oss's analytical summary has the same kind of
+    error, so this one isn't gemma4-only.
+- item: quincas_borba_unanswerable_01@French
+  kind: probe_reply
+  model: gemma4:12b
+  label: abstains
+  errors: []
+  note: >-
+    Says the denunciation was made by "alguém" and that the text doesn't identify who: an
+    abstention, without the marker, so the application shows it as an answer. It is written in
+    Portuguese, though French was asked. "denuncia dada por alguem contra o testamento" is in
+    CAPITULO XXV.
+- item: quincas_borba_unanswerable_01@German
+  kind: probe_reply
+  model: gemma4:12b
+  label: abstains
+  errors: []
+  note: >-
+    "Die Passagen enthalten keine Informationen darüber, wer die Denunziation ... eingereicht hat":
+    an abstention, without the marker, so the application shows it as an answer. Quotes "alguem"
+    correctly (CAPITULO XXV).
+- item: quincas_borba_unanswerable_02@Spanish
+  kind: probe_reply
+  model: gemma4:12b
+  label: abstains
+  errors: [misattribution]
+  note: >-
+    Opens with "As passagens fornecidas não mencionam o nome da mãe de Rubião": an abstention,
+    without the marker, in Portuguese though Spanish was asked. Then says Sophia's mother was the
+    "santa senhora" the slaves called "Sinhá Mãe". In CAPITULO CLII, Rubião says that of his own
+    mother ("Deve estar no ceu, confirmou Rubião. Era uma santa senhora! ... Os escravos davam-lhe o
+    nome de Sinhá Mãe"). Checked against the book's chunks: the probe doesn't keep the passages.
+- item: quincas_borba_unanswerable_02@French
+  kind: probe_reply
+  model: gemma4:12b
+  label: abstains
+  errors: []
+  note: >-
+    "Os passagens fornecidas não mencionam o nome da mãe de Rubião": an abstention, without the
+    marker, in Portuguese though French was asked. Attributes "santa senhora" and "deve estar no
+    céu" to Rubião about his mother, correctly (CAPITULO CLII).
+- item: quincas_borba_unanswerable_02@German
+  kind: probe_reply
+  model: gemma4:12b
+  label: abstains
+  errors: []
+  note: >-
+    "Die Passagen enthalten keine Informationen darüber, wie die Mutter von Rubião hieß": an
+    abstention, without the marker. Its side remark (Rubião's mother a "heilige Frau", in heaven)
+    matches CAPITULO CLII.
+- item: quincas_borba_unanswerable_03@Spanish
+  kind: probe_reply
+  model: gemma4:12b
+  label: abstains
+  errors: []
+  note: >-
+    Says the passages don't name the city, only "n'uma cidade das Alagoas" (CAPITULO XCII): an
+    abstention, without the marker, in Portuguese though Spanish was asked.
+- item: quincas_borba_unanswerable_03@German
+  kind: probe_reply
+  model: gemma4:12b
+  label: abstains
+  errors: []
+  note: >-
+    "Die Texte enthalten keine Informationen darüber, in welcher spezifischen Stadt in Alagoas die
+    Epidemie ausbrach": an abstention, without the marker.
+- item: quincas_borba_unanswerable_05@German
+  kind: probe_reply
+  model: gemma4:12b
+  label: abstains
+  errors: [unsupported_claim]
+  note: >-
+    "Die Passagen enthalten keine Informationen darüber, mit welchem Transportmittel Rubião ...
+    gereist ist": an abstention, without the marker. Then says passage [3] mentions he "aus dem
+    Sanatorium entlassen wurde". In CAPITULO CXCIV he asks Palha to get him out, and the director
+    advises against discharging him. In CXCIII he has disappeared. Checked against the book's
+    chunks: the probe doesn't keep the passages.

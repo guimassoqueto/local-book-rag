@@ -13,7 +13,7 @@ Extraction, retrieval and performance ran on commit `4fcd1cb`, generation on `f9
 summarization on `826c977`. The commits in between changed the summarizer, the summary prompts
 and the key points, none of which the other experiments use. The one after them, `c7dd6ac`,
 recognizes a translated no-evidence marker: see Generation. Historical spelling ran on `608e9a4`,
-on 2026-11-09.
+on 2026-11-09, and the default LLM's confirmation on `f6f53a8`, the same day.
 
 ## How far to trust these numbers
 
@@ -238,17 +238,118 @@ passages of *On Liberty*. All four models ran entirely on the GPU at both contex
 - Total time isn't comparable across models, since each writes a different amount: compare the
   rates. Loads take 1.6 to 2.5 s, from the system's file cache. From disk they take longer.
 
+## Default LLM
+
+gpt-oss:20b and gemma4:12b were compared again, under a rule written before the runs in
+`specs/002-gemma4-default-llm` (FR-002). The verdict and the reading, case by case, are in that
+directory. The runs:
+- **Commit and date**: `f6f53a8`, on 2026-11-09, with Ollama 0.40.15 and dataset
+  `767e4cceb315`.
+- **Digests**: gemma4:12b `6114515d63c1`, gpt-oss:20b `f38aa0c53da5`, qwen3-embedding:0.6b
+  `ac6da0dfba84`.
+- **Generation**: `default_llm_generation_20261109T041359173775Z`, 1 h 47 min.
+- **Summarization**: `default_llm_summarization_20261109T060210125028Z`, 20 min.
+- **The probe**: `default_llm_probe_20261109T062308173324Z`, 17 min.
+  - Its own record has only the Ollama version and the digests. The script now writes everything a
+    benchmark's `results.json` holds, but this probe ran before that.
+  - It ran right after the summarization run, in the same `app` and `ollama` containers, neither
+    restarted in between. That run's `results.json` holds the hardware, Python, packages and
+    configuration they shared.
+  - The dataset's checksum, recomputed, is still `767e4cceb315`: `benchmarks/datasets` last
+    changed in `826c977`, before both runs.
+
+Both runs had only these two models, with gpt-oss judging as in the experiments above. **gpt-oss:20b
+stays the default**: see `docs/decisions.md`.
+
+| Model | Faithfulness | Correctness | Relevance | Citation accuracy | Abstention quality | Wrong abstentions | Generation t/s |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-oss:20b (default) | 0.809 | 0.677 | 0.789 | 0.919 | 0.989 | 1 | 94 |
+| gemma4:12b | 0.858 | 0.699 | 0.767 | 0.987 | 0.989 | 0 | 99 |
+
+| Model | Argument coverage | Concepts | Consistency | Coherence | Completeness | Traceability | Seconds | Steps |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-oss:20b (default) | 0.518 | 0.917 | 0.917 | 0.875 | 0.750 | 0.899 | 48.6 | 4.8 |
+| gemma4:12b | 0.683 | 0.875 | 0.833 | 0.917 | 0.792 | 0.971 | 35.1 | 3.5 |
+
+gemma4's difference from gpt-oss, with its 95% interval, on the rule's metrics:
+
+| Metric | Difference | Metric | Difference |
+| --- | --- | --- | --- |
+| Faithfulness | +0.053 (−0.020 to +0.134) | Argument coverage | +0.166 (−0.019 to +0.337) |
+| Correctness | +0.022 (−0.020 to +0.063) | Concepts | −0.042 (−0.208 to +0.208) |
+| Relevance | −0.021 (−0.054 to +0.011) | Consistency | −0.083 (−0.333 to +0.167) |
+| Citation accuracy | **+0.068 (+0.014 to +0.135)** | Coherence | +0.042 (+0.000 to +0.125) |
+| Language consistency | +0.000 (+0.000 to +0.000) | Completeness | +0.042 (+0.000 to +0.125) |
+| Abstention quality | +0.000 (−0.033 to +0.033) | Traceability | **+0.072 (+0.015 to +0.134)** |
+| Multi-section correctness | −0.058 (−0.155 to +0.047), 13 pairs | Seconds per summary | −13.5 (−33.4 to +2.1) |
+| | | Steps per summary | −1.33 (−3.33 to +0.00) |
+
+- **Nothing is worse for gemma4**, and two differences favor it: citation accuracy, and the
+  traceability of its summaries.
+- **The speed win didn't hold.** gemma4 took the same steps on every chapter in all three runs:
+  1, 1, 3, 3, 8 and 5. gpt-oss took 9, 13 and 20 steps for "Inheritance" in its three, as its
+  replies overran their limits more or less often. Its 104 s a chapter in Summarization above was
+  its slowest run. Here it took 48.6 s.
+- **The novel is still gemma4's**: 0.633 coverage against 0.261.
+
+**The reading.** Two kinds of output were read against their passages, in both models:
+- the 15 multi-section answers;
+- the summaries the judge scored 0.5 or lower for gemma4, here and in the two earlier runs, with
+  the two `analytical` summaries of the probe.
+
+Answers or summaries with each error kind:
+
+| Error kind | Answers, gpt-oss | Answers, gemma4 | Summaries, gpt-oss | Summaries, gemma4 |
+| --- | --- | --- | --- | --- |
+| Unsupported claim | 9 | 1 | 4 | 2 |
+| Misattribution | 4 | 1 | 1 | 0 |
+| Part left unanswered | 3 | 3 | – | – |
+| Abstention with evidence | 1 | 0 | – | – |
+| False citation | 4 | 0 | – | – |
+| With any error | 10 of 15 | 5 of 15 | 4 of 6 | 2 of 6 |
+
+- **Only one error is gemma4's alone**: a part left unanswered, in `on_liberty_multi_section_02`.
+  The rule's thresholds are 3 answers or 2 summaries.
+- **Summary citations are the application's lookup**, not the model's, so they aren't counted.
+- **The judge's consistency score disagreed with the reading.** It gave gemma4 0.5 on four
+  *Think Python* summaries with no error found, and gpt-oss 1.0 on two with several.
+- **gpt-oss credited W. L. Courtney's introduction to Mill**, in two answers. Its passages reach
+  the model titled only "II." or "III.".
+
+**The probe**, through the application's services, on the benchmark workspace:
+
+| Finding | gpt-oss:20b | gemma4:12b |
+| --- | --- | --- |
+| The whole-library trap answered | 0 of 3 | 0 of 3 |
+| Abstentions shown as answers, in Spanish, French, German, Italian | 0, 0, 0, 0 | 2, 2, 4, 0 |
+| Replies not in the language asked for, of 60 | 1 | 15 |
+| The `analytical` summary of "Inheritance" | finished, English, 7 steps | finished, English, 3 steps |
+| Largest undercount of a whole prompt, against the 819-token margin | 75, steady | 277 |
+| Median wait for the first visible word | 0.64 s | 0.32 s |
+
+- **gemma4's unmarked abstentions decided it.** Each of the 8 says what the passages do contain,
+  then that they don't answer. The application only sees an answer. The same happened once in
+  Portuguese and once in English in the generation run.
+- **gemma4 shows the first word sooner**, though gpt-oss reads prompts faster: gpt-oss reasons
+  first.
+
 ## Recommendations
 
 The defaults stay as they are. These are what the results suggest changing, and what each change
 would cost.
 
-- **gemma4:12b as the default LLM.** It matched gpt-oss's correctness and relevance, never
-  abstained with evidence in front of it, was ahead on faithfulness in both runs, summarized the
-  novel far better (0.578 against 0.211), and summarized three times as fast. It writes slightly
-  faster, and needs 3.4 GB less VRAM. Against it: gpt-oss reads prompts 2.4 times as fast, so its
-  first token comes in 0.31 s against 0.67 s. gpt-oss should stay the judge either way: a new
-  judge would have to pass the known-answer checks again.
+- **gemma4:12b as the default LLM: not yet.**
+  - It matched gpt-oss's correctness and relevance, never abstained with evidence in front of it,
+    was ahead on faithfulness in both runs, and summarized the novel far better (0.578 against
+    0.211).
+  - It writes slightly faster, and needs 3.4 GB less VRAM.
+  - Against it: gpt-oss reads prompts 2.4 times as fast, so its first token comes in 0.31 s
+    against 0.67 s.
+  - The confirmation in Default LLM kept gpt-oss. gemma4 leaves out the no-evidence marker in some
+    abstentions in other languages, and its speed win didn't repeat. `docs/decisions.md` has why,
+    and what would reopen it.
+  - gpt-oss should stay the judge either way: a new judge would have to pass the known-answer
+    checks again.
 - **bge-reranker-v2-m3 as the reranker.** It matched Qwen3-Reranker-0.6B in half the time. Both
   were timed on the GPU, though, and the default runs the reranker on the CPU: time it there first.
 - **500-token chunks until generation says otherwise.** 800 finds more of the evidence, but by
@@ -322,6 +423,20 @@ make benchmark EXPERIMENT=historical_spelling  # about 2 minutes
 make benchmark EXPERIMENT=performance      # about 3 minutes
 make benchmark EXPERIMENT=summarization    # about 45 minutes
 make benchmark EXPERIMENT=generation       # about 3.5 hours
+```
+
+The default LLM's confirmation has its own experiments and a script that records what the runner
+doesn't. [quickstart.md](../specs/002-gemma4-default-llm/quickstart.md) has every step:
+
+```bash
+dl() { docker compose exec -T app python - "$@" < devtools/default_llm.py; }
+
+dl preflight benchmarks/experiments/default_llm_generation.yaml --like <run> --dataset-like <run>
+make benchmark EXPERIMENT=default_llm_generation          # about 2 hours
+dl summarize benchmarks/experiments/default_llm_summarization.yaml   # about 20 minutes
+dl probe --workspace <key> --commit "$(git rev-parse --short HEAD)"   # about 20 minutes
+dl packets --generation <run> --summarization <run> --probe <run> --earlier <runs>
+uv run python devtools/default_llm.py verdict ... --reading <file> --integration pending
 ```
 
 Retrieval is deterministic: two earlier runs agreed to four decimals. Generated text and the
