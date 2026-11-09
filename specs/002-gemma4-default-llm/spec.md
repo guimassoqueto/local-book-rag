@@ -36,7 +36,7 @@ These are the figures the decision starts from, all from the assessment's `resea
 | Wrong abstentions, of 75 answerable questions | 3, and 5 | 0, and 0 | full and interrupted generation runs, all on *Quincas Borba* |
 | Faithfulness | 0.813 | 0.894 (+0.090, +0.012 to +0.174) | full run; +0.024 (−0.041 to +0.088) in the interrupted one |
 | Correctness, relevance | 0.706, 0.783 | 0.702, 0.771 | full run, within noise |
-| Multi-section correctness, 13 questions | 0.585 | −0.100 (−0.214 to +0.015) | full run; −0.095 in the interrupted one |
+| Multi-section correctness, 13 pairs of 15 questions | 0.585 | −0.100 (−0.214 to +0.015) | full run, where gpt-oss abstained on 2 of the 15; −0.095 in the interrupted one |
 | Citation accuracy, abstention quality | 0.944, 0.956 | 0.987, 0.978 | full run, within noise |
 | Invented citations, of 90 answers | 1 | 3, in one answer copying the book's footnote `[7]` | both runs |
 | Summary argument coverage | 0.543; 0.211 on the novel | 0.665; 0.578 on the novel | latest summarization run |
@@ -47,7 +47,9 @@ These are the figures the decision starts from, all from the assessment's `resea
 | First token, four passages | 0.31 s | 0.67 s | performance run; about 0.56 s behind 12 to 20 s of retrieval in use |
 
 The wins that would motivate a switch repeated in both runs, or are measured rather than judged:
-the abstentions, the summary time and steps, the novel's coverage, the trap. The answer-score
+the abstentions, the summary time and steps, the trap. The novel's coverage was seen once: in the
+run before, the two models tied on the novel at 0.267, but against the key points `826c977` then
+rewrote, so the latest run is the only one on today's key points. The answer-score
 differences are doubtful. The one that excluded zero, faithfulness, reverses on the novel between
 runs, and is mostly gpt-oss's own variation plus the judge's. Multi-section correctness and summary
 consistency lean against gemma4 in both runs. gemma4 has also been seen on little: 90 questions in
@@ -193,6 +195,21 @@ with `--limit 1`.
 - Q: Which probe findings block the switch? → A: Only failures where gemma4:12b does worse than
   gpt-oss:20b. A failure both share is filed as its own bug or feature, and doesn't block (FR-008).
 
+### Corrections during planning, 2026-11-09
+
+Made before any confirmation run, as FR-001 allows. Each one came from checking the spec's facts
+against the earlier runs' result files.
+
+- **15 multi-section questions, not 13.** The handoff's 13 were the pairs both models had scored,
+  since gpt-oss abstained on `quincas_borba_multi_section_03` and `_05`. The reading covers all 15,
+  and FR-002 (a) pairs whatever both models answer.
+- **The novel's coverage was seen once.** In the run before the latest, both models had 0.267 on
+  the novel, against key points rewritten since. The Context no longer counts it among the wins
+  that repeated, and FR-002 (b) is unchanged: the confirmation is its second look.
+- **FR-016 keeps the confirmation's tooling on a "keep".** As first written, it forbade any code or
+  test change, which would have deleted how the numbers were made. It now protects `config/`,
+  `app/` and the application's tests.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -210,7 +227,8 @@ with `--limit 1`.
     caused the difference. The gated metrics are:
     - from the generation run, over all 90 questions: faithfulness, answer correctness, answer
       relevance, citation accuracy, language consistency and abstention quality;
-    - from the same run, answer correctness on the 13 multi-section questions;
+    - from the same run, answer correctness on the 15 multi-section questions, over those both
+      models answered (13 in the full run, where gpt-oss abstained on two);
     - from the summarization run, over its six chapters: argument coverage, concept preservation,
       factual consistency, coherence, completeness and citation traceability.
 
@@ -255,8 +273,8 @@ with `--limit 1`.
 #### The reading
 
 - **FR-006**: The confirmation's outputs MUST be read against their passages:
-  - **the 13 multi-section questions**: both models' answers to each, against the passages they
-    were given and the expected answer;
+  - **the 15 multi-section questions**: both models' answers to each, abstentions included,
+    against the passages they were given and the expected answer;
   - **the summaries**: every gemma4:12b summary the confirmation scores 0.5 or lower on factual
     consistency, and *Think Python*'s "Inheritance" and "Fruitful functions" as summarized in the
     earlier runs, where gemma4 scored 0.5 in 3 of 4 chapter-runs, each next to gpt-oss:20b's summary
@@ -270,7 +288,7 @@ with `--limit 1`.
   - a citation of a passage that doesn't say what is claimed.
 
   A **systematic weakness** is one kind of error that gemma4:12b makes and gpt-oss:20b doesn't on
-  the same item, in 3 or more of the 13 multi-section answers, or in 2 or more of the summaries
+  the same item, in 3 or more of the 15 multi-section answers, or in 2 or more of the summaries
   read, the probe's included.
 - **FR-007**: The reading MUST be recorded case by case, in this feature's directory, and
   summarized in `docs/benchmark-results.md`.
@@ -342,7 +360,9 @@ with `--limit 1`.
   - the reading's summary, and the probe's results.
 
   Its "(default)" labels and Recommendations MUST follow the verdict.
-- **FR-016**: If the verdict is "keep", the feature MUST NOT change any configuration, code or test.
+- **FR-016**: If the verdict is "keep", the feature MUST NOT change the application's configuration
+  (`config/`), its code (`app/`) or its tests. What the confirmation added to measure stays, as its
+  record: the experiments it ran, the development script that ran them, and that script's tests.
 - **FR-017**: Whatever the verdict, the feature MUST NOT change the embedding model, chunking or the
   index, and MUST NOT need a reindex.
 
@@ -369,8 +389,8 @@ with `--limit 1`.
   digests that FR-004 names, or the amendment that replaced them before the run.
 - **SC-003**: The confirmation took one run of each kind, plus at most one replacement for a run
   that didn't complete.
-- **SC-004**: All 13 multi-section answer pairs, every summary FR-006 names, and every probe in
-  FR-008 are recorded, each with its result.
+- **SC-004**: Both answers to all 15 multi-section questions, every summary FR-006 names, and every
+  probe in FR-008 are recorded, each with its result.
 - **SC-005**: A reader of `docs/decisions.md` alone can say what the default LLM is, which runs
   chose it, and why, without opening a result file.
 - **SC-006**: Every failure the reading or the probe found that needs a prompt or parser change is
