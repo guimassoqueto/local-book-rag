@@ -580,13 +580,20 @@ chose it, and why (SC-005). On a "keep", `git diff a647e1a -- app config tests` 
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T039 Run `make lint-check`, `make test` and `uv run pre-commit run --all-files`, and fix
+- [X] T039 Run `make lint-check`, `make test` and `uv run pre-commit run --all-files`, and fix
   whatever fails. Check that every step of [quickstart.md](quickstart.md) that applies to the
   verdict ran as written, and correct the quickstart where it didn't.
-- [ ] T040 Write the pull request's title, by outcome (research R13). Don't open the PR unless the
+  - **Done 2026-11-09**: all three pass, with 836 unit tests.
+    - Steps 1 to 3, 5 and 7 ran as written.
+    - Step 4 now says to start from the packets' `reading.skeleton.yaml`, and that a marker
+      reply's claims are checked against the workspace's chunks, since the probe keeps no
+      passages.
+- [X] T040 Write the pull request's title, by outcome (research R13). Don't open the PR unless the
   user asks for it.
   - a switch is `feat: make gemma4:12b the default LLM`;
   - a "keep" is `docs: record why gpt-oss:20b stays the default LLM`.
+  - **Done 2026-11-09**: a "keep", so `docs: record why gpt-oss:20b stays the default LLM`. No PR
+    opened.
 
 ---
 

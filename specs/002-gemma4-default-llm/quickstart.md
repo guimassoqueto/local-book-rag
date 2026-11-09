@@ -85,9 +85,15 @@ dl packets --generation benchmarks/results/default_llm_generation_<stamp> \
             benchmarks/results/summarization_20261108T213459590645Z
 ```
 
-Read each packet against its passages, and record it in `specs/002-gemma4-default-llm/reading.yaml`.
+Copy the packets' `reading.skeleton.yaml` to `specs/002-gemma4-default-llm/reading.yaml`. Then
+read each packet against its passages, and record it there.
+
 No packet should report rebuilt passages that differ from the run's. If one does, its question is
 read against the rebuilt passages, and `verdict.md` says so.
+
+The probe keeps no passages for its marker replies. A reply's claims beyond its abstention are
+checked against the book's chunks, in
+`benchmarks/workspace/<key>/processed/<book>/r1/chunks.jsonl`.
 
 ## 5. The verdict on (a) to (d)
 
