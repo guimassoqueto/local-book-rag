@@ -375,3 +375,9 @@ Task: "T018 the four-variant experiment, in benchmarks/experiments/historical_sp
 - Commit after each task or logical group, with conventional messages of at most 72 characters
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
+
+---
+
+## Phase 7: Convergence
+
+- [X] T027 In `specs/001-historical-spelling/contracts/configuration.md`, reword the "Not a boolean" row to match what the code does, which is what it does for every boolean in `config/`: `historical_spelling` accepts anything pydantic reads as a boolean (`true`, `"yes"`, `"1"`), and only other values (`"maybe"`, `3`) fail at startup. Leave `BM25Config` unchanged. Per plan: contracts/configuration.md (partial)

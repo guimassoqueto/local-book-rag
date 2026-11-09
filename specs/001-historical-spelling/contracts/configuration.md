@@ -22,7 +22,7 @@ retrieval:
 | Key present, `true` or `false` | Loads. `true` applies to books whose language is `pt` |
 | Key missing | Startup fails, naming the missing field, as for any required BM25 setting |
 | Key misspelled, as in `historical_speling` | Startup fails on the unknown key |
-| Not a boolean | Startup fails on the type |
+| Not readable as a boolean, such as `"maybe"` or `3` | Startup fails on the type. As for every boolean in `config/`, `true`, `"yes"` and `"1"` all read as true |
 | `historical_spelling: true` with `stemming: false` | Startup fails, with a message that names both keys |
 
 A change takes effect after `docker compose restart app`, since `config/` is mounted read-only and
