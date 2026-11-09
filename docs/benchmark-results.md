@@ -333,6 +333,38 @@ Answers or summaries with each error kind:
 - **gemma4 shows the first word sooner**, though gpt-oss reads prompts faster: gpt-oss reasons
   first.
 
+## The marker rule, reworded
+
+Two rewordings of the answering prompt's no-evidence rule were tried against gemma4's unmarked
+abstentions (`.specify/bugs/unmarked-abstentions/`). Neither was kept: `docs/decisions.md` says
+why. The runs used the same Ollama, digests and dataset as the confirmation above, on 2026-11-09:
+- **Generation**: `default_llm_generation_20261109T125707928285Z`, 1 h 37 min, from `7b7e64c` with
+  the first rewording. Its `results.json` doesn't record the prompt.
+- **The probe**: `default_llm_probe_20261109T143458804914Z`, 18 min, with the first rewording.
+- **Replays**: the 90 questions' answers without the judge, on the confirmation run's contexts
+  and seed, for the original prompt and the second rewording. Replayed, the original prompt gave
+  the confirmation run's abstentions on all 180 answers. The replays aren't kept.
+
+| Prompt | Model | Wrong abstentions | Unanswerable abstained | Abstention quality |
+| --- | --- | --- | --- | --- |
+| Original | gpt-oss:20b | 1 | 15 of 15 | 0.989 |
+| Original | gemma4:12b | 0 | 14 of 15 | 0.989 |
+| Original, replayed | qwen3.5:9b | 0 | 13 of 15 | 0.978 |
+| First rewording | gpt-oss:20b | 22 | 15 of 15 | **0.756** |
+| First rewording | gemma4:12b | 2 | 15 of 15 | 0.978 |
+| Second rewording, replayed | gpt-oss:20b | 9 | 14 of 15 | 0.889 |
+| Second rewording, replayed | gemma4:12b | 2 | 12 of 15 | 0.944 |
+| Second rewording, replayed | qwen3.5:9b | 2 | 15 of 15 | 0.978 |
+
+- **gpt-oss's abstention quality fell by 0.233** (−0.322 to −0.144) with the first rewording. No
+  other metric moved by an interval excluding zero, except gpt-oss's multi-section correctness,
+  +0.091 (+0.007 to +0.167). That rise counts only the 11 answers it still gave, out of 15.
+- **The probe**, with the first rewording:
+  - Abstentions shown as answers in Spanish, French, German and Italian fell from 2, 2, 4, 0 to
+    1, 0, 2, 0 for gemma4.
+  - gpt-oss's stayed at none. It answered one unanswerable question in Spanish from general
+    knowledge, which it hadn't before.
+
 ## Recommendations
 
 The defaults stay as they are. These are what the results suggest changing, and what each change

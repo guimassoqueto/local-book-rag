@@ -178,6 +178,25 @@ result. A bracket that opens with `[NO-EVID` and closes within a word counts as 
 The prompt still asks for it in English: changing the prompt would have changed what the
 generation benchmark measured.
 
+**The marker rule keeps its wording, for now.** gemma4 and qwen3.5 sometimes abstain without the
+marker. This happens when the passages mention what was asked about, but not what was asked: asked
+who denounced the will, they reply that the text says only "someone", as if that were part of an
+answer. Two rewordings were measured, and both made gpt-oss, the default, abstain on questions its
+passages answer (`.specify/bugs/unmarked-abstentions/`):
+- **The first** made three changes. It limited the partial-answer rule to questions that ask for
+  several things, and asked for the marker "even when they mention the people, places or events
+  it asks about". It also allowed adding what the passages do say after the marker. gpt-oss's
+  wrong abstentions rose from 1 to 22 of 75, and its abstention quality fell by 0.233 (−0.322 to
+  −0.144). About half said "the source doesn't contain the answer; however…", then gave it. Most
+  of the rest denied an answer the passages hold. gemma4's unmarked abstentions in the probe fell
+  from 8 of 60 to 3.
+- **The second** kept only the narrower partial-answer rule. On the same contexts and seed,
+  gpt-oss made 9 wrong abstentions, and gemma4 left 3 unanswerable questions unmarked instead of 1.
+
+Tests on a single passage in six languages had favored the first wording, and predicted neither
+result. A wording is now measured on the generation benchmark's own contexts, which takes minutes
+without the judge: whether a reply abstains needs no judging.
+
 **The default LLM is chosen by a rule fixed before its runs.** gpt-oss:20b stays the default.
 
 Why gpt-oss was the first default:
