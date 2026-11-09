@@ -24,3 +24,7 @@ Makefile
 .tool-versions
 AGENTS.md
 CLAUDE.md
+.specify
+.claude
+.agents
+specs

@@ -1,8 +1,9 @@
 # Architectural decisions
 
 What was decided while building this, and why. Most of these came from measuring something,
-or from a failure that only appeared on real books or real model output. The spec is
-`.TASK/task.md`; where one of these departs from it, it says so.
+or from a failure that only appeared on real books or real model output. The spec of the first
+version is `.TASK/task.md`; where one of these departs from it, it says so. Later changes have
+their own specs, under `specs/` (see Process).
 
 ## Infrastructure
 
@@ -259,3 +260,59 @@ Questions keep the modern one, as a reader would type it.
 **Context recall equals Recall@5 here, by construction.** Both ask how much of the evidence is in
 the same five passages. They would differ only with a final context of another size, so the
 duplicate column is expected, not a bug.
+
+## Process
+
+**Spec Kit drives every change after v0.1.0.** `.TASK/task.md` specified the whole first version,
+built one milestone at a time. Its milestones are done, and what the benchmarks left to do
+(Recommendations and Known limitations in `docs/benchmark-results.md`) is a list of separate
+changes. Each one gets its own record now: a spec, a plan and tasks for a feature, a diagnosis and a
+test report for a bug, and evidence with a verdict for an idea.
+
+**Two integrations are committed, Claude Code's and Codex's.** The project has to stay usable from
+any agent. Codex's skills go to `.agents/skills/`, which Cursor, Gemini CLI, Copilot, OpenCode and
+others read too, so a fresh clone works in all of them with nothing to install. Spec Kit's mode for
+mixed teams, committing with `--integration none` and switching agents locally, would cost a switch
+before every commit.
+
+**Extension skills reach Codex by making it the default for a moment.** `specify extension add`
+renders an extension's skills for the default integration only (Spec Kit issue #2948): installed
+with Claude as the default, the bug and assessment skills were in `.claude/skills/` and missing from
+`.agents/skills/`. `specify integration use codex` renders them, and switching back to Claude
+changed nothing else, every other file byte for byte. `make speckit-upgrade` does the same after
+each upgrade.
+
+**Only the user can start a core skill.** Installed with `--no-model-invocation`, Claude doesn't
+start a specification on its own when asked for a small change, and nine skill descriptions stay out
+of its context. Extension skills can't be restricted this way, because Spec Kit's mandatory hooks
+rely on the model invoking them.
+
+**No git extension.** It names branches `{number}-{slug}` under one fixed prefix, while branches
+here are named by type (`feat/…`, `fix/…`). Its automatic commits, such as `[Spec Kit] Add
+specification`, would fail the commit-msg hook. Spec Kit doesn't need it: the active feature is
+recorded in `.specify/feature.json`, not read from the branch.
+
+**No agent-context extension.** It keeps a generated block in the agent's instruction file, and
+`AGENTS.md` is written by hand, with `CLAUDE.md` only importing it.
+
+**The rules live in the constitution, which `AGENTS.md` imports.** Plan, tasks, analyze and converge
+check their work against `.specify/memory/constitution.md`, but the bug commands never read it and
+the assessment ones hardly do. So `AGENTS.md` imports it, which Claude follows, and tells other
+agents to read it. The rules that used to be in `AGENTS.md` moved there: two copies would disagree
+sooner or later.
+
+**No template overrides yet.** An override in `.specify/templates/overrides/` replaces the whole
+template, so each one would stop following upstream changes. The constitution carries this
+project's checks instead, and an override waits for a change that shows a template missing
+something the constitution can't supply.
+
+**A delivered spec is history.** Its `specs/NNN-*` directory isn't edited again: a later change gets
+a new one. What stays true goes to the README, and why to this file, as before.
+
+**Spec Kit's CLI is a dev dependency.** `uv.lock` pins it as it pins commitizen, `make install`
+installs it, and `make update` upgrades it with everything else. It added twelve packages and
+changed the version of none, and the image installs no dev dependencies.
+
+**The whitespace fixers skip Spec Kit's files.** It writes some of them without a final newline.
+Fixed, they would no longer match the hashes Spec Kit recorded, and `specify integration upgrade`
+refuses to replace files it takes for local edits.
