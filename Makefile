@@ -30,12 +30,15 @@ check-updates:
 # brings a new version, and review the diff. Each integration keeps its stored options
 # (claude's --no-model-invocation). `extension add` and `update` render extension skills
 # for the default integration only, so codex is made the default for a moment to get them.
+# `integration use` rewrites the shared scripts without their executable bit, which the
+# skills need: the chmod puts it back.
 speckit-upgrade:
 	@uv run specify integration upgrade claude
 	@uv run specify integration upgrade codex
 	@uv run specify extension update
 	@uv run specify integration use codex
 	@uv run specify integration use claude
+	@chmod +x .specify/scripts/bash/*.sh
 	@uv run specify integration status
 
 hooks:
