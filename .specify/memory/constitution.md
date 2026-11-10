@@ -37,9 +37,9 @@ adds is validated at startup like the rest.
 
 ### II. The library is never at risk
 
-- The originals in `data/original_books/` are the source of truth. Everything derived from them
-  can be rebuilt by `reindex-all`, and only removing or replacing a book, or `reset-everything`,
-  deletes one.
+- The originals in `data/original_books/`, in the app container, are the source of truth.
+  Everything derived from them can be rebuilt by `reindex-all`. Within the application, only
+  removing or replacing a book, or `reset-everything`, deletes one.
 - A change to one book leaves every other book as it was.
 - Adding a book is idempotent: a file is identified by its checksum, so the same file is refused
   the second time, under any name, instead of being indexed twice.
@@ -49,26 +49,29 @@ adds is validated at startup like the rest.
   next start.
 - Destructive operations are confirmed in the service layer, so Gradio and the commands ask for
   the same thing: the book's ID to remove it, `RESET INDEX`, `DELETE EVERYTHING`.
-- Nothing runs `docker compose down -v`: it deletes the named volumes, with the downloaded models
-  and the vector database in them. The library is reset inside the application, which touches no
-  volume and no model.
+- Nothing is kept in a volume or a host folder. The app container holds the library and its
+  logs, ChromaDB's the vectors and Ollama's the models, so pruning the containers leaves no data
+  behind. Removing or recreating a container deletes what it held, so whatever does either says
+  so. The library is reset inside the application, which touches no model.
 - Benchmarks run in `benchmarks/workspace`, on their own files and `bench_*` collections, and
   never touch the real library.
 
 **Why.** The first version's spec asked for persistent storage, isolated books, idempotent
 ingestion, explicit destructive operations, recoverable indexing, and the originals kept as the
-source of truth. The
-journal rule comes from a real failure: a catch-all `finally` once closed entries for work that had
-failed, and left half-deleted books with nothing to finish the job. Experiments index, clear and
-rebuild their workspaces at will, which is safe only because nothing they do can reach the
-library.
+source of truth. It kept that storage in named volumes; the owner has since chosen to keep nothing
+outside the containers, so that pruning them leaves no data behind, and `docs/decisions.md`
+records the departure. `make up` then empties the library after any change to the code or to
+`config/`, which is easy to miss. The journal rule comes from a real failure: a catch-all
+`finally` once closed entries for work that had failed, and left half-deleted books with nothing
+to finish the job. Experiments index, clear and rebuild their workspaces at will, which is safe
+only because nothing they do can reach the library.
 
 **Check.** Every change the plan makes to the books, the catalog or the index runs inside a
 journaled operation, and the plan says what a crash at each step leaves behind and how recovery
 finishes or undoes it. Books stay identified by their checksum. Anything it deletes is confirmed
-in the service. No step, script or
-document runs `docker compose down -v`, and benchmark code reaches nothing outside
-`benchmarks/workspace` and the `bench_*` collections.
+in the service. It mounts no volume and no host folder. No step, script or document of it removes
+or recreates a container without saying what that deletes, and benchmark code reaches nothing
+outside `benchmarks/workspace` and the `bench_*` collections.
 
 ### III. Index integrity
 
@@ -234,8 +237,10 @@ first finds out from `docs/decisions.md` why it is that way.
   conventional commit too (`pr-title` workflow). The `release` workflow picks the bump from it:
   `fix` and `perf` patch, `feat` minor, `feat!` or a `BREAKING CHANGE` footer major, anything
   else no release.
-- **The benchmark dataset.** After editing `benchmarks/datasets/questions.jsonl`, run
-  `book-rag validate-benchmark`: every evidence quote has to be in its book exactly as written.
+- **The benchmark dataset and experiments** aren't in the repository: their last versions are at
+  `c7bb785`, and they run once copied into the app container (`README.md`, Benchmarks). After
+  editing the dataset's `questions.jsonl`, run `book-rag validate-benchmark`: every evidence quote
+  has to be in its book exactly as written.
 - **Spec Kit** takes every change that isn't trivial, and `AGENTS.md` says which flow fits which
   change.
 
@@ -264,4 +269,4 @@ first finds out from `docs/decisions.md` why it is that way.
   rewords without changing what is required. The ratification date stays, and the amendment date
   is the date of the latest version.
 
-**Version**: 1.0.0 | **Ratified**: 2026-11-08 | **Last Amended**: 2026-11-08
+**Version**: 2.0.0 | **Ratified**: 2026-11-08 | **Last Amended**: 2026-11-10
