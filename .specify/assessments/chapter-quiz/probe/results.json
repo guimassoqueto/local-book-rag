@@ -1,0 +1,618 @@
+{
+  "model": "gpt-oss:20b",
+  "context": 8192,
+  "seed": 0,
+  "environment": {
+    "date": "2026-11-10",
+    "repository": "57f9929 (app image built 2026-11-10T12:24Z)",
+    "model_digest": "gpt-oss:20b f38aa0c53da5",
+    "ollama": "0.40.15",
+    "reasoning": "low",
+    "book": "book_001, História econômica global: Uma breve introdução (Portuguese)"
+  },
+  "chapters": [
+    {
+      "number": 2,
+      "title": "Capítulo 1: A grande divergência",
+      "chunks": 13,
+      "words": 3115,
+      "generation_seconds": 15.2,
+      "wall_seconds_with_checks": 25.9,
+      "recommended_n": [
+        "12",
+        "12",
+        "12"
+      ],
+      "batches": [
+        {
+          "batch": 0,
+          "chunks": 10,
+          "pages": "6-16",
+          "prompt_tokens": 4365,
+          "completion_tokens": 765,
+          "thinking_chars": 107,
+          "seconds": 9.2,
+          "finish_reason": "stop",
+          "format_problems": [],
+          "questions": [
+            {
+              "id": "Q1",
+              "question": "Segundo o trecho do Capítulo 1, qual foi a principal mudança no foco das pesquisas sobre a origem da riqueza das nações, comparada a cinquenta anos atrás?",
+              "options": {
+                "A": "De estudar a Revolução Industrial na Inglaterra para analisar a industrialização na Ásia",
+                "B": "De investigar por que a Revolução Industrial aconteceu na Inglaterra e não na França para entender por que o crescimento econômico teve seu arranque na Europa em vez da Ásia ou África",
+                "C": "De analisar a produção de prata nas Américas para compreender a integração econômica mundial",
+                "D": "De comparar a riqueza das nações com a distribuição de recursos naturais",
+                "E": "De avaliar a influência das colônias europeias no desenvolvimento econômico global"
+              },
+              "answer": "B",
+              "passage": 1,
+              "passage_pages": "6-7",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "sound"
+            },
+            {
+              "id": "Q2",
+              "question": "De acordo com o trecho que descreve o segundo período histórico, qual conjunto de políticas foi adotado pela Grã-Bretanha e pelos Estados Unidos para promover o desenvolvimento econômico?",
+              "options": {
+                "A": "A criação de um mercado nacional unificado, tarifas internas, bancos privados e ensino técnico especializado",
+                "B": "A eliminação de tarifas internas, a construção de infraestrutura de transportes, a criação de tarifas externas, a instituição de bancos e o ensino de massa",
+                "C": "A imposição de tarifas externas, a privatização de bancos, a redução de impostos e a expansão do comércio interno",
+                "D": "A criação de tarifas internas, a construção de ferrovias, a nacionalização de bancos e a educação superior gratuita",
+                "E": "A eliminação de tarifas externas, a criação de um mercado interno, a privatização de bancos e a redução de impostos"
+              },
+              "answer": "B",
+              "passage": 2,
+              "passage_pages": "6-7",
+              "open_book": "B",
+              "closed_book": "A",
+              "reading": "key right; the stem credits the policies to Britain and the US, the passage to Western Europe and the US"
+            },
+            {
+              "id": "Q3",
+              "question": "Qual afirmação sobre a participação da China e da Índia na manufatura mundial em 1913 está correta segundo a Figura 2?",
+              "options": {
+                "A": "A participação da China caiu para 4% e a da Índia para 1%, enquanto o Reino Unido, os EUA e a Europa representavam três quartos do total",
+                "B": "A participação da China aumentou para 25% e a da Índia para 33%, refletindo a retomada da produção manufatureira",
+                "C": "A participação da China e da Índia permaneceu em 33% e 25% respectivamente, mostrando estabilidade na manufatura asiática",
+                "D": "A participação da China e da Índia aumentou para 10% e 5%, respectivamente, devido à industrialização ocidental",
+                "E": "A participação da China e da Índia caiu para 2% e 1%, respectivamente, enquanto os EUA e a Europa representavam apenas um quarto do total"
+              },
+              "answer": "A",
+              "passage": 6,
+              "passage_pages": "11-12",
+              "open_book": "A",
+              "closed_book": "A",
+              "reading": "sound"
+            }
+          ]
+        },
+        {
+          "batch": 1,
+          "chunks": 3,
+          "pages": "17-19",
+          "prompt_tokens": 1583,
+          "completion_tokens": 537,
+          "thinking_chars": 92,
+          "seconds": 6.0,
+          "finish_reason": "stop",
+          "format_problems": [],
+          "questions": [
+            {
+              "id": "Q4",
+              "question": "Segundo o trecho de passagem 1, qual foi a relação entre os salários reais dos trabalhadores em Londres e o mínimo de subsistência em 1820?",
+              "options": {
+                "A": "Os salários reais em Londres eram exatamente iguais ao mínimo de subsistência.",
+                "B": "Os salários reais em Londres já eram quatro vezes acima do mínimo de subsistência.",
+                "C": "Os salários reais em Londres eram três vezes abaixo do mínimo de subsistência.",
+                "D": "Os salários reais em Londres não eram mencionados em relação ao mínimo de subsistência.",
+                "E": "Os salários reais em Londres eram apenas 10% acima do mínimo de subsistência."
+              },
+              "answer": "B",
+              "passage": 1,
+              "passage_pages": "17-17",
+              "open_book": "B",
+              "closed_book": "C",
+              "reading": "sound"
+            },
+            {
+              "id": "Q5",
+              "question": "De acordo com a passagem 2, qual era a renda média na África subsaariana em 1820 em relação ao mínimo de subsistência?",
+              "options": {
+                "A": "A renda média era de $1.000, bem acima do mínimo.",
+                "B": "A renda média era de $415, apenas 15% acima do mínimo de subsistência.",
+                "C": "A renda média era exatamente igual ao mínimo de subsistência.",
+                "D": "A renda média era de $200, abaixo do mínimo de subsistência.",
+                "E": "A renda média não foi mencionada na passagem."
+              },
+              "answer": "B",
+              "passage": 2,
+              "passage_pages": "18-19",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "sound"
+            },
+            {
+              "id": "Q6",
+              "question": "Segundo a passagem 3, qual efeito o nível mínimo de subsistência tem sobre a motivação econômica de um país?",
+              "options": {
+                "A": "Aumenta a motivação para desenvolver novas tecnologias.",
+                "B": "Elimina a motivação econômica para se desenvolver economicamente.",
+                "C": "Não tem efeito sobre a motivação econômica.",
+                "D": "Estimula a inovação em máquinas de produção.",
+                "E": "Aumenta a motivação para investir em educação."
+              },
+              "answer": "B",
+              "passage": 3,
+              "passage_pages": "19-19",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "sound"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "title": "Capítulo 3: A Revolução Industrial",
+      "chunks": 21,
+      "words": 5010,
+      "generation_seconds": 18.9,
+      "wall_seconds_with_checks": 31.8,
+      "recommended_n": [
+        "18",
+        "25",
+        "20"
+      ],
+      "batches": [
+        {
+          "batch": 0,
+          "chunks": 10,
+          "pages": "34-42",
+          "prompt_tokens": 4196,
+          "completion_tokens": 557,
+          "thinking_chars": 93,
+          "seconds": 6.8,
+          "finish_reason": "stop",
+          "format_problems": [],
+          "questions": [
+            {
+              "id": "Q7",
+              "question": "Qual argumento o autor apresenta para explicar por que a Revolução Industrial não foi uma descontinuidade abrupta, mas sim o resultado de transformações na economia moderna?",
+              "options": {
+                "A": "A Revolução foi causada por um aumento súbito no comércio internacional.",
+                "B": "O crescimento econômico era impulsionado por políticas de livre mercado implementadas em 1760.",
+                "C": "A Revolução resultou das transformações graduais na economia moderna já em fase inicial.",
+                "D": "A Revolução foi motivada por avanços militares que exigiam novas tecnologias.",
+                "E": "O aumento da produção de carvão foi a única causa da Revolução."
+              },
+              "answer": "C",
+              "passage": 1,
+              "passage_pages": "34-35",
+              "open_book": "C",
+              "closed_book": "C",
+              "reading": "key right; the stem gives the answer away"
+            },
+            {
+              "id": "Q8",
+              "question": "Segundo o trecho 7, por que a Revolução Industrial se deu especificamente na Inglaterra?",
+              "options": {
+                "A": "Devido à superioridade das descobertas científicas britânicas.",
+                "B": "Porque a Inglaterra tinha uma estrutura de salários e preços que favorecia a mecanização.",
+                "C": "A Inglaterra possuía a maior quantidade de trabalhadores livres.",
+                "D": "O clima britânico era mais propício para experimentos industriais.",
+                "E": "A Inglaterra tinha menos concorrência internacional no setor têxtil."
+              },
+              "answer": "B",
+              "passage": 7,
+              "passage_pages": "38-39",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "sound"
+            },
+            {
+              "id": "Q9",
+              "question": "Qual foi o impacto da política fiscal inglesa descrita no trecho 4 sobre a relação entre o Estado e a produção industrial?",
+              "options": {
+                "A": "Reduziu a arrecadação per capita em comparação com a França.",
+                "B": "Permitiu ao Estado financiar apenas projetos militares.",
+                "C": "Provocou a expansão do comércio e a manutenção de um exército forte.",
+                "D": "Eliminou a necessidade de impostos sobre bens de consumo.",
+                "E": "Criou um sistema de impostos que favorecia apenas a nobreza."
+              },
+              "answer": "C",
+              "passage": 4,
+              "passage_pages": "36-37",
+              "open_book": "C",
+              "closed_book": "C",
+              "reading": "key defensible; the stem is muddled (fiscal policy's impact on 'the State and industrial production')"
+            }
+          ]
+        },
+        {
+          "batch": 1,
+          "chunks": 9,
+          "pages": "42-48",
+          "prompt_tokens": 4246,
+          "completion_tokens": 563,
+          "thinking_chars": 57,
+          "seconds": 6.9,
+          "finish_reason": "stop",
+          "format_problems": [],
+          "questions": [
+            {
+              "id": "Q10",
+              "question": "Segundo o trecho do Passagem 1, por que a Revolução Industrial foi britânica?",
+              "options": {
+                "A": "Porque os britânicos tinham mais recursos naturais do que outros países.",
+                "B": "Porque os britânicos investiam mais em P&D para criar máquinas que aumentavam o uso de capital e economizavam mão de obra.",
+                "C": "Porque a Inglaterra tinha a maior produção de algodão do mundo.",
+                "D": "Porque os britânicos eram os únicos que inventaram a máquina a vapor.",
+                "E": "Porque a Inglaterra tinha a menor taxa de trabalho infantil."
+              },
+              "answer": "B",
+              "passage": 1,
+              "passage_pages": "42-42",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "sound"
+            },
+            {
+              "id": "Q11",
+              "question": "O que a Passagem 3 destaca sobre a máquina mule de Crompton?",
+              "options": {
+                "A": "Ela era a primeira máquina a usar energia a vapor.",
+                "B": "Ela combinava as traves articuladas da jenny de Hargreaves e os cilindros da estrutura hidráulica de Arkwright, permitindo fiar fios muito mais finos.",
+                "C": "Ela foi a única máquina que não reduziu o número de horas de trabalho.",
+                "D": "Ela foi inventada em 1700, antes da Revolução Industrial.",
+                "E": "Ela era usada exclusivamente na Índia."
+              },
+              "answer": "B",
+              "passage": 3,
+              "passage_pages": "43-44",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "sound"
+            },
+            {
+              "id": "Q12",
+              "question": "De acordo com a Passagem 5, qual foi a principal razão pela qual a Grã-Bretanha desenvolveu motores a vapor?",
+              "options": {
+                "A": "Para competir com a indústria de tecidos francesa.",
+                "B": "Para drenar minas, aproveitando a grande quantidade de minas de carvão na Inglaterra.",
+                "C": "Para substituir a energia elétrica nas fábricas.",
+                "D": "Para reduzir o consumo de carvão em navios.",
+                "E": "Para criar locomotivas a vapor para transporte de passageiros."
+              },
+              "answer": "B",
+              "passage": 5,
+              "passage_pages": "44-45",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "sound"
+            }
+          ]
+        },
+        {
+          "batch": 2,
+          "chunks": 2,
+          "pages": "48-50",
+          "prompt_tokens": 1089,
+          "completion_tokens": 468,
+          "thinking_chars": 42,
+          "seconds": 5.2,
+          "finish_reason": "stop",
+          "format_problems": [
+            "invalid JSON: Expecting property name enclosed in double quotes: line 1 column 522 (char 521)"
+          ],
+          "questions": []
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "title": "Capítulo 6: As Américas",
+      "chunks": 40,
+      "words": 9757,
+      "generation_seconds": 33.9,
+      "wall_seconds_with_checks": 56.7,
+      "recommended_n": [
+        "25",
+        "25",
+        "22"
+      ],
+      "batches": [
+        {
+          "batch": 0,
+          "chunks": 9,
+          "pages": "79-87",
+          "prompt_tokens": 4086,
+          "completion_tokens": 609,
+          "thinking_chars": 112,
+          "seconds": 7.4,
+          "finish_reason": "stop",
+          "format_problems": [],
+          "questions": [
+            {
+              "id": "Q13",
+              "question": "Qual fator, segundo o autor, contribuiu mais para a vantagem da América do Norte em relação à América do Sul no comércio com a Europa durante o período colonial?",
+              "options": {
+                "A": "A maior população nativa na América do Norte",
+                "B": "A presença de rios que ligavam a costa ao interior",
+                "C": "A produção de manufaturas britânicas baratas",
+                "D": "A distância maior da América do Norte em relação à Europa",
+                "E": "A adoção de sistemas de escravidão africana na América do Norte"
+              },
+              "answer": "B",
+              "passage": 1,
+              "passage_pages": "79-80",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "key right; the stem asks what contributed most, and the passage lists proximity to Europe first"
+            },
+            {
+              "id": "Q14",
+              "question": "De acordo com o trecho, por que a domesticação de milho e feijão nos Andes e no México foi mais precoce que em outras regiões das Américas?",
+              "options": {
+                "A": "Porque esses países tinham maior contato com os europeus",
+                "B": "Porque as plantas nativas eram mais resistentes a doenças",
+                "C": "Porque os Andes e o México eram habitats naturais desses cultivos",
+                "D": "Porque a agricultura era mais desenvolvida na costa leste dos EUA",
+                "E": "Porque os colonizadores introduziram essas culturas de forma rápida"
+              },
+              "answer": "C",
+              "passage": 2,
+              "passage_pages": "79-80",
+              "open_book": "C",
+              "closed_book": "C",
+              "reading": "sound"
+            },
+            {
+              "id": "Q15",
+              "question": "Segundo o autor, qual foi a principal razão para a queda drástica da população nativa no México após o contato com os europeus?",
+              "options": {
+                "A": "A escravização em massa de indígenas",
+                "B": "A guerra constante com colonizadores",
+                "C": "A introdução de doenças para as quais os nativos não tinham imunidade",
+                "D": "A competição por terras agrícolas com colonos europeus",
+                "E": "A migração de indígenas para outras regiões da América do Sul"
+              },
+              "answer": "C",
+              "passage": 3,
+              "passage_pages": "80-81",
+              "open_book": "C",
+              "closed_book": "C",
+              "reading": "sound"
+            }
+          ]
+        },
+        {
+          "batch": 1,
+          "chunks": 10,
+          "pages": "87-94",
+          "prompt_tokens": 4252,
+          "completion_tokens": 602,
+          "thinking_chars": 57,
+          "seconds": 7.3,
+          "finish_reason": "stop",
+          "format_problems": [],
+          "questions": [
+            {
+              "id": "Q16",
+              "question": "Segundo o trecho 1, qual era a principal razão pela qual os fazendeiros da Jamaica repatriavam a maior parte de suas rendas para a Grã-Bretanha, em vez de reinvesti-las na ilha?",
+              "options": {
+                "A": "A falta de mão de obra qualificada na Jamaica",
+                "B": "A necessidade de financiar a construção de infra‑estruturas portuárias",
+                "C": "A política colonial que favorecia a exportação de lucros para a metrópole",
+                "D": "A escassez de recursos naturais para investimento local",
+                "E": "A preferência dos fazendeiros por investir em propriedades na Inglaterra"
+              },
+              "answer": "C",
+              "passage": 1,
+              "passage_pages": "87-88",
+              "open_book": "C",
+              "closed_book": "C",
+              "reading": "key unsupported: the passage says the income was repatriated, and gives no reason"
+            },
+            {
+              "id": "Q17",
+              "question": "No trecho 2, qual foi o principal fator que levou a estrutura social das faixas litorâneas onde se cultivava arroz a se assemelhar às ilhas açucareiras do Caribe?",
+              "options": {
+                "A": "A introdução de técnicas de cultivo mais eficientes",
+                "B": "O aumento da importação de escravos africanos",
+                "C": "A migração de colonos europeus para a região",
+                "D": "A diminuição da produção de arroz em outras áreas",
+                "E": "A adoção de sistemas de propriedade coletiva"
+              },
+              "answer": "A",
+              "passage": 2,
+              "passage_pages": "88-88",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "key wrong: the passage ties the Caribbean-like social structure to slave imports (B), not techniques (A)"
+            },
+            {
+              "id": "Q18",
+              "question": "De acordo com o trecho 3, qual foi a principal razão pela qual a escravidão não teve peso na agricultura das colônias da Nova Inglaterra e do Médio Atlântico?",
+              "options": {
+                "A": "Os escravos eram considerados mais caros que os trabalhadores livres",
+                "B": "A abundância de terra mantinha os preços baixos, favorecendo salários",
+                "C": "A legislação colonial proibiu o uso de escravos nessas regiões",
+                "D": "Os colonos preferiam a agricultura de subsistência em vez de exportação",
+                "E": "A falta de mão de obra escrava nas áreas rurais"
+              },
+              "answer": "B",
+              "passage": 3,
+              "passage_pages": "88-89",
+              "open_book": "B",
+              "closed_book": "D",
+              "reading": "two defensible: A is the passage's stated reason (slaves wouldn't cover their cost); key B is the next sentence"
+            }
+          ]
+        },
+        {
+          "batch": 2,
+          "chunks": 9,
+          "pages": "94-101",
+          "prompt_tokens": 4311,
+          "completion_tokens": 601,
+          "thinking_chars": 112,
+          "seconds": 7.3,
+          "finish_reason": "stop",
+          "format_problems": [
+            "invalid JSON: Expecting ':' delimiter: line 1 column 625 (char 624)"
+          ],
+          "questions": []
+        },
+        {
+          "batch": 3,
+          "chunks": 9,
+          "pages": "101-108",
+          "prompt_tokens": 4019,
+          "completion_tokens": 466,
+          "thinking_chars": 112,
+          "seconds": 5.8,
+          "finish_reason": "stop",
+          "format_problems": [],
+          "questions": [
+            {
+              "id": "Q19",
+              "question": "Segundo o trecho 1, qual foi a principal razão pela qual os Estados Unidos adotaram o tear à energia mais rapidamente que a Grã-Bretanha?",
+              "options": {
+                "A": "O menor custo da mão de obra nos EUA",
+                "B": "A maior disponibilidade de matérias‑primas nos EUA",
+                "C": "O salário real mais alto nos EUA",
+                "D": "A superioridade tecnológica britânica",
+                "E": "A influência de Francis Cabot Lowell nos EUA"
+              },
+              "answer": "C",
+              "passage": 1,
+              "passage_pages": "101-102",
+              "open_book": "C",
+              "closed_book": "B",
+              "reading": "sound"
+            },
+            {
+              "id": "Q20",
+              "question": "No trecho 2, qual setor foi o último a adotar o princípio da produção padronizada de peças intercambiáveis, segundo o autor?",
+              "options": {
+                "A": "Indústria automobilística",
+                "B": "Setor de relojoaria",
+                "C": "Indústria de bicicletas",
+                "D": "Setor de máquinas de costura",
+                "E": "Setor de implementos agrícolas"
+              },
+              "answer": "A",
+              "passage": 2,
+              "passage_pages": "102-102",
+              "open_book": "A",
+              "closed_book": "D",
+              "reading": "sound"
+            },
+            {
+              "id": "Q21",
+              "question": "De acordo com o trecho 3, qual foi a principal causa da desindustrialização no México no final do século XVIII?",
+              "options": {
+                "A": "A invasão napoleônica na Espanha",
+                "B": "A resistência das elites coloniais à tributação",
+                "C": "A concorrência internacional que corroía o setor manufatureiro",
+                "D": "A falta de mão de obra qualificada",
+                "E": "A falta de políticas de proteção tarifária"
+              },
+              "answer": "C",
+              "passage": 3,
+              "passage_pages": "103-103",
+              "open_book": "C",
+              "closed_book": "C",
+              "reading": "sound"
+            }
+          ]
+        },
+        {
+          "batch": 4,
+          "chunks": 3,
+          "pages": "108-110",
+          "prompt_tokens": 1616,
+          "completion_tokens": 548,
+          "thinking_chars": 87,
+          "seconds": 6.1,
+          "finish_reason": "stop",
+          "format_problems": [],
+          "questions": [
+            {
+              "id": "Q22",
+              "question": "Segundo o trecho, qual foi o principal fator que explicava a diferença de alfabetização entre os Estados Unidos e o México durante o período colonial?",
+              "options": {
+                "A": "A maior quantidade de escravos nos Estados Unidos",
+                "B": "A demanda por habilidades de leitura, escrita e cálculo nas colônias norte‑americanas",
+                "C": "A influência da cultura indígena no México",
+                "D": "A política de segregação racial nos Estados Unidos",
+                "E": "A falta de escolas públicas no México"
+              },
+              "answer": "B",
+              "passage": 2,
+              "passage_pages": "109-110",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "two defensible: the passage gives demand (B) and government schooling (E), without ranking them"
+            },
+            {
+              "id": "Q23",
+              "question": "Qual foi a consequência da falta de expansão educacional no México antes do século XX, segundo o trecho?",
+              "options": {
+                "A": "O México tornou-se uma potência agrícola",
+                "B": "A maioria dos adultos permanecia analfabeta em 1946",
+                "C": "O país desenvolveu um sistema de ensino superior avançado",
+                "D": "A elite branca promoveu a alfabetização em massa",
+                "E": "O México aboliu a escravidão mais cedo que os EUA"
+              },
+              "answer": "B",
+              "passage": 2,
+              "passage_pages": "109-110",
+              "open_book": "B",
+              "closed_book": "B",
+              "reading": "sound"
+            },
+            {
+              "id": "Q24",
+              "question": "De acordo com o trecho, por que o Sul dos Estados Unidos continuou com baixos níveis de escolarização após a abolição da escravatura?",
+              "options": {
+                "A": "Porque a elite sulista não tinha interesse em educar a população afro‑americana",
+                "B": "Porque o Sul não tinha recursos financeiros para escolas",
+                "C": "Porque a segregação racial foi abolida nos anos 1960",
+                "D": "Porque a maioria da população sulista era indígena",
+                "E": "Porque o Sul investiu em educação técnica em vez de escolarização básica"
+              },
+              "answer": "A",
+              "passage": 3,
+              "passage_pages": "110-110",
+              "open_book": "A",
+              "closed_book": "A",
+              "reading": "sound"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "structured_output": [
+    {
+      "seconds": 2.8,
+      "thinking_chars": 107,
+      "done_reason": "stop",
+      "questions": 1,
+      "problems": [],
+      "head": "{\"questions\":[{\"question\":\"Segundo o trecho do Capítulo 1, qual foi a principal mudança no foco das pesquisas sobre a origem da riqueza das nações, comparada a cinquenta anos atrás?\",\"options\":{\"A\":\"De estudar a Revolução Industrial na Inglaterra para analisar a Revolução Industrial na França\",\"B\":\""
+    },
+    {
+      "seconds": 5.2,
+      "thinking_chars": 107,
+      "done_reason": "stop",
+      "questions": 3,
+      "problems": [],
+      "head": "{\"questions\":[{\"question\":\"Segundo o trecho do Capítulo 1, qual foi a principal razão para a divisão atual entre países ricos e pobres, segundo o autor?\",\"options\":{\"A\":\"A superioridade tecnológica dos países europeus no século XIX\",\"B\":\"A descoberta de novas rotas marítimas pelos exploradores portu"
+    }
+  ]
+}
