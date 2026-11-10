@@ -129,8 +129,9 @@ it. Restart the application and find no trace of the quiz in it.
    that wrote and checked the questions, the score, the chapter ranking for a whole-book quiz, and
    for each question its text, options, the reader's answer, the right answer, the explanation and
    the passage's pages.
-2. **Given** a quiz prepared or submitted, **When** the application is restarted, or the reader
-   prepares another quiz, **Then** nothing of the earlier quiz remains in the application.
+2. **Given** a quiz prepared or submitted, **When** the reader prepares another quiz, **Then**
+   nothing of the earlier quiz remains in the application's state. **When** the application is
+   restarted, **Then** nothing of it remains anywhere in the application.
 
 ---
 
@@ -218,7 +219,8 @@ the check stays on, with its catch rate and false rejections.
 - **A book whose language isn't known.** The questions are written in the language the reader
   chooses, as summaries are.
 - **The reader prepares a new quiz before submitting.** The current quiz is discarded without
-  being graded. If it was still being prepared, its preparation stops.
+  being graded. If it is still being prepared, the reader stops it first. Its questions stay
+  visible but can't be submitted.
 - **Two questions about the same fact.** Questions come from different passages, so two questions
   can still overlap on a point a passage repeats. This isn't checked.
 
@@ -254,6 +256,20 @@ the check stays on, with its catch rate and false rejections.
 - Q: After seeing the result, can the reader retake the same quiz? → A: No. Practicing again
   means preparing a new quiz, with questions written anew (FR-018).
 
+### Corrections during planning, 2026-11-10
+
+Each one came from checking the spec against the code. `research.md` gives the reasons.
+
+- **FR-002's limit counts every passage of the chosen text.** "Usable" passages can't be known
+  before the model reads them (R5). Passages with nothing to ask about can leave a quiz shorter,
+  which the reader is told.
+- **A preparation is stopped, then a new one prepared.** Gradio queues a second Prepare behind
+  the running one rather than replacing it (R9). The edge case now says so.
+- **The download's copy in temporary storage.** Gradio serves a download from its cache. FR-018
+  and SC-012 now say that this copy goes on a restart and within the hour, while the
+  application's state keeps nothing (R9).
+- **The commit is given to each measurement run** (FR-023). The app container holds no `.git`.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -266,8 +282,9 @@ the check stays on, with its catch rate and false rejections.
   the chosen text's length: one question per 300 words, rounded to the nearest whole number, at
   least 1, and at most 20. That gives 10 for Capítulo 1 of *História econômica global*, 17 for
   Capítulo 3, and 20 for Capítulo 6 or the whole book. The reader can change it up to the limit:
-  the number of usable passages in the chosen text, and never more than 50. The default never
-  exceeds the limit.
+  the number of passages in the chosen text, and never more than 50. The default never exceeds
+  the limit. Passages with nothing to ask about (FR-007) can leave fewer; the quiz then says how
+  many it has (FR-010).
 - **FR-003**: The reader MUST be able to choose the language of the questions: the book's
   language by default, or one of the configured response languages, as for summaries. The
   language is named to the model, not described.
@@ -344,7 +361,9 @@ the check stays on, with its catch rate and false rejections.
   prepares another quiz, and not after a restart. The downloaded document is the only record.
   A graded quiz can't be retaken. To practice again, the reader prepares a new quiz, whose
   questions are written anew. Its passages may repeat earlier ones, since nothing is kept to
-  avoid them.
+  avoid them. To serve the download, the interface keeps a copy of the file in temporary storage.
+  That copy is removed on a restart and within the hour, and holds nothing the downloaded file
+  doesn't.
 
 #### The measurement
 
@@ -374,7 +393,7 @@ the check stays on, with its catch rate and false rejections.
   - the model server's and the packages' versions;
   - the hardware;
   - the full configuration;
-  - the commit;
+  - the commit, given to the run, since the app container holds no repository;
   - the checksums of its books;
   - whether the run was complete (constitution VI).
 
@@ -462,8 +481,9 @@ Baselines are the probe's: gpt-oss:20b, a first prompt, 24 questions on chapters
 - **SC-010**: The measurement runs for a second configured model with no code change, and reports
   every measure of FR-019 for it.
 - **SC-011**: Every downloaded result holds every element FR-017 lists.
-- **SC-012**: After a restart, or after preparing another quiz, no earlier quiz, answer or result
-  can be found in the application.
+- **SC-012**: After preparing another quiz, no earlier quiz, answer or result can be found in the
+  application's state. After a restart, none can be found anywhere in the application, including
+  the interface's temporary storage.
 - **SC-013** (qualitative): Studying with it, the owner finds that the passage shown for a missed
   question is the one to reread.
 - **SC-014**: No quiz of 2 or more questions is shown in the order of its passages in the text.
