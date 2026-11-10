@@ -1,4 +1,5 @@
-"""Runs each candidate embedding model on the real Ollama server, into a real collection."""
+"""Runs the configured embedding model on the real Ollama server, into a real collection, and every
+other candidate that is pulled."""
 
 import os
 import uuid
@@ -9,7 +10,7 @@ import pytest
 from app.config.loader import load_settings
 from app.config.settings import EnvironmentSettings
 from app.embeddings.factory import create_embedding_provider
-from app.errors import ServiceUnavailableError
+from app.errors import ModelNotFoundError, ServiceUnavailableError
 from app.ingestion.chunker import Chunk
 from app.storage.chroma import ChromaServer, ChunkStore, revision_filter, revision_key
 from app.utils.ollama_runtime import OllamaRuntime
@@ -52,9 +53,19 @@ def chunk(index, text):
     )
 
 
+def embedder_for(settings, runtime, model):
+    """`make pull-models` pulls only the configured model: the others are checked once pulled."""
+    if model != settings.embedding.model:
+        try:
+            runtime.model_info(model)
+        except ModelNotFoundError:
+            pytest.skip(f"{model} isn't pulled")
+    return create_embedding_provider(settings, runtime, model)
+
+
 @pytest.mark.parametrize("model", MODELS)
 def test_the_model_reports_the_configured_size(settings, runtime, model):
-    assert create_embedding_provider(settings, runtime, model).dimensions() == settings.embedding.dimensions
+    assert embedder_for(settings, runtime, model).dimensions() == settings.embedding.dimensions
 
 
 @pytest.mark.parametrize("model", MODELS)
@@ -68,7 +79,7 @@ def test_the_model_reports_the_configured_size(settings, runtime, model):
     ],
 )
 def test_the_right_passage_comes_first(settings, runtime, store, model, question, expected):
-    embedder = create_embedding_provider(settings, runtime, model)
+    embedder = embedder_for(settings, runtime, model)
     chunks = [chunk(index, text) for index, text in enumerate(PASSAGES)]
     store.add(chunks, embedder.embed_documents(PASSAGES), 1, model, 1)
 

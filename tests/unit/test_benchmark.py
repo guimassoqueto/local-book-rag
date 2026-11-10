@@ -1,5 +1,5 @@
 import json
-from pathlib import Path
+from collections import Counter
 
 import pytest
 import yaml
@@ -17,7 +17,7 @@ from app.evaluation.benchmark import (
     load_experiment,
     summarize,
 )
-from app.evaluation.dataset import CATEGORY_COUNTS, load_dataset
+from app.evaluation.dataset import CATEGORY_COUNTS
 from app.evaluation.generation_metrics import JudgeScores
 from app.evaluation.performance import PerformanceResult
 from app.generation.base import GenerationParameters
@@ -29,47 +29,6 @@ from app.storage.catalog import BookStatus
 from app.utils.hashing import file_checksum
 from tests.fakes import FakeEmbedder, FakeLLM, FakeRuntime, WordCounter
 from tests.library import MARKDOWN, Library
-
-PROJECT = Path(__file__).resolve().parents[2]
-EXPERIMENTS = sorted((PROJECT / "benchmarks" / "experiments").glob("*.yaml"))
-
-
-def test_there_are_experiments_for_everything_the_spec_compares():
-    assert {load_experiment(path).kind for path in EXPERIMENTS} == {
-        "extraction",
-        "retrieval",
-        "generation",
-        "summarization",
-        "performance",
-    }
-
-
-@pytest.mark.parametrize("path", EXPERIMENTS, ids=lambda path: path.stem)
-def test_every_variant_is_a_valid_configuration(settings, path):
-    experiment = load_experiment(path)
-
-    for variant in experiment.variants:
-        apply_overrides(settings, variant.overrides)
-
-
-def test_the_retrieval_experiment_covers_the_specs_comparisons(settings):
-    experiment = load_experiment(PROJECT / "benchmarks" / "experiments" / "retrieval.yaml")
-
-    strategies = {
-        variant.name: apply_overrides(settings, variant.overrides).retrieval.strategy for variant in experiment.variants
-    }
-    assert strategies["qwen3_dense"] == strategies["bge_m3_dense"] == "dense"
-    assert strategies["bm25"] == "bm25"
-    sizes = {apply_overrides(settings, v.overrides).chunking.target_size for v in experiment.variants}
-    assert sizes == {300, 500, 800}
-
-
-def test_the_generation_experiment_compares_the_four_candidates(settings):
-    experiment = load_experiment(PROJECT / "benchmarks" / "experiments" / "generation.yaml")
-
-    models = {apply_overrides(settings, variant.overrides).llm.model for variant in experiment.variants}
-
-    assert models == {"gpt-oss:20b", "gemma4:12b", "qwen3.5:9b", "qwen3:14b"}
 
 
 def test_overrides_merge_into_the_configuration(settings):
@@ -150,21 +109,35 @@ def test_results_can_be_split_by_a_field():
     }
 
 
-def test_the_real_dataset_is_loadable_and_complete():
-    dataset = load_dataset(PROJECT / "benchmarks" / "datasets")
-
-    assert len(dataset.books) == 3
-    assert len(dataset.questions) == 3 * sum(CATEGORY_COUNTS.values())
-    assert len(dataset.key_points) >= 3
+def _question(book, category, number):
+    answerable = category != "unanswerable"
+    return {
+        "id": f"{book}_{category}_{number:02d}",
+        "book": book,
+        "category": category,
+        "question": "What jumps over the dog?",
+        "expected_answer": "A fox." if answerable else None,
+        "chapter": "One" if category == "chapter_specific" else None,
+        "evidence": ["quick brown fox"] if answerable else [],
+        "answerable": answerable,
+        "language": "en",
+    }
 
 
 def test_a_quick_pass_takes_the_same_share_of_each_category(settings, tmp_path):
-    runner = BenchmarkRunner(settings, EnvironmentSettings(benchmarks_dir=PROJECT / "benchmarks"), say=lambda m: None)
+    datasets = tmp_path / "benchmarks" / "datasets"
+    datasets.mkdir(parents=True)
+    books = ("a_book", "b_book")
+    questions = [_question(book, category, n) for book in books for category in CATEGORY_COUNTS for n in range(3)]
+    (datasets / "books.yaml").write_text(yaml.safe_dump({"books": []}), encoding="utf-8")
+    (datasets / "questions.jsonl").write_text("".join(json.dumps(q) + "\n" for q in questions), encoding="utf-8")
+    (datasets / "chapter_key_points.jsonl").write_text("", encoding="utf-8")
+    runner = BenchmarkRunner(settings, EnvironmentSettings(benchmarks_dir=tmp_path / "benchmarks"), say=lambda m: None)
 
-    selected = runner._questions(limit=1)
+    shares = Counter((question.book, question.category) for question in runner._questions(limit=1))
 
-    assert len(selected) == 3 * len(CATEGORY_COUNTS)
-    assert len(runner._questions(limit=None)) == 90
+    assert shares == {(book, category): 1 for book in books for category in CATEGORY_COUNTS}
+    assert len(runner._questions(limit=None)) == len(questions)
 
 
 @pytest.fixture

@@ -1,8 +1,10 @@
 # Benchmark results
 
-What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 09. Result files
-stay out of the repository, so this page is their record. Every number in it comes from those
-files, and `book-rag benchmark-report` shows each run with the paired comparisons quoted below.
+What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 09. The result files are
+no longer kept, and the experiments and their dataset are no longer in the repository: their last
+versions are in commit `c7bb785`. So this page is the record of the runs. Every number in it comes
+from those files, and `book-rag benchmark-report` showed each run with the paired comparisons
+quoted below.
 
 The setup was an RTX 5060 Ti with 16 GB, a Ryzen 9 9950X3D, 60 GB of RAM and Ollama 0.40.15.
 Models ran at the quantizations Ollama serves: MXFP4 for gpt-oss:20b, Q4_K_M for the others. The
@@ -470,7 +472,12 @@ application as well as in the benchmarks. `docs/decisions.md` has the detail of 
 
 ## Reproducing
 
+The dataset and the experiments come from commit `c7bb785`, and the app container has to be given
+them: no folder of the host is mounted in it. The results stay in the container until copied out.
+
 ```bash
+git archive c7bb785 benchmarks | tar -x
+docker compose cp -a benchmarks app:/app/
 docker compose exec app book-rag pull-models --all          # every candidate model
 docker compose exec app book-rag fetch-benchmark-books      # checked against their checksums
 docker compose exec app book-rag validate-benchmark
@@ -481,6 +488,8 @@ make benchmark EXPERIMENT=historical_spelling  # about 2 minutes
 make benchmark EXPERIMENT=performance      # about 3 minutes
 make benchmark EXPERIMENT=summarization    # about 45 minutes
 make benchmark EXPERIMENT=generation       # about 3.5 hours
+
+docker compose cp app:/app/benchmarks/results benchmarks/
 ```
 
 The default LLM's confirmation has its own experiments and a script that records what the runner

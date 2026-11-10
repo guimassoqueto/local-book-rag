@@ -19,6 +19,22 @@ Docker's published ports bypass host firewalls.
 **The app container gets the GPU.** Not in the spec's Compose file, but the spec wants the
 reranker able to run on it, and the image tested with GPU access.
 
+**Nothing is kept in a volume.** Departs from the spec, which put ChromaDB and Ollama in named
+volumes and mounted `data/` and `logs/` from the host. The owner wanted pruning the containers to
+leave no data behind. So each container keeps its own data, `config/` is copied into the image, and
+the repository no longer has `data/` or `logs/` folders. What it costs:
+
+- `docker compose down` now deletes the library, the vectors and the models, as only `down -v` did
+  before.
+- A rebuild recreates the app container alone. Its library comes back empty while ChromaDB keeps
+  the vectors, and the new catalog numbers its indexes from 1 again, so the first index would reuse
+  the old `book_chunks_v1` collection with the old passages in it. Index versions are never reused
+  within one catalog, but nothing carries the count across containers. `reset-everything` deletes
+  every `book_chunks_v*` collection, so it is the first step after such a rebuild.
+- A configuration change no longer reaches the app on a restart alone. It is copied into the
+  running container with `docker compose cp`, since the rebuild that would bring it empties the
+  library.
+
 **CUDA 13.4 torch.** The RTX 5060 Ti is a Blackwell GPU, which older CUDA builds can't drive.
 
 ## Dependencies
@@ -326,6 +342,16 @@ support a claim, so a share of "correct" citations would punish correct answers.
 
 **Experiments run in their own workspace**, on separate files and `bench_*` collections, so that
 nothing they do can reach the real library.
+
+**The benchmark's files left the repository.** The owner removed `benchmarks/` with the volumes, as
+the folder was mounted into the app with them, and its result files went too. The dataset and the
+experiments are still in commit `c7bb785`, from which the README's Benchmarks section restores
+them, and `docs/benchmark-results.md` remains the record of what the runs found. The runner, the
+metrics and the report stay, with the unit tests of how they work, which now write their own
+datasets. The tests of the removed files went with them: that the experiments covered every
+comparison of the spec, that each variant was a valid configuration, that the dataset held its 90
+questions, and that the default LLM's confirmation kept the variants and the judge of the
+experiments it came from.
 
 **nDCG gives credit per quote, against a real ideal order.** Counting chunks made two quotes in one
 chunk unable to reach 1, which penalized large chunks for holding more of the evidence, in the very

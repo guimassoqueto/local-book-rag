@@ -7,7 +7,8 @@ checks passing. This script runs that confirmation and applies the rule. It stay
 decision, either way, as the record of how the numbers were made (FR-016).
 
 Four subcommands need the stack, and run in the app container, where the benchmarks ran. The
-container mounts benchmarks/ but not devtools/, so the script is piped to its Python:
+container holds benchmarks/ once it is copied in (README, Benchmarks), but never devtools/, so the
+script is piped to its Python:
 
     docker compose exec -T app python - preflight … < devtools/default_llm.py
     docker compose exec -T app python - summarize … < devtools/default_llm.py

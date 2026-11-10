@@ -15,14 +15,13 @@ import app.container
 import app.evaluation.benchmark
 from app.config.loader import load_settings
 from app.config.settings import EnvironmentSettings
-from app.evaluation.benchmark import load_experiment
+from app.evaluation.benchmark import Experiment, VariantConfig
 from app.evaluation.dataset import dataset_checksum
 from app.evaluation.report import paired_difference
 from app.generation.base import Generation, GenerationParameters, Message
 from tests.fakes import FakeLLM, FakeRuntime
 
 PROJECT = Path(__file__).resolve().parents[2]
-EXPERIMENTS = PROJECT / "benchmarks" / "experiments"
 
 _spec = importlib.util.spec_from_file_location("default_llm", PROJECT / "devtools" / "default_llm.py")
 default_llm = importlib.util.module_from_spec(_spec)
@@ -56,22 +55,6 @@ CHAPTERS = (
     ("on_liberty", "CHAPTER V."),
 )
 TRAP = "quincas_borba_unanswerable_04"
-
-
-# The confirmation's experiments
-
-
-@pytest.mark.parametrize("kind", ["generation", "summarization"])
-def test_the_confirmation_keeps_its_sources_judge_and_compares_two_models(kind):
-    confirmation = load_experiment(EXPERIMENTS / f"default_llm_{kind}.yaml")
-    source = load_experiment(EXPERIMENTS / f"{kind}.yaml")
-
-    assert confirmation.kind == kind
-    assert confirmation.judge == source.judge
-    assert tuple(variant.name for variant in confirmation.variants) == (BASELINE, CANDIDATE)
-    overrides = {variant.name: variant.overrides for variant in source.variants}
-    for variant in confirmation.variants:
-        assert variant.overrides == overrides[variant.name]
 
 
 def test_an_unknown_subcommand_is_a_usage_error():
@@ -206,14 +189,20 @@ def test_preflight_names_what_differs(expected, actual, dataset_actual, differs)
 def test_the_probe_records_what_a_benchmark_result_records(monkeypatch, tmp_path):
     monkeypatch.setattr(app.evaluation.benchmark, "OllamaRuntime", lambda url, timeout: FakeRuntime())
     settings = load_settings(PROJECT / "config")
-    environment = EnvironmentSettings(benchmarks_dir=PROJECT / "benchmarks", data_dir=tmp_path / "data")
-    experiment = load_experiment(EXPERIMENTS / "default_llm_generation.yaml")
+    datasets = tmp_path / "benchmarks" / "datasets"
+    datasets.mkdir(parents=True)
+    (datasets / "books.yaml").write_text("books: []\n", encoding="utf-8")
+    (datasets / "questions.jsonl").write_text("", encoding="utf-8")
+    (datasets / "chapter_key_points.jsonl").write_text("", encoding="utf-8")
+    environment = EnvironmentSettings(benchmarks_dir=tmp_path / "benchmarks", data_dir=tmp_path / "data")
+    variants = tuple(VariantConfig(name=name, overrides={"llm": {"model": model}}) for name, model in MODELS.items())
+    experiment = Experiment(name="default_llm_generation", kind="generation", description="A test.", variants=variants)
 
     recorded = default_llm.probe_environment(
         settings, environment, experiment, workspace="71026d902d", commit="abc1234", complete=True
     )
 
-    assert recorded["dataset_sha256"] == dataset_checksum(PROJECT / "benchmarks" / "datasets")
+    assert recorded["dataset_sha256"] == dataset_checksum(datasets)
     assert recorded["configuration"] == settings.model_dump()
     assert recorded["overrides"] == {model: {"llm": {"model": model}} for model in MODELS.values()}
     assert {*MODELS.values(), settings.embedding.model} <= set(recorded["models"])
