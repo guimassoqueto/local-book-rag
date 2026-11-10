@@ -10,8 +10,8 @@ services:
     ports:
       - "127.0.0.1:11434:11434"
 
-    volumes:
-      - ollama_data:/root/.ollama
+#    volumes:
+#      - ollama_data:/root/.ollama
 
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
@@ -45,8 +45,8 @@ services:
 
     # The image's /config.yaml already sets persist_path: /data. Its Rust server has no
     # IS_PERSISTENT or PERSIST_DIRECTORY settings and sends no telemetry to disable.
-    volumes:
-      - chroma_data:/data
+#    volumes:
+#      - chroma_data:/data
 
     networks:
       - book-rag-network
@@ -80,12 +80,12 @@ services:
     ports:
       - "${GRADIO_BIND_ADDRESS:-127.0.0.1}:7860:7860"
 
-    volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./config:/app/config:ro
-      - ./benchmarks:/app/benchmarks
-      - huggingface_cache:/app/.cache/huggingface
+#    volumes:
+#      - ./data:/app/data
+#      - ./logs:/app/logs
+#      - ./config:/app/config:ro
+#      - ./benchmarks:/app/benchmarks
+#      - huggingface_cache:/app/.cache/huggingface
 
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
@@ -123,10 +123,10 @@ services:
       start_period: 60s
 
 
-volumes:
-  ollama_data:
-  chroma_data:
-  huggingface_cache:
+#volumes:
+#  ollama_data:
+#  chroma_data:
+#  huggingface_cache:
 
 
 networks:

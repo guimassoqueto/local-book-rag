@@ -26,7 +26,7 @@ COPY config ./config
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --all-extras
 
-# Created here so that the named volume mounted over .cache/huggingface inherits the owner.
+# Owned by the app's user, which writes the library, its logs and the models it downloads there.
 RUN mkdir -p data logs .cache/huggingface && chown -R app:app data logs .cache
 
 ENV PATH="/app/.venv/bin:$PATH" \

@@ -4,7 +4,8 @@
 #   scripts/reset_library.sh               delete what is derived, keeping the original documents
 #   scripts/reset_library.sh --everything  delete the whole library, originals included
 #
-# Neither touches the Docker volumes or the models in Ollama. `docker compose down -v` would.
+# Neither touches the models in Ollama. `docker compose down` deletes them, and the library with
+# them: nothing is in a volume.
 set -euo pipefail
 
 if [ "${1:-}" = "--everything" ]; then

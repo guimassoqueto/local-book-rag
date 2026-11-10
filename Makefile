@@ -68,7 +68,7 @@ test-integration:
 up:
 	@docker compose up -d --build
 
-# Keeps every volume: never add -v here, it deletes the Ollama models and ChromaDB data.
+# Removes the containers, and with them the library, the vectors and the models: none is in a volume.
 down:
 	@docker compose down
 
@@ -84,7 +84,8 @@ pull-models:
 doctor:
 	@docker compose exec app book-rag doctor
 
-# Run one experiment from benchmarks/experiments, as in `make benchmark EXPERIMENT=retrieval`.
+# Run one experiment from benchmarks/experiments, as in `make benchmark EXPERIMENT=retrieval`, once
+# benchmarks/ is copied into the app container (README, Benchmarks).
 # LIMIT=2 takes a sample, of that many questions per book and category.
 benchmark:
 	@test -n "$(EXPERIMENT)" || { echo "usage: make benchmark EXPERIMENT=<name> [LIMIT=<n>]"; exit 1; }

@@ -27,8 +27,8 @@ make env        # copy devtools/.env.sample to .env (won't overwrite an existing
 make install    # create .venv with the locked dependencies, Spec Kit's CLI among them, and install the git hooks
 ```
 
-Set `APP_UID` and `APP_GID` in `.env` if your user isn't 1000, so that the files the app writes
-to `./data` stay yours.
+Set `APP_UID` and `APP_GID` in `.env` if your user isn't 1000. Files copied into the app container
+with `docker compose cp` keep your IDs, and the app can write only to what its own user owns.
 
 On commit, the pre-commit hook fixes the staged files (trailing whitespace, final
 newline, `ruff check --fix`, `ruff format`) and re-stages the fixes, so the commit only
@@ -76,7 +76,7 @@ The interface is at <http://localhost:7860>. `docker compose exec app book-rag d
 | Command                 | Does                                                        |
 | ----------------------- | ----------------------------------------------------------- |
 | `make up`               | Build the app image and start the stack                     |
-| `make down`             | Stop the stack. Every volume stays                          |
+| `make down`             | Remove the containers, with the library and the models      |
 | `make logs`             | Follow the app's logs                                       |
 | `make pull-models`      | Download the configured models into Ollama                  |
 | `make doctor`           | Check the services, models and GPU                          |
@@ -92,8 +92,17 @@ The interface is at <http://localhost:7860>. `docker compose exec app book-rag d
 | `make speckit-upgrade`  | Regenerate Spec Kit's skills and scripts for a new version  |
 | `make reinstall`        | Delete `.venv` and run `make install` again                 |
 
-`docker compose down -v` is not a reset: it deletes the named volumes, with the downloaded
-models and the vector database in them.
+Nothing is kept in a volume or a host folder. Each container holds its own data: the app has the
+library and its logs, ChromaDB the vectors, and Ollama the models. `docker compose stop`, `start`
+and `restart` keep all of it. Removing a container deletes what it held, whether `make down` removes
+it or `make up` recreates it after a rebuild:
+
+- **The app** is recreated by `make up` after any change to the code or to `config/`, and comes back
+  with an empty library. ChromaDB still has the old library's vectors, and the new catalog numbers
+  its indexes from 1 again, so the next book would go into the old `book_chunks_v1`, among the
+  previous books' passages. Run `docker compose exec app book-rag reset-everything` before adding
+  one: it deletes every `book_chunks_v*` collection.
+- **Ollama** needs `make pull-models` again: about 14 GB for the configured models.
 
 ## Interface
 
@@ -114,11 +123,13 @@ with its reason, and uploading it again retries it.
 ## Library
 
 ```bash
-docker compose exec app book-rag add-book /path/inside/the/container/book.pdf
+docker compose cp book.pdf app:/tmp/book.pdf      # the container sees no folder of the host
+docker compose exec app book-rag add-book /tmp/book.pdf
 docker compose exec app book-rag list-books
 ```
 
-Books go through extraction, normalization, structure detection and chunking. Each stage's
+An upload in the interface needs no copy. Books go through extraction, normalization, structure
+detection and chunking. The library lives in the app container, under `/app/data`. Each stage's
 output stays in `data/processed/<book_id>/r<revision>/` for debugging, and the original file
 in `data/original_books/<book_id>/`, from which everything else can be rebuilt. The catalog
 in `data/metadata/catalog.db` is the source of truth for what the library holds. A file is
@@ -169,7 +180,7 @@ docker compose exec app book-rag reset-everything
 | `reset-everything` | Deletes the whole library, originals included                           |
 
 `scripts/reset_library.sh` and `scripts/reindex_library.sh` do the same from the host. None of
-this touches the Docker volumes or the models in Ollama. The destructive operations ask for
+this touches the models in Ollama. The destructive operations ask for
 confirmation in the service layer, so Gradio and the commands can't differ: a book's ID to
 remove it, `RESET INDEX`, or `DELETE EVERYTHING`.
 
@@ -190,6 +201,7 @@ How changes stay safe:
 
 Index versions are never reused, even after `reset-everything`, because a running server
 identifies an index by its version and must not mistake a new one for the one it has cached.
+The catalog keeps the count, so a new app container starts it over (see Running).
 
 ## Index
 
@@ -258,7 +270,7 @@ Portuguese books printed before the spelling reforms spell many words differentl
 direction. It is off by default: on the benchmark, it didn't improve lexical search by more than
 noise, and the default configuration came out the same (`docs/benchmark-results.md`).
 - **Only the words it compares are folded.** Passages are shown as the book prints them, nothing
-  stored changes, and switching the setting needs `docker compose restart app`, not a reindex.
+  stored changes, and switching the setting needs a restart (see Deployment notes), not a reindex.
 - **It needs `stemming`**, and applies only to books in Portuguese.
 - **A few modern words are left as they are**, where a pattern would merge them with another, as
   pacto with pato. `docs/decisions.md` has the measurement behind this.
@@ -340,16 +352,26 @@ that is how to find it in a book without pages.
 ## Benchmarks
 
 Comparing configurations under controlled conditions is the point of this project, so the
-benchmarks are a first-class part of it.
+benchmarks are a first-class part of it. The runner, the metrics and the report are in
+`app/evaluation`, but the repository no longer holds the dataset and the experiments they ran on:
+their last versions are in commit `c7bb785`, and `docs/benchmark-results.md` records what the runs
+found. Neither the image nor a mount brings `benchmarks/` into the app container, so a run starts by
+copying it in, and ends by copying the results out before the container goes:
 
 ```bash
+git archive c7bb785 benchmarks | tar -x                     # the dataset and the experiments
+docker compose cp -a benchmarks app:/app/                   # into the app container
 docker compose exec app book-rag pull-models --all          # every candidate model, about 40 GB
 docker compose exec app book-rag fetch-benchmark-books      # verified against their checksums
 docker compose exec app book-rag validate-benchmark         # every question, against the real text
 
 make benchmark EXPERIMENT=retrieval                         # the whole dataset
 make benchmark EXPERIMENT=generation LIMIT=2                # a sample, per book and category
+
+docker compose cp app:/app/benchmarks/results benchmarks/   # the results, out of the container
 ```
+
+The experiments in that commit:
 
 | Experiment      | Compares                                                               | Measures                                                                                  |
 | --------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -379,7 +401,7 @@ by the same validation as `config/`. It runs in `benchmarks/workspace`, on separ
 share a workspace. A workspace whose index no longer matches the configuration is rebuilt, but a
 change to the ingestion code can't be seen: delete `benchmarks/workspace` after one.
 
-The dataset is three books: *Quincas Borba* in Portuguese, *Think Python* in English from a PDF,
+Its dataset is three books: *Quincas Borba* in Portuguese, *Think Python* in English from a PDF,
 and *On Liberty* for its complex arguments. Each has 30 questions: 10 factual, 5 conceptual, 5
 across sections, 5 about one chapter, and 5 that the book can't answer, some of them traps that
 name a detail the text leaves out. All three books can be redistributed, so anyone can reproduce
@@ -418,8 +440,10 @@ first look.
 - The app container gets the GPU too, for the reranker and Docling when they are configured
   to use it. torch comes from the CUDA 13.4 index: the RTX 5060 Ti is a Blackwell GPU, which
   builds for older CUDA versions cannot drive.
-- `config/` is mounted read-only, so a configuration change only needs
-  `docker compose restart app`. The app validates all of it at startup.
+- `config/` is copied into the image, and nothing mounts it. `make up` applies a change by
+  rebuilding, which empties the library (see Running). To keep the library, copy the change in
+  and restart: `docker compose cp config/. app:/app/config`, then `docker compose restart app`.
+  The app validates all of it at startup.
 
 ## Configuration
 
@@ -451,8 +475,6 @@ app/
   interface/       # the Gradio tabs, as thin as they can be
   evaluation/      # the dataset, the metrics and the experiment runner
 config/            # everything that can change without touching code
-benchmarks/        # datasets and experiments. Books, workspaces and results stay untracked
-data/              # the library: originals, processed files, summaries and the catalog
 docs/              # what was decided and why, and what the benchmarks found
 tests/unit/        # no services needed: real files, real SQLite, embedded ChromaDB, fake models
 tests/integration/ # against the running stack and the real models
