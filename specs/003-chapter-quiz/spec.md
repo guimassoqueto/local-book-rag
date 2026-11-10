@@ -59,8 +59,9 @@ and pages, and the right answers fall on every letter.
 **Acceptance Scenarios**:
 
 1. **Given** an indexed book and one of its chapters, **When** the reader asks for a quiz of N
-   questions, **Then** they get N questions, each with five options, A to E, and the progress of
-   the preparation is shown until it is ready.
+   questions, **Then** they get N questions, each with five options, A to E. Each question
+   appears in its place as soon as it is ready, while the rest are prepared, with the number
+   ready out of N shown. The quiz can be submitted only once every question is ready.
 2. **Given** a quiz of 5 or more questions, **When** it is shown, **Then** each letter holds the
    right answer as often as any other, give or take one.
 3. **Given** a quiz of 3 or more questions on one chapter, **When** it is prepared, **Then**
@@ -124,10 +125,10 @@ it. Restart the application and find no trace of the quiz in it.
 **Acceptance Scenarios**:
 
 1. **Given** a submitted quiz, **When** the reader downloads the result, **Then** the document
-   holds the date and time, the book, the chapter when the quiz is on one, the language, the model
-   that wrote the questions, the score, the chapter ranking for a whole-book quiz, and for each
-   question its text, options, the reader's answer, the right answer, the explanation and the
-   passage's pages.
+   holds the date and time, the book, the chapter when the quiz is on one, the language, the models
+   that wrote and checked the questions, the score, the chapter ranking for a whole-book quiz, and
+   for each question its text, options, the reader's answer, the right answer, the explanation and
+   the passage's pages.
 2. **Given** a quiz prepared or submitted, **When** the application is restarted, or the reader
    prepares another quiz, **Then** nothing of the earlier quiz remains in the application.
 
@@ -202,7 +203,8 @@ the check stays on, with its catch rate and false rejections.
 - **A book that isn't indexed.** A book that failed or is still being added can't be quizzed. The
   reader is told why, as the other tabs do.
 - **The model can't be reached.** The preparation stops with a notification that stays until
-  dismissed, as in the other tabs, and no partial quiz is shown as complete.
+  dismissed, as in the other tabs. The questions already shown stay visible, but the quiz can't
+  be submitted, and the reader can prepare it again.
 - **Options that point at each other.** "All of the above", "both A and B" or "none of the above"
   would become wrong once the application moves the right answer. A question with such an option
   isn't accepted, and is written again.
@@ -216,7 +218,7 @@ the check stays on, with its catch rate and false rejections.
 - **A book whose language isn't known.** The questions are written in the language the reader
   chooses, as summaries are.
 - **The reader prepares a new quiz before submitting.** The current quiz is discarded without
-  being graded.
+  being graded. If it was still being prepared, its preparation stops.
 - **Two questions about the same fact.** Questions come from different passages, so two questions
   can still overlap on a point a passage repeats. This isn't checked.
 
@@ -233,6 +235,24 @@ the check stays on, with its catch rate and false rejections.
   text's order: "question 1 of 10 could be from the start of the chapter/book, question 9 from the
   biggining of the chapter/book and question 10 from the middle" (FR-006, SC-014).
 - Q: What share of questions must have a sound key? → A: At least 90% (SC-003).
+
+### Session 2026-11-10
+
+- Q: How long is the owner willing to wait for a 20-question quiz to be ready? → A: No limit:
+  quality comes before speed, as long as progress is shown. At the owner's suggestion, each
+  question appears as soon as it is ready and can be answered while the rest are prepared. The
+  quiz can be submitted only once all are ready (FR-012, SC-008).
+- Q: Which model runs the key check: the writing model, or another local model? → A: A setting
+  that defaults to the writing model, and may name another configured local model (FR-025,
+  FR-027). The owner may later want a cloud model to help with such evaluations. That belongs to
+  the cloud providers change, which constitution I requires to amend the constitution first.
+- Q: Which books and chapters does the measurement use? → A: The probe's three chapters of
+  *História econômica global*, plus one chapter from each benchmark book: *Think Python*, *On
+  Liberty* and *Quincas Borba* (FR-019).
+- Q: In what file format is the quiz result downloaded? → A: Markdown (`.md`), the format of a
+  saved summary (FR-017).
+- Q: After seeing the result, can the reader retake the same quiz? → A: No. Practicing again
+  means preparing a new quiz, with questions written anew (FR-018).
 
 ## Requirements *(mandatory)*
 
@@ -284,8 +304,11 @@ the check stays on, with its catch rate and false rejections.
   than asked, the reader MUST be told how many it has. A question is never dropped silently.
 - **FR-011**: A question MUST be written only from a passage the model received whole. Nothing the
   model is given may be cut off for lack of room.
-- **FR-012**: The preparation MUST show its progress, and an error MUST leave no partial quiz
-  presented as complete.
+- **FR-012**: Preparation has no time limit. It MUST show its progress: the number of questions
+  ready out of the number asked. Each question MUST appear in its place in the quiz as soon as it
+  is ready, after any check (FR-024). The reader can answer it while the rest are prepared.
+  Submission MUST be possible only once preparation has finished. If preparation stops on an
+  error, the questions shown stay visible but can't be submitted, and the reader is told why.
 
 #### Taking the quiz and the result
 
@@ -306,31 +329,40 @@ the check stays on, with its catch rate and false rejections.
 
 #### The record
 
-- **FR-017**: After submission, the reader MUST be able to download the result as a readable
-  document. It holds:
+- **FR-017**: After submission, the reader MUST be able to download the result as a Markdown
+  document (`.md`), the format of a saved summary. It holds:
   - the date and time of submission;
   - the book's title;
   - the chapter, when the quiz is on one;
   - the language;
-  - the model that wrote the questions;
+  - the model that wrote the questions, and the one that checked them when the check is on;
   - the score;
   - the chapter ranking, for a whole-book quiz;
   - for each question: its text, its options, the reader's answer, the right answer, the
     explanation, and the passage's chapter, section and pages.
 - **FR-018**: The application MUST NOT keep any quiz, answer or result: not after the reader
   prepares another quiz, and not after a restart. The downloaded document is the only record.
+  A graded quiz can't be retaken. To practice again, the reader prepares a new quiz, whose
+  questions are written anew. Its passages may repeat earlier ones, since nothing is kept to
+  avoid them.
 
 #### The measurement
 
 - **FR-019**: A command MUST run a repeatable measurement of question writing with the configured
-  model, on chapters named in its own configuration. It reports, computed without a judge:
+  model, on chapters named in its own configuration. Its chapters are six:
+  - the probe's three chapters of *História econômica global*, so the baseline compares: Capítulo
+    1, 3 and 6;
+  - one chapter from each benchmark book: *Think Python*, *On Liberty* and *Quincas Borba*. They
+    cover a programming book, philosophy and a novel, in English and Portuguese.
+
+  It reports, computed without a judge:
   - the share of right options on each letter;
   - the share of questions whose right option is the longest;
   - the share the model answers right without the passages;
   - where in each chapter the questions come from;
   - questions delivered against asked;
   - the replies it couldn't read, by kind;
-  - the time to prepare each quiz.
+  - the time to prepare each quiz, and to its first question.
 - **FR-020**: The measurement MUST list every question with its options, key, explanation and
   passage, in a form a reader can mark as sound or flawed, with a reason. Once marked, the share
   of sound keys MUST be computed from the marks.
@@ -353,6 +385,8 @@ the check stays on, with its catch rate and false rejections.
   by the passage, or isn't the only defensible option. A rejected question is replaced as in
   FR-010.
 - **FR-025**: The check MUST be a setting that can be switched on or off without a code change.
+  The model that runs it MUST be a setting too. It defaults to the model that wrote the
+  questions, and may name any other configured local model (constitution I).
 - **FR-026**: The known cases MUST be questions read by hand against their passages and marked
   sound or flawed, with the reason. They start from the probe's 24 (4 flawed), and MUST include at
   least 10 flawed and 30 sound questions before FR-027's rule is applied. They come from the
@@ -363,9 +397,10 @@ the check stays on, with its catch rate and false rejections.
     open-book answer does, where the probe's equivalent caught 1 of 4;
   - (b) it rejects no more than 10% of the sound questions.
 
-  The rule is fixed before the check is first run on the known cases. If no wording of the check
-  passes within the time the plan allots, the check ships switched off. The remaining rate of
-  flawed keys is recorded either way.
+  The rule is fixed before the check is first run on the known cases. It applies the same way to
+  any checker model tried, and each try is recorded with its model. If no wording of the check,
+  with any model tried, passes within the time the plan allots, the check ships switched off. The
+  remaining rate of flawed keys is recorded either way.
 
 #### Constraints from the constitution
 
@@ -383,7 +418,8 @@ the check stays on, with its catch rate and false rejections.
 ### Key Entities
 
 - **Quiz**: one book, and one chapter or the whole book. It also records the language, the model
-  that wrote it, when it was prepared, its questions, and how many were asked against prepared.
+  that wrote it, the model that checked it when the check is on, when it was prepared, its
+  questions, and how many were asked against prepared.
   It lives only until the next quiz or a restart.
 - **Question**: its text, five options A to E, the right letter, the explanation, and its source
   passage, with the book, chapter, section, pages and text.
@@ -417,10 +453,11 @@ Baselines are the probe's: gpt-oss:20b, a first prompt, 24 questions on chapters
   acknowledgements, references, further reading, or lists of illustrations and tables.
 - **SC-007**: Every question in every result shows its passage, with chapter, section and pages.
   Baseline: 24 of 24.
-- **SC-008**: A 20-question quiz, on one chapter or on the whole of *História econômica global*,
-  is ready within 2 minutes on the owner's machine with the default model, key check included when
-  it is on. Baseline: 15–34 s per chapter for 6 to 12 questions without checks. A whole book was
-  never timed.
+- **SC-008**: Preparation has no time limit; quality comes before speed. In every quiz, the reader
+  sees how many questions are ready out of how many were asked. The first question can be
+  answered before the last is ready. The measurement records each quiz's preparation time and the
+  time to its first question (FR-019). Baseline: 15–34 s per chapter for 6 to 12 questions,
+  without checks.
 - **SC-009**: For every submission, the score equals right answers over questions, exactly.
 - **SC-010**: The measurement runs for a second configured model with no code change, and reports
   every measure of FR-019 for it.
@@ -435,20 +472,20 @@ Baselines are the probe's: gpt-oss:20b, a first prompt, 24 questions on chapters
 
 - **One reader, on their own machine.** There are no accounts, no sharing, and no use beyond the
   owner's own study.
-- **No time limit.** A "graded quiz" here means answers hidden until submission and a counted
-  score. Nothing in the owner's answers asked for a timer.
-- **The download is a plain readable document**, in the spirit of a saved summary. Its format is
-  the plan's choice.
-- **50 questions at most per quiz** keeps preparation within minutes and the page readable.
-- **Two minutes for a 20-question quiz** is an acceptable wait. The owner already waits 48 to 104 s
-  for one chapter's summary, and hasn't set a tolerance.
+- **No timer for answering.** A "graded quiz" here means answers hidden until submission and a
+  counted score. Nothing in the owner's answers asked for a timer.
+- **50 questions at most per quiz** keeps the preparation and the page manageable.
 - **Passages with nothing to ask about can be recognized from their content.** The catalog keeps
   only a chapter's number and title, so recognition by title would be guesswork in every
   language.
-- **The measurement's first runs include the probe's three chapters**, so the baseline compares.
-  That needs the owner's copy of *História econômica global* brought into the measurement's own
-  workspace, apart from the library. The benchmark's public books, fetched with their checksums,
-  can be added to its chapters.
+- **The measurement's books come from two places.**
+  - **The benchmark books** are fetched with their checksums, as the benchmarks already do.
+  - ***História econômica global*** isn't public. The owner's copy has to be brought into the
+    measurement's own workspace, apart from the library. Its checksum identifies it in each
+    result.
+
+  Which chapter of each benchmark book to use is the plan's choice, among those the benchmarks
+  already use.
 - **The key check is a judge** (constitution VI), and FR-027 is how it proves itself. A judge of
   quiz quality, for scores beyond the check's own rejections, is out of scope.
 - **Out of scope**, inherited from the assessment:
