@@ -51,7 +51,9 @@ In the Quiz tab, choose `book_001`, then *Capítulo 1: A grande divergência*.
    - the order isn't the chapter's: the pages of the passages, shown after submitting, jump
      around;
    - the questions come from the chapter's start, middle and end: their pages span 6 to 19. The
-     unit tests pin the exact thirds rule (SC-005).
+     unit tests pin the exact thirds rule (SC-005);
+   - no question or option says where its answer is: no "segundo o trecho", "passagem 2", page or
+     section. "Segundo o autor" or "no capítulo" are fine (FR-004, SC-015).
 4. **Submit** with two questions unanswered and two wrong:
    - the score is right ÷ 10;
    - the unanswered ones say "not answered";
@@ -76,6 +78,7 @@ Choose `book_001` and "The whole book", with 20 questions.
 - **No question comes from** *Agradecimentos*, *Referências bibliográficas*, *Leituras
   complementares*, *Lista de ilustrações* or *Lista de tabelas*. If those chapters had a share,
   the quiz still has 20, or says how many it has (SC-006).
+- **No question names the chapter it comes from** (FR-004).
 - **After submitting**, the ranking lists the chapters by questions missed, most first.
 
 A one-chapter quiz shows no ranking.

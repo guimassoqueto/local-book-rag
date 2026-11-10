@@ -222,7 +222,8 @@ the check stays on, with its catch rate and false rejections.
   being graded. If it is still being prepared, the reader stops it first. Its questions stay
   visible but can't be submitted.
 - **Two questions about the same fact.** Questions come from different passages, so two questions
-  can still overlap on a point a passage repeats. This isn't checked.
+  can still overlap on a point a passage repeats. This isn't checked. Two questions on one point
+  make a weaker quiz, not a wrong one, and checking every pair would cost a model call per pair.
 
 ## Clarifications
 
@@ -270,6 +271,41 @@ Each one came from checking the spec against the code. `research.md` gives the r
   application's state keeps nothing (R9).
 - **The commit is given to each measurement run** (FR-023). The app container holds no `.git`.
 
+### Corrections from the requirements checklist, 2026-11-10
+
+`checklists/model-and-measurement.md` found these gaps, and the owner asked for them to be closed:
+- **The explanation**: it is held to the passage like the key, and the wrong options to the right
+  one's length and form (FR-004).
+- **The meaning of "stated by its passage"**: following the passage's reasoning is allowed, and
+  across two languages it is judged by meaning (FR-005).
+- **Nothing to ask about**: defined by what a passage does, with a chapter-level rule for a quiz
+  on a chapter that has nothing to ask about (FR-007).
+- **Option rules**: stated generally, beyond examples (FR-009).
+- **Refusals**: given kinds, including a reply in the wrong language. The stale "passage other
+  than the one given" is gone (FR-010).
+- **The measurement**: its chapters, counts, meaning of "repeatable", configuration and reported
+  measures (FR-019), and a rubric for marking (FR-020).
+- **The key check**: an unreadable verdict, the reasoning setting, development and test cases
+  kept apart, a paired interval, a bounded number of attempts, and how the remaining rate is
+  measured (FR-024 to FR-027).
+- **The records**: `docs/benchmark-results.md` added (FR-031).
+- **The success criteria**: how each one is judged, and reasons for SC-002's and SC-004's
+  thresholds.
+
+### The owner's request after the checklist, 2026-11-10
+
+- **No pointers to where the answer is.** The owner, reading the probe's questions, wrote
+  (translated from Portuguese): "We need to avoid these references to passages, and simply refer
+  to the chapter or the book more generically, not giving the user hints about where they can find
+  the answer by looking in the book." Their examples were "segundo o trecho", "de acordo com o
+  trecho" and "trecho N". 20 of the probe's 24 questions did this.
+- **Where it landed**:
+  - FR-004 now forbids references to the passage, its section or pages, and, in a whole-book quiz,
+    to the chapter;
+  - FR-010 refuses the forms it recognizes;
+  - FR-020 notes the rest;
+  - SC-015 counts them.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -293,9 +329,27 @@ Each one came from checking the spec against the code. `research.md` gives the r
 
 - **FR-004**: Each question MUST have its text, five options labeled A to E, exactly one right
   option, an explanation of why it is right, and the one passage it was written from.
+  - **The explanation** MUST be stated by the passage, as the key is (FR-005). It may restate or
+    quote the passage, and adds nothing the passage doesn't say.
+  - **The four wrong options** MUST be of about the same length and form as the right one, so
+    that length gives the answer away no more than chance does (SC-002).
+  - **The question and its options** MUST read like an exam question about the book, giving no
+    hint of where in the book the answer is. They may refer to the author or to the book, and in
+    a one-chapter quiz to "the chapter", generically.
+    - They MUST NOT refer to the passage they were written from ("o trecho", "de acordo com a
+      passagem 2", "the passage"), nor to its section or pages.
+    - In a whole-book quiz, they MUST NOT name the chapter a question comes from.
+    - The explanation, shown after submission next to the passage, may refer to it.
 - **FR-005**: Every question MUST stay within what the book says: its right option is stated by
-  its passage, and answering it needs nothing the book doesn't give (constitution VII). Questions
-  may ask about the author's arguments, explanations and evidence, not only facts.
+  its passage, and answering it needs nothing the book doesn't give (constitution VII).
+  - **Arguments, not only facts.** Questions may ask about the author's arguments, explanations
+    and evidence: why something happened, how one claim leads to another, what the author
+    concludes.
+  - **Following the reasoning is allowed.** A question may ask the reader to follow the passage's
+    reasoning, as long as the passage itself states the answer, or the steps that lead to it. It
+    may not need an inference the passage doesn't support, nor any knowledge from outside it.
+  - **Across languages, by meaning.** When the questions are in another language than the book
+    (FR-003), "stated by its passage" is judged by meaning, across the two languages.
 - **FR-006**: The application, not the model, MUST choose the passages questions are written from,
   one passage per question:
   - **One chapter**: spread from the chapter's start to its end. With 3 or more questions, each
@@ -306,21 +360,51 @@ Each one came from checking the spec against the code. `research.md` gives the r
     passages. A question's place in the quiz says nothing about where in the chapter or book it
     comes from. Question 1 may come from the start, question 9 from the start too, and question
     10 from the middle. If a draw happens to match the text's order, it is drawn again.
-- **FR-007**: Passages with nothing to ask about MUST NOT be used: references, bibliographies,
-  further reading, lists of illustrations or tables, acknowledgements and indexes, whether they
-  are whole catalog chapters or passages within one. Such passages are recognized by their
-  content, not by a chapter's title.
+- **FR-007**: Passages with nothing to ask about MUST NOT be used. Such passages are recognized by
+  their content, not by a chapter's title, whether they are whole catalog chapters or passages
+  within one.
+  - **What has nothing to ask about.** A passage that only points elsewhere or names things,
+    without saying anything about the book's subject: references, bibliographies, further
+    reading, lists of illustrations or tables, acknowledgements, indexes, and a caption that only
+    names its figure.
+  - **What is asked about.** A passage that states something about the subject, in any form: a
+    table of figures, a list of events, an epigraph, a chapter's own summary, or a caption that
+    says what its figure shows.
+  - **A chapter with nothing to ask about.** When two of a chapter's passages in a row turn out to
+    have nothing to ask about, the chapter is treated as having none. In a whole-book quiz, its
+    questions go to the other chapters (FR-006). In a one-chapter quiz, the preparation ends and
+    says the chapter has nothing to ask about.
 - **FR-008**: The application, not the model, MUST decide which letter holds the right option.
   Over a quiz of N questions, each letter holds it between ⌊N/5⌋ and ⌈N/5⌉ times.
-- **FR-009**: A question MUST NOT be accepted if any option refers to other options or to its
-  position, such as "all of the above", "both A and B" or "none of the above".
+- **FR-009**: Every option MUST be readable on its own, whatever its letter and whatever the other
+  options say. No option may refer to other options by letter or by position, or be right or
+  wrong according to them, as "all of the above", "both A and B" and "none of the above" are. The
+  application refuses the forms it can recognize (FR-010). The reading marks any that get through
+  as flawed (FR-020).
 - **FR-010**: A reply the application can't read, or a question not in the required form, MUST be
-  written again. "Not in the required form" means any of: not five options, no right option or
-  more than one, repeated options, no explanation, or a passage other than the one given. After 3
-  failed attempts on a passage, another passage is used. If the quiz still has fewer questions
-  than asked, the reader MUST be told how many it has. A question is never dropped silently.
+  written again. Each refusal is counted by kind (FR-019):
+  - `unreadable`: the reply can't be read;
+  - `cut_off`: it stopped at its length limit;
+  - `blank_field`: the question, the right answer or the explanation is missing or blank;
+  - `wrong_count`: there aren't exactly four wrong answers;
+  - `repeated_option`: two options have the same text, ignoring case, spacing and final
+    punctuation. Options that say the same thing in other words aren't detected; the reading marks
+    them flawed;
+  - `cross_reference`: an option depends on the others (FR-009);
+  - `passage_reference`: the question or an option refers to its passage, its section or its pages,
+    or, in a whole-book quiz, names its chapter (FR-004). Recognized by the forms the application
+    knows, in the six interface languages. The reading notes any that get through (FR-020);
+  - `wrong_language`: the question, its options and its explanation are identified, with
+    confidence, as another language than the one named (FR-003). An identification without
+    confidence is accepted.
+
+  After 3 failed attempts on a passage, another passage is used. If the quiz still has fewer
+  questions than asked, the reader MUST be told how many it has. A question is never dropped
+  silently.
 - **FR-011**: A question MUST be written only from a passage the model received whole. Nothing the
-  model is given may be cut off for lack of room.
+  model is given may be cut off for lack of room. A passage too long to fit with its instructions
+  is passed over for another and counted (FR-019). With today's chunk size of 500 tokens, in an
+  8,192-token window, this doesn't happen. A change to the chunking or the window keeps the rule.
 - **FR-012**: Preparation has no time limit. It MUST show its progress: the number of questions
   ready out of the number asked. Each question MUST appear in its place in the quiz as soon as it
   is ready, after any check (FR-024). The reader can answer it while the rest are prepared.
@@ -368,23 +452,54 @@ Each one came from checking the spec against the code. `research.md` gives the r
 #### The measurement
 
 - **FR-019**: A command MUST run a repeatable measurement of question writing with the configured
-  model, on chapters named in its own configuration. Its chapters are six:
-  - the probe's three chapters of *História econômica global*, so the baseline compares: Capítulo
-    1, 3 and 6;
-  - one chapter from each benchmark book: *Think Python*, *On Liberty* and *Quincas Borba*. They
-    cover a programming book, philosophy and a novel, in English and Portuguese.
+  model, on chapters named in its own configuration with their numbers of questions. Its chapters
+  are six:
+  - **The probe's three**, so the baseline compares: Capítulo 1, 3 and 6 of *História econômica
+    global*, at 10, 17 and 20 questions (FR-002's defaults).
+  - **One from each benchmark book**: *Inheritance* of *Think Python*, *CHAPTER V. APPLICATIONS*
+    of *On Liberty*, and *CAPITULO L* of *Quincas Borba*, each at FR-002's default. They are
+    chapters the summarization benchmark already uses, and cover a programming book, philosophy
+    and a novel, in English and Portuguese.
+
+  **Repeatable** means that a run given the same seed uses the same passages, in the same order,
+  with the same letters. The questions themselves may differ between runs, since the model
+  samples.
+
+  The measurement runs in the configuration it is given, and records it (FR-023). SC-002 to
+  SC-004 are judged on a run in the configuration that ships: the key check is on only if
+  FR-027's rule passed.
 
   It reports, computed without a judge:
   - the share of right options on each letter;
   - the share of questions whose right option is the longest;
-  - the share the model answers right without the passages;
-  - where in each chapter the questions come from;
+  - the share the model answers right without the passages. This has no target. A book's subject
+    can be known without reading it, and a question within the book can still be answered from
+    knowledge; the share shows how much a score may owe to that;
+  - the share of each chapter's questions in each third of the chapter;
   - questions delivered against asked;
-  - the replies it couldn't read, by kind;
+  - refusals by the kinds of FR-010, passages skipped (FR-007), passages passed over (FR-011), and
+    check verdicts that couldn't be read (FR-024);
   - the time to prepare each quiz, and to its first question.
 - **FR-020**: The measurement MUST list every question with its options, key, explanation and
-  passage, in a form a reader can mark as sound or flawed, with a reason. Once marked, the share
-  of sound keys MUST be computed from the marks.
+  passage, in a form a reader can mark, with reasons:
+  - **Sound**: the key is right according to the passage, it is the only defensible option, and
+    the explanation says nothing the passage doesn't.
+  - **Flawed**, with one or more reasons:
+    - a wrong key;
+    - a key the passage doesn't state;
+    - two defensible options;
+    - an explanation beyond the passage;
+    - an option that depends on the others (FR-009);
+    - a question about a passage with nothing to ask about (FR-007).
+  - **Weak wording with a sound key** is marked sound, with a note: for example, a question that
+    gives its answer away. The probe's reading counted Q2, Q7, Q9 and Q13 this way. A question or
+    option that points to its passage, section, pages or, in a whole-book quiz, its chapter
+    (FR-004) gets the note `refers_to_passage`, which SC-015 counts.
+
+  The share of sound keys MUST be computed from the marked questions only, saying how many are
+  unmarked. An unmarked question is never counted as sound or as flawed. The listing holds the
+  passages' text, so it stays with the results, out of the repository: no passage text of a book
+  that isn't public may enter the repository (FR-026).
 - **FR-021**: The measurement MUST run on its own copies of its books, apart from the library, and
   MUST NOT read or change the library's books, catalog or index (constitution II).
 - **FR-022**: Measuring another model MUST need only a configuration change (constitution I).
@@ -403,23 +518,43 @@ Each one came from checking the spec against the code. `research.md` gives the r
   The check reads the question with its passage, and rejects it if its key is wrong, isn't stated
   by the passage, or isn't the only defensible option. A rejected question is replaced as in
   FR-010.
+  - **An unreadable verdict** is asked for a second time. If the second can't be read either, the
+    question is shown, and the event is logged and counted (FR-019). The passage shown after
+    submission stays the reader's safeguard, as the abstention check never costs the reader an
+    answer.
 - **FR-025**: The check MUST be a setting that can be switched on or off without a code change.
-  The model that runs it MUST be a setting too. It defaults to the model that wrote the
-  questions, and may name any other configured local model (constitution I).
-- **FR-026**: The known cases MUST be questions read by hand against their passages and marked
-  sound or flawed, with the reason. They start from the probe's 24 (4 flawed), and MUST include at
-  least 10 flawed and 30 sound questions before FR-027's rule is applied. They come from the
-  measurement's own questions (FR-020).
-- **FR-027**: The check is switched on by default only if, on the known cases, both of these
-  hold:
-  - (a) it rejects a larger share of the flawed questions than the generating model's own
-    open-book answer does, where the probe's equivalent caught 1 of 4;
-  - (b) it rejects no more than 10% of the sound questions.
+  - **The model** that runs it MUST be a setting too. It defaults to the model that wrote the
+    questions, and may name any other configured local model (constitution I).
+  - **The reasoning level** MUST be a setting as well, replacing the checker's profile setting for
+    the check. FR-027's rule is applied at the level that ships.
+- **FR-026**: The known cases MUST be questions read against their passages and marked as FR-020
+  says, with the reasons. They are of two kinds, kept apart so that the check isn't tuned to its
+  own test:
+  - **Development cases**: wordings of the check may be tried on them. They are the probe's 24 (4
+    flawed), and any marked before the check's final wording is fixed.
+  - **Test cases**: marked afterwards, from measurement runs no wording was tried on. They MUST
+    include at least 10 flawed and 30 sound questions. If one run doesn't yield 10 flawed keys,
+    another run, with another seed, is read.
 
-  The rule is fixed before the check is first run on the known cases. It applies the same way to
-  any checker model tried, and each try is recorded with its model. If no wording of the check,
-  with any model tried, passes within the time the plan allots, the check ships switched off. The
-  remaining rate of flawed keys is recorded either way.
+  A known case locates its passage by a verbatim quote of at most 30 words. No passage text of a
+  book that isn't public is stored with it.
+- **FR-027**: The check is switched on by default only if, on the test cases, both of these hold:
+  - **(a) It catches more flawed questions than the comparator does.**
+    - The comparator is the shipped writer model answering each case with its passage. A flawed
+      case is caught when its answer isn't the key. The probe's equivalent caught 1 of 4.
+    - Compared case by case, the difference counts only when its paired bootstrap interval (4,000
+      resamples, 95%) excludes zero (constitution VI). A tie fails.
+  - **(b) It rejects no more than 10% of the sound questions.**
+
+  The rule is fixed before the check is first run on any known case. It applies the same way to
+  any checker model tried, and each try is recorded with its model.
+  - **Attempts**: at most three wordings of the check are tried on the development cases, each
+    with the writer model and with at most one other configured model. The rule is then applied
+    once, on the test cases, to the try that did best on the development cases. If it fails, the
+    check ships switched off.
+  - **The remaining rate**: either way, the share of flawed keys in the marked reading of a
+    measurement run in the shipped configuration (SC-003) is recorded in
+    `docs/benchmark-results.md` and `docs/decisions.md`.
 
 #### Constraints from the constitution
 
@@ -431,8 +566,9 @@ Each one came from checking the spec against the code. `research.md` gives the r
   default model and on a real book, through integration tests or the measurement, not only with
   fake models (constitution V).
 - **FR-031**: `README.md` MUST describe the Quiz tab and the measurement. `docs/decisions.md` MUST
-  record each choice this feature makes and why, including the key check's verdict (constitution
-  VIII).
+  record each choice this feature makes and why, including the key check's verdict.
+  `docs/benchmark-results.md` MUST record the measurement runs and the check's proof
+  (constitution VIII).
 
 ### Key Entities
 
@@ -448,7 +584,8 @@ Each one came from checking the spec against the code. `research.md` gives the r
 - **Measurement run**: the model and its environment (FR-023), the chapters, the computed measures
   (FR-019), its questions for reading by hand, and their marks once read.
 - **Known case**: a question with its passage, marked sound or flawed by a reader, with the
-  reason. It is used to decide the key check.
+  reasons. It is either a development case or a test case (FR-026), and locates its passage by a
+  quote of at most 30 words. It is used to decide the key check.
 
 ## Success Criteria *(mandatory)*
 
@@ -457,14 +594,26 @@ Each one came from checking the spec against the code. `research.md` gives the r
 Baselines are the probe's: gpt-oss:20b, a first prompt, 24 questions on chapters 1, 3 and 6 of
 *História econômica global*.
 
+How each criterion is judged:
+- **By construction, for every quiz.** SC-001, SC-005, SC-009, SC-014, and SC-006's spread. The
+  unit tests pin them, and the measurement's rows show them.
+- **On one full measurement run** in the configuration that ships, with its experiment's seed
+  (FR-019). SC-002, SC-003, SC-004 and SC-015, reported with their counts. A target missed is
+  recorded as missed, not rounded up.
+- **On the quickstart's whole-book quiz.** SC-006's absence of questions from references and
+  lists, which depends on the model.
+- **By the owner after use.** SC-013, which doesn't block delivery.
+
 - **SC-001**: In every quiz of 5 or more questions, each letter holds the right answer between
   ⌊N/5⌋ and ⌈N/5⌉ times. Baseline: never D or E, and always answering B scored 54%.
 - **SC-002**: On the measurement, always taking the longest option scores at most 35%, against 20%
-  by chance. Baseline: 62%.
-- **SC-003**: On the measurement, at least 90% of the questions read by hand have a right key that
-  is the only defensible answer. Baseline: 20 of 24, 83%.
+  by chance. A reader who always takes the longest then gains at most 15 points over guessing.
+  Baseline: 62%.
+- **SC-003**: On the measurement, at least 90% of the questions are marked sound (FR-020). Every
+  question of the run, about 85, is read. Baseline: 20 of 24, 83%.
 - **SC-004**: On the measurement, at least 95% of the questions asked are delivered, and every
-  shortfall is reported to the reader. Baseline: 24 of 30, two replies lost silently.
+  shortfall is reported to the reader. That is about one question in 20 missing after retries,
+  where the probe's batches lost one in five. Baseline: 24 of 30, two replies lost silently.
 - **SC-005**: In one-chapter quizzes of 3 or more questions, every third of the chapter has a
   question. Baseline: 14 of 18 questions came from the first 3 passages of 9–10.
 - **SC-006**: In a 20-question whole-book quiz on *História econômica global*, each chapter's
@@ -485,8 +634,13 @@ Baselines are the probe's: gpt-oss:20b, a first prompt, 24 questions on chapters
   application's state. After a restart, none can be found anywhere in the application, including
   the interface's temporary storage.
 - **SC-013** (qualitative): Studying with it, the owner finds that the passage shown for a missed
-  question is the one to reread.
+  question is the one to reread. It is reported by the owner after use, and isn't a gate.
 - **SC-014**: No quiz of 2 or more questions is shown in the order of its passages in the text.
+- **SC-015**: On the measurement, no question or option points to where its answer is. That means
+  no reference to its passage, its section or its pages, and no chapter named in a whole-book
+  quiz: the application refuses the forms it knows (FR-010), and the reading notes the rest
+  (FR-020). Baseline: 20 of 24 questions in the probe said "segundo o trecho", "de acordo com a
+  passagem 2" or the like.
 
 ## Assumptions
 
@@ -504,8 +658,11 @@ Baselines are the probe's: gpt-oss:20b, a first prompt, 24 questions on chapters
     measurement's own workspace, apart from the library. Its checksum identifies it in each
     result.
 
-  Which chapter of each benchmark book to use is the plan's choice, among those the benchmarks
-  already use.
+  If the benchmarks restored from `c7bb785` or the owner's copy are missing, or the copy's
+  checksum differs, a run stops before any work and says which.
+- **Who reads.** The readings are marked and the known cases labeled by the agent that implements
+  the feature, as the probe was. Before FR-027's rule is applied, the owner reviews every flawed
+  label and a sample of the sound ones.
 - **The key check is a judge** (constitution VI), and FR-027 is how it proves itself. A judge of
   quiz quality, for scores beyond the check's own rejections, is out of scope.
 - **Out of scope**, inherited from the assessment:

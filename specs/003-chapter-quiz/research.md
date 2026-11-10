@@ -85,9 +85,23 @@ the code raised. The figures come from the assessment's probe
   - **Form checks.** A question is refused when:
     - the question, the right answer or the explanation is missing or blank;
     - there aren't exactly four wrong answers;
-    - two options are the same, compared casefolded and trimmed;
+    - two options are the same, compared casefolded, with spacing collapsed and final punctuation
+      removed;
     - an option refers to the others (FR-009);
-    - the reply hit its length limit.
+    - the reply hit its length limit;
+    - the question, options and explanation together are identified as another language than the
+      one named. This uses `reply_language`, which the generation benchmark already uses and
+      which is restricted to the six interface languages. A short or mixed text it can't tell
+      with confidence passes (FR-010);
+    - the question or an option points to where its answer is: "segundo o trecho", "passagem 2",
+      "the passage", a page, a section's title, or, in a whole-book quiz, the chapter's title
+      (FR-004, `contracts/model-replies.md`).
+  - **Nothing to point at.** The writer gets its passage with no number, section or pages, under
+    the book's title, plus the chapter's in a one-chapter quiz. It is told to ask as an exam would
+    about the book, "segundo o autor" rather than "segundo o trecho". In the probe, numbered
+    passages under book, chapter, section and page headers led 20 of 24 questions to point at
+    their passage, which the owner asked to avoid. Removing the pointers from the prompt does
+    most of the work; the refusal catches the rest.
   - **Cross-references.** An option is refused when it says "all of the above" or "none of the
     above", in any of the six interface languages, or names another option by letter, such as
     "A and B" or "option C".
@@ -232,9 +246,18 @@ the code raised. The figures come from the assessment's probe
     question is shown, and the event is logged and counted. The passage shown after submission
     remains the reader's safeguard, as the abstention check never costs the reader an answer.
   - **The proof (FR-026, FR-027).** The experiment kind `quiz_check` (R12) runs the check over the
-    known cases, and computes the rule's comparator in the same run: the writer's own open-book
-    answer, as in the probe. Each wording and each checker model is a variant, recorded with its
-    result. The rule picks whether the shipped default is `check.enabled: true`.
+    known cases, and computes the rule's comparator in the same run: the shipped writer answering
+    each case with its passage, as in the probe. It is done in three steps, so the check isn't
+    tuned to its own test:
+    1. **Development.** At most three wordings are tried on the development cases, each with the
+       writer and with at most one other configured model. These runs report the counts, but
+       decide nothing.
+    2. **Test cases.** The best try is fixed. Then measurement runs it was never tried on are read
+       and marked, until the test cases hold at least 10 flawed and 30 sound, reading another seed
+       if needed. The owner reviews the flawed labels and a sample of the sound ones.
+    3. **The rule.** One `quiz_check` run on the test cases applies FR-027. Condition (a) uses the
+       report's `paired_difference` (4,000 resamples, 95%), case by case, as every other paired
+       comparison does. The result sets whether the shipped default is `check.enabled: true`.
 - **Rationale**:
   - **One list covers all three flaws** the reading found: a wrong key (Q17), a key not in the
     passage (Q16), and two defensible answers (Q18, Q22).
@@ -266,20 +289,21 @@ the code raised. The figures come from the assessment's probe
     The letter spread and where questions come from are computed from the rows and shown by
     `benchmark-report`.
   - **The reading.** The run writes `reading.csv` next to `results.json`. Each row holds a
-    question, its options, the key, the explanation, the passage with its pages, and empty `mark`
-    and `reason` columns. Once marked, `benchmark-report` computes the share of sound keys
-    (FR-020, SC-003). The file holds book text, so it stays with the results, out of the
-    repository.
+    question, its options, the key, the explanation, the passage with its pages, and empty `mark`,
+    `reasons` and `note` columns, for FR-020's rubric. Once marked, `benchmark-report` computes the
+    share of sound keys over the marked rows, saying how many are unmarked (FR-020, SC-003). The
+    file holds book text, so it stays with the results, out of the repository.
   - **`quiz_check` (FR-026, FR-027)**: for each variant (a checker model and wording), it runs the
-    check and the writer's open-book answer over the known cases. It reports the share of flawed
-    cases each catches and the share of sound ones each rejects, and states whether FR-027's rule
-    passes.
+    check and the comparator over the known cases of the set it is given, development or test. It
+    reports the share of flawed cases each catches and the share of sound ones each rejects. On
+    the test set only, it applies FR-027's rule and states whether it passes.
   - **The known cases.** They are kept in `specs/003-chapter-quiz/key_cases.yaml`: each holds the
-    question, the options, the key, the label, the reason, the book key and the chapter.
+    question, the options, the key, the label, the reasons, the book key, the chapter, and its set
+    (`development` or `test`).
     - **The passage** is located by a verbatim quote of at most 30 words, the dataset's convention
       for evidence. No passage of the owner's book is committed.
-    - **The set** starts from the probe's 24, and grows from the marked readings until it holds at
-      least 10 flawed and 30 sound.
+    - **The set** starts from the probe's 24 as development cases. Test cases come later, from
+      runs no wording was tried on (R11), until they hold at least 10 flawed and 30 sound.
   - **The owner's book in the workspace.** An experiment can list `local_books` by key, title,
     language, file name and checksum. The owner copies the file into `benchmarks/books`; the runner
     verifies its checksum, never fetches it, and indexes it in the workspace beside the dataset's
@@ -288,12 +312,14 @@ the code raised. The figures come from the assessment's probe
     are copied into the container with the benchmarks restored from `c7bb785` (README,
     Benchmarks).
   - **The targets** (FR-019):
-    - Capítulo 1, 3 and 6 of *História econômica global*;
+    - Capítulo 1, 3 and 6 of *História econômica global*, at 10, 17 and 20 questions;
     - *Inheritance* from *Think Python*;
     - *CHAPTER V. APPLICATIONS* from *On Liberty*;
-    - *CAPITULO L* from *Quincas Borba*.
+    - *CAPITULO L* from *Quincas Borba*, about 6 questions by its 1,878 words.
 
-    The last three are chapters the summarization benchmark already uses.
+    The last three are chapters the summarization benchmark already uses. Each runs at FR-002's
+    default, which the experiment file records as a number once the books are indexed in the
+    workspace. That makes about 85 questions a run.
 - **Rationale**:
   - **The runner already does what constitution VI asks.** It isolates the workspace, records the
     environment (digests, versions, hardware, configuration, checksum), flags sampled runs, and

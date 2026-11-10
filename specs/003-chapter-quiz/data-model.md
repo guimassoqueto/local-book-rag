@@ -53,6 +53,11 @@ A reply that can't be read, or a draft that fails a rule, is a **refusal**. Each
 - `wrong_count`
 - `repeated_option`
 - `cross_reference`
+- `passage_reference`
+- `wrong_language`
+
+These are FR-010's kinds. A passage too long to fit with its instructions is **passed over**
+instead (FR-011), and counted apart.
 
 ## Question
 
@@ -152,13 +157,22 @@ result on demand.
 - `variant`, `book`, `chapter`;
 - `asked`, `delivered`, `delivered_share`;
 - `seconds`, `first_question_seconds`;
-- `skipped_passages`, `ruled_out_chapters`.
+- `skipped_passages`, `passed_over_passages`, `ruled_out_chapters`;
+- `check_unreadable`: verdicts that couldn't be read twice (FR-024).
 
 **Reading row** (`reading.csv`, results directory only):
 - `question` (the pairing ID), `book`, `chapter`, `pages`, `passage`;
 - `text`, the options A to E, `key`, `explanation`;
-- `mark`: `sound`, `flawed` or empty;
-- `reason`.
+- `mark`: `sound`, `flawed` or empty. Empty means unmarked, and counts as neither (FR-020);
+- `reasons`, for a flawed mark, one or more of:
+  - `wrong_key`
+  - `key_not_stated`
+  - `two_defensible`
+  - `explanation_beyond_passage`
+  - `option_depends_on_others`
+  - `nothing_to_ask`
+- `note`: free text, such as a weak wording on a sound key. `refers_to_passage` marks a question
+  that points to its passage, section, pages or, in a whole-book quiz, chapter (SC-015).
 
 **Known case** (`specs/003-chapter-quiz/key_cases.yaml`):
 
@@ -172,8 +186,10 @@ result on demand.
 | `question`    | str                   |                                                         |
 | `options`     | map `A`..`E` → str    |                                                         |
 | `key`         | `A`..`E`              |                                                         |
-| `label`       | `sound` or `flawed`   |                                                         |
-| `reason`      | str                   | Why it was labeled so. Required for `flawed`.           |
+| `label`       | `sound` or `flawed`   | By FR-020's rubric.                                     |
+| `reasons`     | list of str           | The reading row's reasons. Required for `flawed`.       |
+| `note`        | str or null           |                                                         |
+| `set`         | `development` or `test` | FR-026. A test case comes from a run no wording was tried on. |
 
 **Check row** (`kind: quiz_check`): `variant`, `case`, `label`, `rejected`, `supported`,
 `readable`, `open_book_answer` and `open_book_caught`. The last two come from the comparator: the

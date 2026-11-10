@@ -19,6 +19,7 @@ The experiment files are `specs/003-chapter-quiz/benchmarks/quiz.yaml` and `quiz
 | `targets`     | `quiz`            | list of `{book, chapter, questions}`   | `book` is a dataset or local key. `chapter` is a title, or null for the whole book. `questions` is null for the default rule. |
 | `seed`        | `quiz`            | int, default 0                         | Passed to `QuizService.prepare` (research R6).         |
 | `known_cases` | `quiz_check`      | path                                   | The known cases file.                                  |
+| `case_set`    | `quiz_check`      | `development` or `test`, required      | Which known cases to run on (FR-026).                  |
 
 Variants override configuration as before: `llm.model` for the writer, and `generation.quiz.check.*`
 for the checker.
@@ -35,8 +36,14 @@ Measurement. `summarize` averages these per variant, and per book:
 - the letter spread: the share of keys on each letter, which should be balanced by construction,
   beside the model's own order (`model_order_letter`);
 - where questions come from: the share in each third of their chapter;
-- refusals and skips by kind;
-- once `reading.csv` holds marks, the share of sound keys, with how many were marked.
+- refusals by FR-010's kinds, passages skipped and passed over, and check verdicts that couldn't
+  be read;
+- `closed_book_correct`, shown without a target (FR-019);
+- once `reading.csv` holds marks, the share of sound keys over the marked rows. It says how many
+  rows are unmarked, counts the flawed ones by reason (FR-020), and counts the rows noted
+  `refers_to_passage` (SC-015).
+
+These are FR-019's measures, one for one.
 
 Rows pair across variants by `question` (`book:chapter:position`). With the same seed and targets,
 `--baseline` compares question by question.
@@ -46,19 +53,25 @@ text. It stays in the results directory, out of the repository.
 
 ## `kind: quiz_check`
 
-It loads `known_cases` and locates each case's passage in the workspace by its quote. A quote
-found nowhere is reported, and the case is left out and counted. For each variant:
+It loads `known_cases`, keeps the cases of the experiment's `case_set` (`development` or
+`test`), and locates each case's passage in the workspace by its quote. A quote found nowhere is
+reported, and the case is left out and counted. For each variant:
 - the check runs on each case (`contracts/model-replies.md` § The checker);
-- the writer answers each case with its passage (§ The comparator).
+- the shipped writer answers each case with its passage (§ The comparator).
 
 **Rows** follow `data-model.md` § Check row. The **summary**, per variant:
 - `flawed_caught`, `flawed_cases`, `sound_rejected`, `sound_cases`, `unreadable`;
 - the comparator's `flawed_caught`;
-- `rule_passes`: `flawed_caught/flawed_cases` above the comparator's, and
-  `sound_rejected/sound_cases` ≤ 0.10 (FR-027).
+- on the `test` set only, `rule_passes`:
+  - (a) the paired difference, check caught minus comparator caught, over the flawed cases, from
+    `paired_difference` (4,000 resamples, 95%), has an interval above zero;
+  - (b) `sound_rejected/sound_cases` ≤ 0.10 (FR-027).
 
-The run refuses to state a verdict with fewer than 10 flawed or 30 sound cases located (FR-026):
-`rule_passes` is null, with the reason.
+On the `development` set, `rule_passes` is always null: those runs choose a wording, and decide
+nothing. On the `test` set, a run with fewer than 10 flawed or 30 sound cases located states no
+verdict either: `rule_passes` is null, with the reason (FR-026).
+
+`case_set` is a new field of `Experiment`, for this kind, and has no default.
 
 ## `key_cases.yaml`
 
@@ -68,5 +81,11 @@ A YAML list of known cases (`data-model.md` § Known case). Its comment header s
 - that no passage text is stored.
 
 It starts from the 24 questions of `.specify/assessments/chapter-quiz/probe/results.json`, labeled
-as that reading did: 4 flawed (Q16, Q17, Q18, Q22) and 20 sound. Cases are added from marked
-`reading.csv` files, with their run's name as `source`.
+as that reading did, as development cases:
+- **4 flawed**: Q16 `key_not_stated`, Q17 `wrong_key`, Q18 `two_defensible`, Q22
+  `two_defensible`;
+- **20 sound**: Q2, Q7, Q9 and Q13 with a note on their wording.
+
+Cases are added from marked `reading.csv` files, with their run's name as `source`. A run read
+before the check's final wording was fixed gives development cases; a run read afterwards gives
+test cases (FR-026).

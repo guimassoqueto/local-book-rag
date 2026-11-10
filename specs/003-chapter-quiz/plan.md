@@ -74,7 +74,7 @@ two minutes for 20, plus the check when it is on. The first question appears aft
 | **III. Index integrity** | Embedding and chunking unchanged; new settings outside the fingerprint unless they shape the index. | PASS. | PASS. No quiz setting shapes stored vectors, so `IndexService.current_configuration` is untouched. |
 | **IV. One service layer** | Operations are service methods; the tab only reads and shows. | PASS. | PASS. `QuizService` holds every rule. The tab streams its events and shows them (`contracts/quiz-tab.md`). The benchmark calls the same service. |
 | **V. Verified on real models and real books** | Prompts, parsers and judges checked on real models; long calls through `app/generation`; prompts fitted. | Applies: a new prompt, a new reader, a judge. | PASS. `tests/integration/test_quiz.py` covers the reply format, the skip, the language and the check's readability on the configured model. The `quiz` experiment covers quality on six real chapters in two languages (R14). Readers accept what models write (R4). Every call goes through the provider and is fitted (FR-011). |
-| **VI. Measured, not assumed** | Claims measured against a baseline; a judge proves itself first; results record their environment; intervals read honestly. | Applies: quality targets, and the key check is a judge. | PASS. The `quiz` experiment measures SC-001 to SC-006 and SC-008 against the probe's baselines. Seeded passages pair variants for `--baseline` (R6). `quiz_check` applies FR-027, with its comparator, before the check can be on by default. Results record digests, versions, hardware, configuration, commit and book checksums (FR-023). Sound keys come from hand marks, never a judge's score. |
+| **VI. Measured, not assumed** | Claims measured against a baseline; a judge proves itself first; results record their environment; intervals read honestly. | Applies: quality targets, and the key check is a judge. | PASS. The `quiz` experiment measures SC-001 to SC-006 and SC-008 against the probe's baselines. Seeded passages pair variants for `--baseline` (R6). `quiz_check` applies FR-027, with its comparator and a paired interval, on held-out test cases no wording was tried on, before the check can be on by default. Results record digests, versions, hardware, configuration, commit and book checksums (FR-023). Sound keys come from hand marks, never a judge's score. |
 | **VII. Every answer traceable** | Claims trace to passages; no-evidence path kept. | Applies: keys are claims. | PASS. Every question carries its one passage, shown with pages after submission and referenced in the download. Keys must be stated by the passage (FR-005), and the check's verdict is about exactly that. The answering and summary paths are untouched. |
 | **VIII. Decisions are recorded** | README and `docs/decisions.md` updated; odd behavior's reasons read first. | Applies. | PASS. The tasks update `README.md` (Interface table, a Quiz section, Benchmarks) and `docs/decisions.md` (R2 to R12, and the check's verdict), and record the runs in `docs/benchmark-results.md`. The decisions this plan builds on were read first: language naming, judges' reasoning, the abstention check's fail-open, benchmarks out of the repository. |
 
@@ -163,8 +163,16 @@ These are the dependencies that `/speckit-tasks` turns into tasks:
    built on it.
 4. **User Story 2**: the whole-book allocation, ruled-out chapters, and the ranking.
 5. **User Story 3**: the result document, the download, and `delete_cache`.
-6. **User Story 5**: `key_cases.yaml` from the probe and the reading, the check, `quiz_check`,
-   FR-027's verdict, and the shipped default.
+6. **User Story 5**, in the three steps of research R11, so the check isn't tuned to its own
+   test:
+   1. **Development.** `key_cases.yaml` starts from the probe's 24 as development cases. At most
+      three wordings are tried on them, each with the writer and at most one other configured
+      model. That bound is FR-027's allotment.
+   2. **Test cases.** The best try is fixed, then measurement runs it never saw are read and
+      marked, until the test cases hold at least 10 flawed and 30 sound. The owner reviews the
+      labels.
+   3. **The rule.** One `quiz_check` run on the test cases gives FR-027's verdict and the shipped
+      default. SC-003 is then judged on a run in the shipped configuration.
 7. **Records**: the README, `docs/decisions.md`, `docs/benchmark-results.md`, and the quickstart
    run end to end.
 
@@ -178,6 +186,16 @@ They are recorded in `spec.md` § Clarifications, under "Corrections during plan
 - **FR-018 and SC-012.** The application's own state keeps nothing. Gradio's served copy of a
   download is removed on restart and hourly (R9).
 - **FR-023's commit** is passed to the run with `--commit`, since the container holds no `.git`.
+
+`checklists/model-and-measurement.md` then found 38 points to settle in the requirements on model
+output, the key check and the measurement. They are resolved in `spec.md` § Clarifications,
+"Corrections from the requirements checklist", and in `research.md` R4, R11 and R12, the data
+model and the contracts.
+
+The owner then asked that questions never point to where the answer is: no "segundo o trecho",
+passage numbers, pages, sections, or chapters in a whole-book quiz. 20 of the probe's 24 questions
+did this. The writer now gets its passage without anything to point at, and replies that point
+anyway are refused and written again (FR-004, FR-010, SC-015, research R4).
 
 ## Complexity Tracking
 

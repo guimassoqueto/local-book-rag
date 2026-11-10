@@ -8,15 +8,22 @@ the prompt was obeyed (research R4).
 ## The writer
 
 **Sent**: a system message, then one user message holding:
-- **The passage**, with `format_passage(1, chunk)`'s header: book, chapter, section and pages.
+- **The passage**, without a number, section or pages, under the book's title and author. In a
+  one-chapter quiz, the chapter's title is added. The question then has nothing to point at: in
+  the probe, numbered passages under such headers gave "segundo o trecho 7" in 20 of 24 questions
+  (FR-004).
 - **The language**, named: "Write the question, the answers and the explanation in Portuguese."
 - **The rules**:
   - one question, answered by this passage alone;
   - about the author's arguments, explanations and evidence, not page numbers or general knowledge
     (FR-005);
-  - one right answer, stated by the passage;
+  - one right answer, stated by the passage, or reached by steps the passage states (FR-005);
   - four wrong answers, wrong according to the passage, plausible to someone who hasn't read it,
-    and of about the same length and form as the right one;
+    and of about the same length and form as the right one (FR-004);
+  - an explanation that says only what the passage says (FR-004);
+  - the question and options written as an exam would ask about the book. They may say "the
+    author" or "the book", never "the passage", "the excerpt" or "the text above", a number, a
+    section or a page. In a whole-book quiz they don't name the chapter (FR-004);
   - no answer may refer to the others, as "all of the above" does (FR-009);
   - a skip, when the passage holds nothing to ask about (FR-007).
 - **The reply format**, below, with field names only. There are no sample values, which a judge
@@ -41,6 +48,25 @@ or the passage is refused before sending. With 500-token chunks this doesn't hap
 - Otherwise it has to pass the draft's rules (`data-model.md` § Draft), or it is a refusal of that
   kind.
 - `cut_off` is decided before reading: the reply stopped at its length limit.
+- `repeated_option` compares the five options casefolded, with spacing collapsed and final
+  punctuation removed.
+- `wrong_language` joins the question, the options and the explanation, and identifies their
+  language with `reply_language`. The draft is refused only when the result is another of the six
+  interface languages than the one named.
+- `passage_reference` looks at the question and the options, not the explanation, for three
+  things:
+  - **A word for the passage with a number**, in the six languages: "trecho 3", "passagem 2",
+    "passage 4", "excerpt 1", "fragmento 2", "Abschnitt 3", "brano 2".
+  - **A word for the passage after a pointer.** In Portuguese: "segundo o", "de acordo com o",
+    "conforme o", "no", "neste", "deste" or "o … acima", before "trecho", "passagem", "excerto",
+    "fragmento" or "texto". Likewise "according to the passage", "in this excerpt", "the text
+    above", "selon le passage", "según el fragmento", "laut dem Abschnitt", "secondo il brano".
+  - **"página", "page", "p." with a number**, a section's title from the passage's metadata, and,
+    in a whole-book quiz, the chapter's title.
+
+  "Trecho" also means a stretch of road or railway in Portuguese, so the bare word, without a
+  pointer or a number, doesn't count. The lists live with the reader, and grow from what the
+  measurement's reading notes.
 - `cross_reference` is decided by phrases and by letters:
   - **Phrases**: "all of the above", "none of the above", and their equivalents in Portuguese,
     Spanish, French, German and Italian, such as "todas as anteriores", "nenhuma das anteriores",
