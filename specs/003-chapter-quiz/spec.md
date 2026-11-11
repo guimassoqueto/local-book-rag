@@ -329,6 +329,42 @@ A second run, on 2026-11-11, found only text that predated these corrections:
   and within the hour.
 - **FR-027 (a)** says that a case whose comparator answer can't be read is left out and counted.
 
+### Results of the implementation, 2026-11-11
+
+The measurement's numbers, and what the owner decided on each target missed. `docs/benchmark-results.md`
+records the runs.
+- **SC-002 is not met, and the owner accepts it for now.** After the three prompt rounds of T035,
+  the right option is the longest in 41% to 53% of questions, depending on the run, down from 85%.
+  The prompt of round 2 ships. The measurement now also reports the share whose right option is
+  the shortest (FR-019): gemma4:12b's key is never the longest but is the shortest in 97% of its
+  questions, which SC-002 alone didn't show. A rule in the application that writes a question again
+  when its key stands out by length is the next step, if wanted: on the measured questions, a margin
+  of 20% would have rewritten about 30% of the drafts.
+- **SC-003 is not met, and the key check's proof is left to a later feature.** The agent's reading
+  of round 2 marked 65 of 88 keys sound, 0.739. The flaws are mostly keys the passage doesn't
+  state: the author given an argument he only reports or rejects, or a "main" factor the passage
+  doesn't rank. The key check (User Story 5) is built and measured on development cases: at
+  `medium`, gpt-oss caught 12 of 27 flawed keys and rejected 2 of 85 sound ones, where the
+  comparator caught 2. The owner chose not to run its proof now: FR-026's test cases and FR-027's
+  verdict move to a later feature, which starts from this one's experiment, its 112 development
+  cases and the fixed try. Until then the check ships switched off, as FR-027 requires of a check
+  that hasn't passed, and SC-003 stands at 0.739. The passage shown after submission remains the
+  reader's safeguard.
+- **SC-006 is not met on this e-book, and the cause is left to a fix in ingestion.** A 20-question
+  whole-book quiz gave one question from "Lista de tabelas". The extractor put the publisher's
+  back matter into that last chapter: the catalog record, the copyright notice, and five
+  advertisements for other books ("Compre agora e leia"). gpt-oss skips the lists, but wrote
+  questions from 3 of the 5 advertisements, and a sentence in the prompt asking it to skip text
+  that isn't the book's own changed nothing. Only whole-book quizzes are touched, by at most the one
+  question that chapter's share allows. The advertisements are in the index too, where Chat can
+  retrieve them and a summary of that chapter would take them in, so the owner chose to fix them
+  where they come in: a bug fix to ingestion, after this feature, which will need a reindex.
+- **The marks are the agent's, not yet reviewed.** Three agents marked round 2's 88 questions by
+  FR-020's rubric, a third each. The owner's review of every flawed mark and a sample of the sound
+  ones (Assumptions) is due before FR-027's rule is applied, so it moves with the proof to the later
+  feature. Until then SC-003's 0.739 is the agent's reading, and the 88 cases in `key_cases.yaml`
+  say so in their `source`.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -497,7 +533,8 @@ A second run, on 2026-11-11, found only text that predated these corrections:
 
   It reports, computed without a judge:
   - the share of right options on each letter;
-  - the share of questions whose right option is the longest;
+  - the share of questions whose right option is the longest, and the share whose right option is
+    the shortest: length gives the answer away both ways;
   - the share the model answers right without the passages. This has no target. A book's subject
     can be known without reading it, and a question within the book can still be answered from
     knowledge; the share shows how much a score may owe to that;
@@ -635,9 +672,10 @@ How each criterion is judged:
   ⌊N/5⌋ and ⌈N/5⌉ times. Baseline: never D or E, and always answering B scored 54%.
 - **SC-002**: On the measurement, always taking the longest option scores at most 35%, against 20%
   by chance. A reader who always takes the longest then gains at most 15 points over guessing.
-  Baseline: 62%.
+  Baseline: 62%. Measured: 41% to 53%, not met (§ Clarifications, Results of the implementation).
 - **SC-003**: On the measurement, at least 90% of the questions are marked sound (FR-020). Every
-  question of the run, about 85, is read. Baseline: 20 of 24, 83%.
+  question of the run, about 85, is read. Baseline: 20 of 24, 83%. Measured: 65 of 88, 74%, by the
+  agent's reading, not yet reviewed: not met (§ Clarifications, Results of the implementation).
 - **SC-004**: On the measurement, at least 95% of the questions asked are delivered, and every
   shortfall is reported to the reader. That is about one question in 20 missing after retries,
   where the probe's batches lost one in five. Baseline: 24 of 30, two replies lost silently.
@@ -646,7 +684,9 @@ How each criterion is judged:
 - **SC-006**: In a 20-question whole-book quiz on *História econômica global*, each chapter's
   number of questions is within one of its share of the text, among the chapters still in play
   (FR-006). No question comes from its
-  acknowledgements, references, further reading, or lists of illustrations and tables.
+  acknowledgements, references, further reading, or lists of illustrations and tables. Measured:
+  the shares hold, but one question in 20 came from the publisher's advertisements that ingestion
+  put into "Lista de tabelas" (§ Clarifications, Results of the implementation).
 - **SC-007**: Every question in every result shows its passage, with chapter, section and pages.
   Baseline: 24 of 24.
 - **SC-008**: Preparation has no time limit; quality comes before speed. In every quiz, the reader

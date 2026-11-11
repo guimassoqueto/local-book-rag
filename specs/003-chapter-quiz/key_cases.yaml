@@ -1,0 +1,2221 @@
+# Known cases for the quiz's key check (specs/003-chapter-quiz, FR-026, FR-027).
+#
+# Each case is a quiz question whose key was judged by reading it against its passage, by FR-020's
+# rubric: sound when the key is right according to the passage, it is the only defensible option,
+# and the explanation says nothing the passage doesn't; flawed otherwise, with its reasons. The
+# owner reviews every flawed label and a sample of the sound ones before FR-027's rule is applied.
+#
+# A case locates its passage by `quote`: a verbatim span of at most 30 words of it, found in no
+# other passage of its chapter. No passage text is stored here, as one of the books isn't public.
+#
+# `set: development` cases choose the check's wording; `set: test` cases come from measurement
+# runs that no wording was tried on, and only they decide whether the check ships switched on.
+#
+# The labels of the quiz run's 88 cases are the agent's, not yet reviewed: the owner left the review
+# to the later feature that runs the check's proof (spec.md, Results of the implementation).
+
+- id: probe-Q1
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: dinamismo intrínseco das grandes civilizações do mundo, de modo que, hoje em dia, o que precisamos
+    perguntar é por que o crescimento econômico teve seu
+  question: Segundo o trecho do Capítulo 1, qual foi a principal mudança no foco das pesquisas sobre a
+    origem da riqueza das nações, comparada a cinquenta anos atrás?
+  options:
+    A: De estudar a Revolução Industrial na Inglaterra para analisar a industrialização na Ásia
+    B: De investigar por que a Revolução Industrial aconteceu na Inglaterra e não na França para entender
+      por que o crescimento econômico teve seu arranque na Europa em vez da Ásia ou África
+    C: De analisar a produção de prata nas Américas para compreender a integração econômica mundial
+    D: De comparar a riqueza das nações com a distribuição de recursos naturais
+    E: De avaliar a influência das colônias europeias no desenvolvimento econômico global
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q2
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: Waterloo em 1815, a Grã-Bretanha tinha estabelecido sua liderança na indústria e dominava a concorrência
+    com outros países. A Europa Ocidental e os Estados Unidos
+  question: De acordo com o trecho que descreve o segundo período histórico, qual conjunto de políticas
+    foi adotado pela Grã-Bretanha e pelos Estados Unidos para promover o desenvolvimento econômico?
+  options:
+    A: A criação de um mercado nacional unificado, tarifas internas, bancos privados e ensino técnico
+      especializado
+    B: A eliminação de tarifas internas, a construção de infraestrutura de transportes, a criação de tarifas
+      externas, a instituição de bancos e o ensino de massa
+    C: A imposição de tarifas externas, a privatização de bancos, a redução de impostos e a expansão do
+      comércio interno
+    D: A criação de tarifas internas, a construção de ferrovias, a nacionalização de bancos e a educação
+      superior gratuita
+    E: A eliminação de tarifas externas, a criação de um mercado interno, a privatização de bancos e a
+      redução de impostos
+  key: B
+  label: sound
+  reasons: []
+  note: 'Weak stem: credits Britain with policies that Western Europe and the US adopted to catch up.'
+  set: development
+- id: probe-Q3
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: da China e 58 vezes maior do que a da Índia. Não só a produção britânica cresceu enormemente,
+    como também houve um declínio da manufatura
+  question: Qual afirmação sobre a participação da China e da Índia na manufatura mundial em 1913 está
+    correta segundo a Figura 2?
+  options:
+    A: A participação da China caiu para 4% e a da Índia para 1%, enquanto o Reino Unido, os EUA e a Europa
+      representavam três quartos do total
+    B: A participação da China aumentou para 25% e a da Índia para 33%, refletindo a retomada da produção
+      manufatureira
+    C: A participação da China e da Índia permaneceu em 33% e 25% respectivamente, mostrando estabilidade
+      na manufatura asiática
+    D: A participação da China e da Índia aumentou para 10% e 5%, respectivamente, devido à industrialização
+      ocidental
+    E: A participação da China e da Índia caiu para 2% e 1%, respectivamente, enquanto os EUA e a Europa
+      representavam apenas um quarto do total
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q4
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: de pobreza mundial em $1 por dia (que agora, devido à inflação, subiu para $1,25). Esse número,
+    que se baseia nas linhas de pobreza dos
+  question: Segundo o trecho de passagem 1, qual foi a relação entre os salários reais dos trabalhadores
+    em Londres e o mínimo de subsistência em 1820?
+  options:
+    A: Os salários reais em Londres eram exatamente iguais ao mínimo de subsistência.
+    B: Os salários reais em Londres já eram quatro vezes acima do mínimo de subsistência.
+    C: Os salários reais em Londres eram três vezes abaixo do mínimo de subsistência.
+    D: Os salários reais em Londres não eram mencionados em relação ao mínimo de subsistência.
+    E: Os salários reais em Londres eram apenas 10% acima do mínimo de subsistência.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q5
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: aristocracia e os comerciantes ricos ficavam com o excedente. O noroeste da Europa e os Estados
+    Unidos tinham rendas de quatro a seis vezes acima
+  question: De acordo com a passagem 2, qual era a renda média na África subsaariana em 1820 em relação
+    ao mínimo de subsistência?
+  options:
+    A: A renda média era de $1.000, bem acima do mínimo.
+    B: A renda média era de $415, apenas 15% acima do mínimo de subsistência.
+    C: A renda média era exatamente igual ao mínimo de subsistência.
+    D: A renda média era de $200, abaixo do mínimo de subsistência.
+    E: A renda média não foi mencionada na passagem.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q6
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: pão de trigo, carne, cerveja, açúcar e chá, e os ganhos dele (£37,75 por ano) eram cerca do quádruplo
+    do mínimo de subsistência (um pouco
+  question: Segundo a passagem 3, qual efeito o nível mínimo de subsistência tem sobre a motivação econômica
+    de um país?
+  options:
+    A: Aumenta a motivação para desenvolver novas tecnologias.
+    B: Elimina a motivação econômica para se desenvolver economicamente.
+    C: Não tem efeito sobre a motivação econômica.
+    D: Estimula a inovação em máquinas de produção.
+    E: Aumenta a motivação para investir em educação.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q7
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: como os países têm crescido muito rapidamente. Além disso, a grande realização da Revolução Industrial
+    britânica foi levar a um crescimento contínuo, de modo que
+  question: Qual argumento o autor apresenta para explicar por que a Revolução Industrial não foi uma
+    descontinuidade abrupta, mas sim o resultado de transformações na economia moderna?
+  options:
+    A: A Revolução foi causada por um aumento súbito no comércio internacional.
+    B: O crescimento econômico era impulsionado por políticas de livre mercado implementadas em 1760.
+    C: A Revolução resultou das transformações graduais na economia moderna já em fase inicial.
+    D: A Revolução foi motivada por avanços militares que exigiam novas tecnologias.
+    E: O aumento da produção de carvão foi a única causa da Revolução.
+  key: C
+  label: sound
+  reasons: []
+  note: 'Weak stem: the question gives the answer away.'
+  set: development
+- id: probe-Q8
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: refere à tecnologia, os salários britânicos eram altos em relação ao preço do capital (Figura
+    7). Nas décadas finais do século XVI, o índice salarial
+  question: Segundo o trecho 7, por que a Revolução Industrial se deu especificamente na Inglaterra?
+  options:
+    A: Devido à superioridade das descobertas científicas britânicas.
+    B: Porque a Inglaterra tinha uma estrutura de salários e preços que favorecia a mecanização.
+    C: A Inglaterra possuía a maior quantidade de trabalhadores livres.
+    D: O clima britânico era mais propício para experimentos industriais.
+    E: A Inglaterra tinha menos concorrência internacional no setor têxtil.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q9
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: do país. Mesmo os trabalhadores ganhavam com isso, visto que o imperialismo era a base da economia
+    de salários altos, que por sua vez levou
+  question: Qual foi o impacto da política fiscal inglesa descrita no trecho 4 sobre a relação entre o
+    Estado e a produção industrial?
+  options:
+    A: Reduziu a arrecadação per capita em comparação com a França.
+    B: Permitiu ao Estado financiar apenas projetos militares.
+    C: Provocou a expansão do comércio e a manutenção de um exército forte.
+    D: Eliminou a necessidade de impostos sobre bens de consumo.
+    E: Criou um sistema de impostos que favorecia apenas a nobreza.
+  key: C
+  label: sound
+  reasons: []
+  note: 'Weak stem: muddled.'
+  set: development
+- id: probe-Q10
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: rentáveis. E é por isso que a Revolução Industrial foi britânica. O fio de algodão era manufaturado
+    em três etapas. Primeiro, abriam-se os fardos de
+  question: Segundo o trecho do Passagem 1, por que a Revolução Industrial foi britânica?
+  options:
+    A: Porque os britânicos tinham mais recursos naturais do que outros países.
+    B: Porque os britânicos investiam mais em P&D para criar máquinas que aumentavam o uso de capital
+      e economizavam mão de obra.
+    C: Porque a Inglaterra tinha a maior produção de algodão do mundo.
+    D: Porque os britânicos eram os únicos que inventaram a máquina a vapor.
+    E: Porque a Inglaterra tinha a menor taxa de trabalho infantil.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q11
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: dessas máquinas era semelhante. Todas elas diminuíam o número de horas necessárias para produzir
+    uma libra de fio. Ao mesmo tempo, aumentavam o capital necessário
+  question: O que a Passagem 3 destaca sobre a máquina mule de Crompton?
+  options:
+    A: Ela era a primeira máquina a usar energia a vapor.
+    B: Ela combinava as traves articuladas da jenny de Hargreaves e os cilindros da estrutura hidráulica
+      de Arkwright, permitindo fiar fios muito mais finos.
+    C: Ela foi a única máquina que não reduziu o número de horas de trabalho.
+    D: Ela foi inventada em 1700, antes da Revolução Industrial.
+    E: Ela era usada exclusivamente na Índia.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q12
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: de doze anos de experiências, Thomas Newcomen, em Dudley, conseguiu fazer um motor que funcionava.
+    O motor de Newcomen consistia em água em ebulição para
+  question: De acordo com a Passagem 5, qual foi a principal razão pela qual a Grã-Bretanha desenvolveu
+    motores a vapor?
+  options:
+    A: Para competir com a indústria de tecidos francesa.
+    B: Para drenar minas, aproveitando a grande quantidade de minas de carvão na Inglaterra.
+    C: Para substituir a energia elétrica nas fábricas.
+    D: Para reduzir o consumo de carvão em navios.
+    E: Para criar locomotivas a vapor para transporte de passageiros.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q13
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: era um fator importante, pois afetava as condições do comércio com a Europa. O comércio podia
+    ser bom ou ruim para o crescimento econômico. De
+  question: Qual fator, segundo o autor, contribuiu mais para a vantagem da América do Norte em relação
+    à América do Sul no comércio com a Europa durante o período colonial?
+  options:
+    A: A maior população nativa na América do Norte
+    B: A presença de rios que ligavam a costa ao interior
+    C: A produção de manufaturas britânicas baratas
+    D: A distância maior da América do Norte em relação à Europa
+    E: A adoção de sistemas de escravidão africana na América do Norte
+  key: B
+  label: sound
+  reasons: []
+  note: 'Weak stem: asks what contributed most, and the passage lists another factor first.'
+  set: development
+- id: probe-Q14
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: doenças tropicais causavam grande mortandade dos europeus no Caribe e na região amazônica, reduzindo
+    o crescimento da população europeia. A população nativa tinha uma distribuição
+  question: De acordo com o trecho, por que a domesticação de milho e feijão nos Andes e no México foi
+    mais precoce que em outras regiões das Américas?
+  options:
+    A: Porque esses países tinham maior contato com os europeus
+    B: Porque as plantas nativas eram mais resistentes a doenças
+    C: Porque os Andes e o México eram habitats naturais desses cultivos
+    D: Porque a agricultura era mais desenvolvida na costa leste dos EUA
+    E: Porque os colonizadores introduziram essas culturas de forma rápida
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q15
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: da parte oriental dos Estados Unidos ou do Canadá, de modo que a população do leste da América
+    do Norte teve pouco tempo de cultivá-lo
+  question: Segundo o autor, qual foi a principal razão para a queda drástica da população nativa no México
+    após o contato com os europeus?
+  options:
+    A: A escravização em massa de indígenas
+    B: A guerra constante com colonizadores
+    C: A introdução de doenças para as quais os nativos não tinham imunidade
+    D: A competição por terras agrícolas com colonos europeus
+    E: A migração de indígenas para outras regiões da América do Sul
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q16
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: O Sul tinha os produtos de exportação valiosos – arroz e índigo na Carolina do Sul, tabaco na
+    Virgínia e em Maryland. Essas culturas eram
+  question: Segundo o trecho 1, qual era a principal razão pela qual os fazendeiros da Jamaica repatriavam
+    a maior parte de suas rendas para a Grã-Bretanha, em vez de reinvesti-las na ilha?
+  options:
+    A: A falta de mão de obra qualificada na Jamaica
+    B: A necessidade de financiar a construção de infra‑estruturas portuárias
+    C: A política colonial que favorecia a exportação de lucros para a metrópole
+    D: A escassez de recursos naturais para investimento local
+    E: A preferência dos fazendeiros por investir em propriedades na Inglaterra
+  key: C
+  label: flawed
+  reasons:
+  - key_not_stated
+  note: null
+  set: development
+- id: probe-Q17
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: torno do açúcar. A população se tornou maciçamente negra. A população branca, que constituía
+    metade da população total do Deep South (Alabama, Geórgia, Louisiana, Mississipi
+  question: No trecho 2, qual foi o principal fator que levou a estrutura social das faixas litorâneas
+    onde se cultivava arroz a se assemelhar às ilhas açucareiras do Caribe?
+  options:
+    A: A introdução de técnicas de cultivo mais eficientes
+    B: O aumento da importação de escravos africanos
+    C: A migração de colonos europeus para a região
+    D: A diminuição da produção de arroz em outras áreas
+    E: A adoção de sistemas de propriedade coletiva
+  key: A
+  label: flawed
+  reasons:
+  - wrong_key
+  note: null
+  set: development
+- id: probe-Q18
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: partilhada pelas economias de todas as colônias norte-americanas e que pressagiava um bom futuro
+    para elas – a saber, o índice de alfabetização dos colonos
+  question: De acordo com o trecho 3, qual foi a principal razão pela qual a escravidão não teve peso
+    na agricultura das colônias da Nova Inglaterra e do Médio Atlântico?
+  options:
+    A: Os escravos eram considerados mais caros que os trabalhadores livres
+    B: A abundância de terra mantinha os preços baixos, favorecendo salários
+    C: A legislação colonial proibiu o uso de escravos nessas regiões
+    D: Os colonos preferiam a agricultura de subsistência em vez de exportação
+    E: A falta de mão de obra escrava nas áreas rurais
+  key: B
+  label: flawed
+  reasons:
+  - two_defensible
+  note: null
+  set: development
+- id: probe-Q19
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: tecnologia industrial. Os avanços americanos não se restringiram aos têxteis de algodão. Em 1782,
+    Oliver Evans construiu o primeiro moinho automático. Antes do século XIX,
+  question: Segundo o trecho 1, qual foi a principal razão pela qual os Estados Unidos adotaram o tear
+    à energia mais rapidamente que a Grã-Bretanha?
+  options:
+    A: O menor custo da mão de obra nos EUA
+    B: A maior disponibilidade de matérias‑primas nos EUA
+    C: O salário real mais alto nos EUA
+    D: A superioridade tecnológica britânica
+    E: A influência de Francis Cabot Lowell nos EUA
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q20
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: bicicletas, máquinas de costura, implementos agrícolas e, finalmente, para a indústria automobilística,
+    onde foi um elemento fundamental para o sistema de linha de montagem da
+  question: No trecho 2, qual setor foi o último a adotar o princípio da produção padronizada de peças
+    intercambiáveis, segundo o autor?
+  options:
+    A: Indústria automobilística
+    B: Setor de relojoaria
+    C: Indústria de bicicletas
+    D: Setor de máquinas de costura
+    E: Setor de implementos agrícolas
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q21
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: império não conseguiu se reinstaurar. No México, por exemplo, Miguel Hidalgo liderou em 1810
+    uma revolta de nativos contra os peninsulares (brancos nascidos na Espanha)
+  question: De acordo com o trecho 3, qual foi a principal causa da desindustrialização no México no final
+    do século XVIII?
+  options:
+    A: A invasão napoleônica na Espanha
+    B: A resistência das elites coloniais à tributação
+    C: A concorrência internacional que corroía o setor manufatureiro
+    D: A falta de mão de obra qualificada
+    E: A falta de políticas de proteção tarifária
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q22
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: colonos esperavam alcançar um padrão de nível europeu vendendo uma grande parte de sua produção
+    para comprar bens de consumo ingleses. Tal atividade comercial era
+  question: Segundo o trecho, qual foi o principal fator que explicava a diferença de alfabetização entre
+    os Estados Unidos e o México durante o período colonial?
+  options:
+    A: A maior quantidade de escravos nos Estados Unidos
+    B: A demanda por habilidades de leitura, escrita e cálculo nas colônias norte‑americanas
+    C: A influência da cultura indígena no México
+    D: A política de segregação racial nos Estados Unidos
+    E: A falta de escolas públicas no México
+  key: B
+  label: flawed
+  reasons:
+  - two_defensible
+  note: null
+  set: development
+- id: probe-Q23
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: colonos esperavam alcançar um padrão de nível europeu vendendo uma grande parte de sua produção
+    para comprar bens de consumo ingleses. Tal atividade comercial era
+  question: Qual foi a consequência da falta de expansão educacional no México antes do século XX, segundo
+    o trecho?
+  options:
+    A: O México tornou-se uma potência agrícola
+    B: A maioria dos adultos permanecia analfabeta em 1946
+    C: O país desenvolveu um sistema de ensino superior avançado
+    D: A elite branca promoveu a alfabetização em massa
+    E: O México aboliu a escravidão mais cedo que os EUA
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: probe-Q24
+  source: assessment probe (.specify/assessments/chapter-quiz/probe/results.json)
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: elite pouco interessada na escolarização da população afro-americana. O acesso ao ensino e a
+    qualidade escolar se mantiveram em patamares baixos até o final da
+  question: De acordo com o trecho, por que o Sul dos Estados Unidos continuou com baixos níveis de escolarização
+    após a abolição da escravatura?
+  options:
+    A: Porque a elite sulista não tinha interesse em educar a população afro‑americana
+    B: Porque o Sul não tinha recursos financeiros para escolas
+    C: Porque a segregação racial foi abolida nos anos 1960
+    D: Porque a maioria da população sulista era indígena
+    E: Porque o Sul investiu em educação técnica em vez de escolarização básica
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 1: A grande divergência:1'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: nos trabalhadores. Para medir o padrão de vida, é preciso comparar seus salários e os preços
+    dos bens de consumo, e é preciso ter uma
+  question: Segundo o autor, qual é a principal razão pela qual os salários reais são mais informativos
+    que o PIB para avaliar o bem‑estar dos trabalhadores?
+  options:
+    A: Eles medem a renda média de todos os grupos sociais.
+    B: Eles mostram a distribuição de riqueza entre ricos e pobres.
+    C: Eles indicam a quantidade de máquinas empregadas por trabalhador.
+    D: Eles refletem o padrão de vida que pode ser adquirido com os rendimentos individuais.
+    E: Eles calculam a expectativa de vida em cada país.
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 1: A grande divergência:2'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: Waterloo em 1815, a Grã-Bretanha tinha estabelecido sua liderança na indústria e dominava a concorrência
+    com outros países. A Europa Ocidental e os Estados Unidos
+  question: Qual política foi adotada pela Grã-Bretanha após a derrota de Napoleão em 1815 para consolidar
+    sua liderança industrial?
+  options:
+    A: Criar bancos para estabilizar a moeda e financiar o investimento industrial.
+    B: Aumentar as tarifas alfandegárias para impedir que outros países comerciassem com as colônias.
+    C: Instituir o ensino de massa para qualificar a força de trabalho.
+    D: Estabelecer tarifas externas para proteger suas indústrias contra a concorrência britânica.
+    E: Criar um mercado nacional unificado, eliminando tarifas internas e construindo infraestrutura de
+      transportes.
+  key: E
+  label: flawed
+  reasons:
+  - key_not_stated
+  - two_defensible
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 1: A grande divergência:3'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: da China e 58 vezes maior do que a da Índia. Não só a produção britânica cresceu enormemente,
+    como também houve um declínio da manufatura
+  question: Qual é a principal razão apresentada pelo autor para a queda da participação da China e da
+    Índia na manufatura mundial entre 1750 e 1913?
+  options:
+    A: A participação diminuiu porque a China e a Índia passaram a importar mais manufaturas do que produziam.
+    B: A queda foi causada por políticas internas que favoreciam a exportação de produtos agrícolas.
+    C: A desindustrialização resultou de guerras internas que destruíram as fábricas.
+    D: O aumento da produção agrícola na Ásia reduziu a necessidade de manufatura.
+    E: A competição dos produtores mecanizados do Ocidente desbancou as indústrias têxteis e metalúrgicas
+      desses países.
+  key: E
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 1: A grande divergência:4'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: de pobreza mundial em $1 por dia (que agora, devido à inflação, subiu para $1,25). Esse número,
+    que se baseia nas linhas de pobreza dos
+  question: Qual afirmação sobre os salários reais em Londres e Beijing está de acordo com o que o autor
+    apresenta?
+  options:
+    A: Em 1820, o salário real londrino já era cinquenta vezes acima do mínimo.
+    B: Em 1820, o salário real londrino já era quatro vezes acima do mínimo.
+    C: Em 1820, o salário real londrino já era dez vezes acima do mínimo.
+    D: Em 1820, o salário real londrino era igual ao mínimo.
+    E: Em 1820, o salário real londrino era apenas duas vezes acima do mínimo.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 1: A grande divergência:5'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: do mínimo de subsistência. Mas os trabalhadores de Londres em 1750 não comiam o quádruplo da
+    aveia especificada na Tabela 2. Mudaram a dieta, que
+  question: Qual afirmação descreve a mudança no padrão de vida dos trabalhadores europeus no século XVIII?
+  options:
+    A: Os trabalhadores europeus no século XVIII passaram a consumir exclusivamente milho recém-chegado
+      das Américas.
+    B: Os trabalhadores em Amsterdã e Londres ainda ganhavam o quádruplo do mínimo de subsistência.
+    C: Os trabalhadores de Londres em 1750 comiam quatro vezes a quantidade de aveia especificada na Tabela
+      2.
+    D: Os trabalhadores florentinos no século XVIII consumiam apenas pão e polenta.
+    E: Os trabalhadores do sul da Inglaterra não tinham renda para comprar artigos de luxo do século XVIII.
+  key: B
+  label: sound
+  reasons: []
+  note: muddled stem
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 1: A grande divergência:6'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: aristocracia e os comerciantes ricos ficavam com o excedente. O noroeste da Europa e os Estados
+    Unidos tinham rendas de quatro a seis vezes acima
+  question: Segundo o autor, qual é a principal razão pela qual a maioria da população na Ásia e na Europa
+    Oriental vivia no nível de subsistência em 1820?
+  options:
+    A: Porque as rendas médias nessas regiões eram apenas de $500 a $700, pouco acima do mínimo de subsistência.
+    B: Porque a maioria das famílias nessas regiões dependia exclusivamente de subsídios governamentais.
+    C: Porque as economias do noroeste da Europa e dos Estados Unidos eram menos produtivas que as de
+      Ásia e Europa Oriental.
+    D: Porque a produção agrícola nessas regiões era baseada em trabalho escravo, reduzindo a renda disponível
+      para a maioria.
+    E: Porque o custo mínimo de subsistência era de $1 por dia, o que impedia qualquer aumento de renda.
+  key: A
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 1: A grande divergência:7'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: pão de trigo, carne, cerveja, açúcar e chá, e os ganhos dele (£37,75 por ano) eram cerca do quádruplo
+    do mínimo de subsistência (um pouco
+  question: Segundo o autor, qual efeito a existência de um nível mínimo de subsistência tem sobre a inovação
+    tecnológica nas empresas?
+  options:
+    A: As empresas reduzem a produção para manter os salários altos.
+    B: As empresas terceirizam a produção para países com custos de mão‑de‑obra mais baixos.
+    C: As empresas não têm incentivo para inventar ou adotar máquinas que aumentem a produtividade.
+    D: As empresas aumentam a produtividade para reduzir custos de produção.
+    E: As empresas investem mais em pesquisa e desenvolvimento para superar a baixa renda dos trabalhadores.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 1: A grande divergência:8'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: mão de obra cada vez mais cara. Grande parte dessa nova tecnologia não é rentável nos países
+    com mão de obra barata, mas é dela
+  question: Segundo o autor, qual foi a principal razão pela qual os países ricos conseguiram superar
+    a distância em relação ao Ocidente no século XX?
+  options:
+    A: Ao manter as mesmas políticas que funcionaram na Europa do século XIX.
+    B: Ao reduzir a participação de capital na produção e aumentar a mão de obra barata.
+    C: Ao depender exclusivamente da exportação de commodities de alto valor agregado.
+    D: Através de um Grande Impulso, coordenando planejamento e investimento para dar um salto à frente.
+    E: Ao adotar tecnologias modernas de forma espontânea e sem planejamento.
+  key: D
+  label: sound
+  reasons: []
+  note: muddled stem
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 1: A grande divergência:9'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: era a segunda economia mais rica, com uma renda de $1.706 em 1820. A Europa Ocidental e as ramificações
+    da Grã-Bretanha (Canadá, Austrália, Nova Zelândia
+  question: Qual foi a diferença aproximada do PIB per capita entre a Europa e o resto do mundo em 1820?
+  options:
+    A: O PIB per capita da Europa era 3 vezes o do resto do mundo.
+    B: O PIB per capita da Europa era 2,5 vezes o do resto do mundo.
+    C: O PIB per capita da Europa era o dobro do resto do mundo.
+    D: O PIB per capita da Europa era 1,5 vezes o do resto do mundo.
+    E: O PIB per capita da Europa era 4 vezes o do resto do mundo.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 1: A grande divergência:10'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 1: A grande divergência'
+  quote: caiu para 13%. Desde a Segunda Guerra Mundial, a participação da URSS na produção industrial
+    mundial teve um aumento acentuado até os anos 1980 e
+  question: Qual foi a participação da Grã-Bretanha na produção industrial mundial em 1938, segundo o
+    autor?
+  options:
+    A: 13%
+    B: 24%
+    C: 33%
+    D: 9%
+    E: 17%
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:1'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: energia a vapor se tornou uma tecnologia capaz de ser aplicada a muitas finalidades e utilizada
+    em todo o mundo, mas apenas depois que o
+  question: Segundo o autor, qual foi a principal razão pela qual o motor de Newcomen não se desenvolveu
+    antes da década de 1840?
+  options:
+    A: O motor de Newcomen era tecnicamente inviável até a invenção do motor a vapor de James Watt.
+    B: O motor de Newcomen só era usado em fábricas de tecidos, não em minas.
+    C: O motor de Newcomen era considerado perigoso e não era permitido em navios.
+    D: A necessidade de uma grande quantidade de carvão barato, que só existia em minas de carvão abundantes
+      na Grã-Bretanha.
+    E: O motor de Newcomen era proibido por regulamentações britânicas até 1840.
+  key: D
+  label: flawed
+  reasons:
+  - explanation_beyond_passage
+  note: muddled stem
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:2'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: utilizar um propulsor em vez de rodas de pá. Mas foram necessários cinquenta anos até que o vapor
+    vencesse a vela. Isso porque os navios
+  question: Segundo o autor, qual foi a principal razão pela qual o vapor demorou cerca de cinquenta anos
+    para superar a vela no transporte oceânico?
+  options:
+    A: Os navios a vapor precisavam transportar o próprio carvão, o que reduzia o espaço de carga em viagens
+      longas.
+    B: Os governos impuseram tarifas elevadas sobre navios a vapor, favorecendo a vela.
+    C: A tecnologia de propulsão a vapor só foi patenteada em 1830, atrasando sua adoção.
+    D: Os navios a vapor eram menos confiáveis e frequentemente quebravam em mar aberto.
+    E: O vapor era mais caro que a vela, o que limitou seu uso em rotas comerciais.
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:3'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: dessas máquinas era semelhante. Todas elas diminuíam o número de horas necessárias para produzir
+    uma libra de fio. Ao mesmo tempo, aumentavam o capital necessário
+  question: Qual é a principal razão pela qual a Inglaterra conseguiu produzir fio fino a baixo custo
+    durante a Revolução Industrial, segundo o autor?
+  options:
+    A: A tecnologia de fiandeira hidráulica foi abandonada em favor de métodos manuais para reduzir custos.
+    B: A introdução da Jenny de Hargreaves aumentou a produtividade apenas em fábricas francesas.
+    C: A produção de fio grosso na Índia era mais barata que a inglesa, o que motivou a expansão da indústria
+      britânica.
+    D: A combinação das traves articuladas da Jenny de Hargreaves com os cilindros hidráulicos de Arkwright
+      na mule de Crompton permitiu a produção de fio mais fino.
+    E: O uso exclusivo da máquina de Arkwright reduziu os custos de mão‑de‑obra em toda a Inglaterra.
+  key: D
+  label: sound
+  reasons: []
+  note: '''cilindros hidráulicos'' misrenders the water frame''s rollers'
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:4'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: século XVIII. A máquina a vapor foi empregada no transporte, com a invenção da estrada de ferro
+    e do navio a vapor. As máquinas movidas
+  question: Segundo o autor, por que a tecnologia revolucionária foi inventada na Inglaterra e não em
+    outros países?
+  options:
+    A: A Inglaterra tinha mais engenheiros do que a Holanda.
+    B: A Inglaterra tinha uma tradição de comércio marítimo que facilitava a disseminação de ideias.
+    C: A Inglaterra possuía uma combinação de recursos naturais, capital e instituições que favoreciam
+      a inovação.
+    D: A Inglaterra tinha um governo que incentivava a experimentação científica.
+    E: A Inglaterra era a única que produzia carvão de qualidade.
+  key: C
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:5'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: quase cem anos depois da invenção de Newcomen, era minúscula a contribuição da energia a vapor
+    para a economia britânica. Nos meados do século XIX,
+  question: Qual é a principal razão apresentada pelo autor para a continuidade do crescimento econômico
+    na Grã-Bretanha ao longo do século XIX?
+  options:
+    A: O investimento massivo em infraestrutura ferroviária, sem relação com a energia a vapor.
+    B: O uso generalizado da energia a vapor no transporte e na indústria, que contribuiu com metade do
+      aumento de produtividade do trabalho.
+    C: O aumento da produção agrícola, que reduziu a necessidade de mão‑de‑obra.
+    D: A aplicação crescente da ciência à indústria, que foi a única fonte de crescimento.
+    E: A expansão do comércio internacional, independentemente das tecnologias empregadas.
+  key: B
+  label: sound
+  reasons: []
+  note: stem's 'principal' overstates the passage
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:6'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: refere à tecnologia, os salários britânicos eram altos em relação ao preço do capital (Figura
+    7). Nas décadas finais do século XVI, o índice salarial
+  question: Segundo o autor, qual fator estrutural contribuiu para que a Revolução Industrial ocorresse
+    na Inglaterra e não em outros países europeus?
+  options:
+    A: A disponibilidade de mão de obra barata na Inglaterra, que permitiu a produção em massa de bens.
+    B: A superioridade das descobertas científicas e do entusiasmo filosófico natural na Inglaterra em
+      relação ao resto da Europa.
+    C: A estrutura de salários altos em relação ao preço do capital, combinada com energia barata, tornou
+      lucrativo para as empresas britânicas investir em inovação tecnológica.
+    D: A ausência de competição internacional, que deixou o mercado interno livre de pressões externas.
+    E: A política de subsídios governamentais específicos para a indústria têxtil inglesa.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:7'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: cotonifício. Mas a maioria das fábricas continuou a ser movida a água até os anos 1840. Foi apenas
+    nessa época que o consumo de combustível
+  question: Segundo o autor, por que a adoção do tear mecânico foi mais rápida nos Estados Unidos do que
+    na Inglaterra?
+  options:
+    A: A tecnologia do tear mecânico foi desenvolvida primeiro nos Estados Unidos.
+    B: O tear mecânico era mais eficiente em clima mais quente.
+    C: O tear mecânico era mais barato de produzir nos Estados Unidos.
+    D: Os salários mais altos nos Estados Unidos tornaram a adoção do tear mecânico sensível ao preço
+      e à eficiência relativa.
+    E: Os trabalhadores americanos tinham menos resistência a novas máquinas.
+  key: D
+  label: flawed
+  reasons:
+  - explanation_beyond_passage
+  note: muddled key
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:8'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: transportando passageiros e cargas em geral. A primeira ferrovia para uso geral foi a Liverpool
+    and Manchester Line, com 35 milhas (56,32 km), inaugurada em
+  question: Qual foi a primeira ferrovia que demonstrou ser possível transportar passageiros e cargas
+    em geral, além de carvão?
+  options:
+    A: A Clermont
+    B: A Palmipède
+    C: A Stockton and Darlington Railway
+    D: A Liverpool and Manchester Line
+    E: A Penydarren Ironworks
+  key: C
+  label: sound
+  reasons: []
+  note: '''primeira'' not stated'
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:9'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: por inventores do século XVIII. Ademais, o sucesso da filosofia natural conferia credibilidade
+    ao método científico, isto é, a ideia de que o mundo é
+  question: Segundo o autor, qual foi uma das principais razões pelas quais a Revolução Industrial teve
+    apoio na França, apesar da falta de decretos privados semelhantes aos do Parlamento britânico?
+  options:
+    A: A adoção de um modelo newtoniano que inspirou a elite a abandonar a religião.
+    B: A presença de inventores da classe trabalhadora que adotaram o modelo newtoniano.
+    C: A implementação de projetos de irrigação em larga escala na Provença.
+    D: A existência de um poder despótico do Estado que, após 1688, passou a estar sempre disponível.
+    E: A popularização da feitiçaria como alternativa medieval à ciência.
+  key: D
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: muddled stem
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:10'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: de doze anos de experiências, Thomas Newcomen, em Dudley, conseguiu fazer um motor que funcionava.
+    O motor de Newcomen consistia em água em ebulição para
+  question: Qual é a razão apresentada pelo autor para que a pesquisa e desenvolvimento de motores a vapor
+    tenham sido realizados principalmente na Inglaterra?
+  options:
+    A: Porque a Inglaterra possuía uma grande quantidade de minas de carvão, tornando o uso de motores
+      a vapor economicamente vantajoso.
+    B: Porque a Inglaterra tinha a maior produção de vapor de água em comparação com outros países.
+    C: Porque a Inglaterra era o único país com conhecimento científico sobre pressão atmosférica.
+    D: Porque a Inglaterra tinha a maior quantidade de recursos naturais para a produção de aço.
+    E: Porque a Inglaterra já possuía uma extensa rede ferroviária pronta para usar motores a vapor.
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:11'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: algodão foi um dos primeiros setores a que eles se dedicaram. No século XVII, a China e a Índia
+    tinham as maiores indústrias algodoeiras do
+  question: Segundo o autor, qual foi o principal impacto da expansão do setor algodoeiro na Grã-Bretanha
+    no início do século XIX?
+  options:
+    A: Ele provocou a proibição da importação de algodão na França em 1686.
+    B: Ele levou à queda do emprego na manufatura britânica.
+    C: Ele causou a queda do PIB britânico em 1830.
+    D: Ele reduziu a dependência da Grã-Bretanha em relação à Índia e à China.
+    E: Ele impulsionou o crescimento de Manchester e de cidades menores no norte da Inglaterra e na Escócia.
+  key: E
+  label: sound
+  reasons: []
+  note: stem's 'principal' not stated
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:12'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: na Inglaterra do que em qualquer outro lugar. Devido a tais diferenças nos preços e salários,
+    para as empresas na Inglaterra era lucrativo utilizar uma
+  question: Segundo o autor, por que a mecanização da produção era mais favorecida na Grã-Bretanha do
+    que na Índia?
+  options:
+    A: Porque a Grã-Bretanha tinha menos recursos naturais, forçando a adoção de máquinas.
+    B: Porque a energia era muito mais barata na Inglaterra, tornando mais lucrativo usar tecnologia que
+      economizasse mão‑de‑obra cara.
+    C: Porque a mão‑de‑obra na Índia era mais qualificada, reduzindo a necessidade de mecanização.
+    D: Porque a Inglaterra tinha menos trabalhadores, o que incentivava a mecanização para compensar a
+      escassez de mão‑de‑obra.
+    E: Porque a Índia tinha políticas governamentais que restringiam o uso de tecnologia.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:13'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: que dão destaque às restrições tributárias e à segurança da propriedade. A supremacia parlamentar,
+    na verdade, resultou no contrário. Embora os monarcas franceses se dissessem
+  question: Qual é a principal razão apresentada pelo autor para que a constituição inglesa fosse favorável
+    à inovação durante a Revolução Industrial?
+  options:
+    A: A constituição inglesa garantiu total democracia, permitindo que todos votassem e participassem
+      das decisões.
+    B: A constituição inglesa impunha limites ao poder da Coroa, o que favoreceu o crescimento econômico.
+    C: A constituição inglesa estabeleceu um sistema de impostos sobre bens de consumo que beneficiou
+      exclusivamente a nobreza.
+    D: A constituição inglesa concedeu à nobreza o direito de aumentar tributos sem consentimento.
+    E: A constituição inglesa aboliu todos os impostos sobre os trabalhadores, estimulando a produção.
+  key: B
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:14'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: rentáveis. E é por isso que a Revolução Industrial foi britânica. O fio de algodão era manufaturado
+    em três etapas. Primeiro, abriam-se os fardos de
+  question: Segundo o autor, por que a Revolução Industrial ocorreu na Grã-Bretanha?
+  options:
+    A: Porque a Grã-Bretanha tinha a maior quantidade de carvão disponível.
+    B: Porque os britânicos tinham políticas governamentais que favoreciam a inovação tecnológica em todas
+      as áreas.
+    C: Porque os britânicos tinham mais inventores do que outras nações.
+    D: Porque a Grã-Bretanha já possuía uma indústria têxtil avançada antes da Revolução Industrial.
+    E: Porque as máquinas aumentavam o uso de capital, tornando-as rentáveis onde o trabalho era caro
+      e o capital barato.
+  key: E
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:15'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: ano, enquanto a Grã-Bretanha conseguia apenas 1,3 mil toneladas. Houve várias tentativas de mecanizar
+    a produção. A máquina de fiação de fusos múltiplos de James
+  question: Qual foi o principal motivo que levou à mecanização da fiação do algodão na Inglaterra, segundo
+    o autor?
+  options:
+    A: O aumento dos salários dos trabalhadores que tornou inviável a produção manual de algodão.
+    B: A descoberta de novas fontes de energia que permitiram a construção de máquinas.
+    C: O desejo de aumentar a produção de algodão para exportação para a África Ocidental.
+    D: A necessidade de reduzir os custos de transporte de algodão para a Grã‑Bretanha.
+    E: A necessidade de competir com a Índia em tecidos mais finos, exigindo redução da mão‑de‑obra.
+  key: E
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:16'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: fábricas Arkwright criaram uma série de máquinas integradas que reduziam os custos mais do que
+    a jenny de Hargreaves. A mule de Crompton cortava os
+  question: Segundo o autor, por que a Revolução Industrial se espalhou para países como México e Índia
+    no século XIX?
+  options:
+    A: Porque a instalação de máquinas mais avançadas tornou-se rentável em economias de mão‑de‑obra barata.
+    B: Porque a produção de algodão nesses países era dominante na Europa antes do século XIX.
+    C: Porque a Revolução Industrial foi imposta pelos governos desses países.
+    D: Porque a tecnologia de fiação mecânica foi desenvolvida exclusivamente na Índia.
+    E: Porque esses países já possuíam grandes fábricas de algodão antes da Revolução Industrial.
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 3: A Revolução Industrial:17'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 3: A Revolução Industrial'
+  quote: do país. Mesmo os trabalhadores ganhavam com isso, visto que o imperialismo era a base da economia
+    de salários altos, que por sua vez levou
+  question: Segundo o autor, qual foi uma das principais razões pelas quais o Estado inglês arrecadou
+    mais per capita do que o Estado francês durante a Revolução Industrial?
+  options:
+    A: O Estado inglês gastava uma parcela maior da renda nacional em defesa e expansão imperial, o que
+      aumentou a arrecadação per capita.
+    B: O Estado francês tinha um sistema de propriedade privada mais forte, limitando a arrecadação per
+      capita.
+    C: O Estado inglês reduziu os salários, aumentando a arrecadação per capita.
+    D: O Estado inglês impôs impostos sobre os trabalhadores, enquanto o francês não tinha representação
+      no Parlamento.
+    E: O Estado francês gastava mais em projetos de irrigação, reduzindo sua arrecadação per capita.
+  key: A
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:1'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: protecionistas dos Estados Unidos, a embargos comerciais e a uma guerra com a Grã-Bretanha em
+    1812. A produção manufatureira se expandiu por trás dessas barreiras.
+  question: Qual foi a principal razão pela qual os Estados Unidos aumentaram a tarifa de 1816, segundo
+    o autor?
+  options:
+    A: Para aumentar a receita do governo federal antes da Guerra Civil.
+    B: Para reduzir a dependência de importações de tecidos europeus.
+    C: Para financiar a construção de estradas e canais.
+    D: Para incentivar a exportação de produtos agrícolas para a Europa.
+    E: Para proteger a manufatura nacional após a guerra de 1812.
+  key: E
+  label: sound
+  reasons: []
+  note: 'muddled stem: the 1816 tariff was enacted, not raised'
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:2'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: da parte oriental dos Estados Unidos ou do Canadá, de modo que a população do leste da América
+    do Norte teve pouco tempo de cultivá-lo
+  question: Segundo o autor, qual foi a principal causa da queda drástica da população nativa americana
+    entre 1500 e 1750?
+  options:
+    A: A migração em massa de europeus para as Américas, que deslocou os nativos de suas terras.
+    B: O aumento da escravização em massa de indígenas em todas as regiões das Américas.
+    C: A guerra entre diferentes tribos indígenas que resultou em grandes perdas populacionais.
+    D: A introdução de doenças para as quais os nativos não tinham imunidade, como varíola e gripe.
+    E: A mudança climática que reduziu drasticamente a produção de milho e feijão.
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:3'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: primários – bacalhau, peles, madeira – para a Europa. A venda desses produtos permitia a compra
+    de artigos manufaturados como tecidos, ferramentas, louças de barro,
+  question: Segundo o autor, qual é a principal razão pela qual os colonos da América do Norte britânica
+    exportavam produtos primários para a Europa?
+  options:
+    A: Para competir com as exportações holandesas e francesas.
+    B: Para adquirir bens manufaturados que não eram produzidos nas colônias.
+    C: Para reduzir a dependência de produtos agrícolas locais.
+    D: Para financiar a construção de navios de guerra nas colônias.
+    E: Para aumentar a produção de tecidos nas colônias.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:4'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: partilhada pelas economias de todas as colônias norte-americanas e que pressagiava um bom futuro
+    para elas – a saber, o índice de alfabetização dos colonos
+  question: Qual é a razão apresentada pelo autor para a alta taxa de alfabetização nas colônias norte‑americanas?
+  options:
+    A: A tradição de ensino doméstico entre as famílias coloniais.
+    B: A imposição de escolas públicas em todas as colônias.
+    C: A necessidade de cumprir requisitos legais para participar da vida política.
+    D: A influência direta das políticas educacionais da Inglaterra.
+    E: O retorno econômico de ler, escrever e fazer contas, ligado ao comércio externo e à exportação.
+  key: E
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:5'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: africanos e teve início o primeiro ciclo exportador. Entre 1580 e 1660, Portugal era unido à
+    Espanha. A guerra holandesa contra a Espanha se estendeu
+  question: Qual foi a principal razão pela qual o ciclo do açúcar terminou no Brasil, segundo o autor?
+  options:
+    A: A descoberta de ouro no interior do Brasil desviou os investimentos do açúcar.
+    B: O governo português impôs tarifas que tornaram a exportação de açúcar inviável.
+    C: Os produtores brasileiros não conseguiram competir com os preços mais baixos do açúcar produzido
+      no Caribe.
+    D: A escassez de mão‑de‑obra indígena levou ao fim da produção de açúcar no Brasil.
+    E: Os holandeses bloquearam todas as rotas de exportação de açúcar do Brasil para a Europa.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:6'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: tecnologia industrial. Os avanços americanos não se restringiram aos têxteis de algodão. Em 1782,
+    Oliver Evans construiu o primeiro moinho automático. Antes do século XIX,
+  question: Qual foi a principal razão pela qual os Estados Unidos adotaram o tear à energia mais rapidamente
+    que a Grã-Bretanha, segundo o autor?
+  options:
+    A: Os engenheiros americanos tinham mais experiência com máquinas de energia.
+    B: O salário real nos Estados Unidos era mais alto do que na Grã-Bretanha.
+    C: Os Estados Unidos tinham menos mão‑de‑obra qualificada que a Grã-Bretanha.
+    D: O sistema Lowell-Moody era mais barato de produzir.
+    E: Os britânicos não tinham acesso à tecnologia de teares mecânicos.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:7'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: doenças tropicais causavam grande mortandade dos europeus no Caribe e na região amazônica, reduzindo
+    o crescimento da população europeia. A população nativa tinha uma distribuição
+  question: Qual fator o autor destaca como responsável pela maior prosperidade econômica no leste da
+    América do Norte em comparação com o interior da América Latina?
+  options:
+    A: O cultivo precoce de milho e feijão no interior latino-americano.
+    B: A disponibilidade de rios navegáveis que ligavam a costa ao interior.
+    C: A extensão de terras férteis ao longo da costa leste da América do Norte, independentemente de
+      rios.
+    D: A ausência de doenças tropicais nas regiões temperadas.
+    E: A maior população nativa no México e nos Andes.
+  key: B
+  label: sound
+  reasons: []
+  note: D (temperate climate) is a near-miss
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:8'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: O Sul tinha os produtos de exportação valiosos – arroz e índigo na Carolina do Sul, tabaco na
+    Virgínia e em Maryland. Essas culturas eram
+  question: Segundo o autor, qual foi a principal razão pela qual a Carolina do Sul se tornou um centro
+    de exportação de arroz no século XVIII?
+  options:
+    A: A busca por um produto de exportação viável levou os colonos a adotarem o cultivo de arroz.
+    B: A introdução de escravos africanos facilitou a produção em larga escala de arroz.
+    C: A descoberta de novas rotas comerciais com a África aumentou a exportação de arroz.
+    D: O aumento da demanda europeia por arroz impulsionou a expansão das plantações na Carolina do Sul.
+    E: A colonização inicial em 1670 já incluía extensas plantações de arroz que sustentavam a economia
+      local.
+  key: A
+  label: sound
+  reasons: []
+  note: stem overstates the passage's causal claim
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:9'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: elite pouco interessada na escolarização da população afro-americana. O acesso ao ensino e a
+    qualidade escolar se mantiveram em patamares baixos até o final da
+  question: Segundo o autor, por que a região sul dos Estados Unidos não sofreu o mesmo declínio econômico
+    que a Jamaica ou o Brasil após a abolição da escravatura?
+  options:
+    A: O fato de a população afro‑americana representar apenas um sétimo do total da população americana.
+    B: A ausência de desigualdade social entre as classes.
+    C: A rápida industrialização que substituiu a mão‑de‑obra escrava.
+    D: A adoção de políticas públicas de inclusão educacional universal.
+    E: A persistência de uma elite pouco interessada na escolarização da população afro‑americana.
+  key: E
+  label: flawed
+  reasons:
+  - wrong_key
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:10'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: 35 fiações de algodão. Os salários reais também tiveram uma recuperação a partir de 1840. De
+    outro lado, não havia estímulo a uma indústria de
+  question: Qual foi a principal consequência da política de tarifas de tecidos de algodão implementada
+    por Lucas Alamán, segundo o autor?
+  options:
+    A: A política de tarifas levou à construção de uma extensa rede ferroviária nacional.
+    B: As tarifas internas foram abolidas, permitindo a livre circulação de bens entre os estados.
+    C: O governo investiu fortemente em educação de massa para apoiar a industrialização.
+    D: Não houve criação de um mercado nacional, pois as tarifas internas entre os estados foram mantidas
+      e a infraestrutura de transporte não melhorou.
+    E: O país experimentou um rápido crescimento industrial em todos os setores.
+  key: D
+  label: flawed
+  reasons:
+  - key_not_stated
+  note: stem calls a shortcoming of the policy its consequence
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:11'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: 'explorado seus súditos impondo tributos e trabalho forçado, e os espanhóis fizeram a mesma coisa.
+    Os salários nativos eram excepcionalmente baixos: nos anos 1530, um'
+  question: Segundo o autor, qual foi a principal consequência da conquista espanhola sobre a população
+    indígena das Américas?
+  options:
+    A: A população indígena manteve sua autonomia política e cultural.
+    B: A população indígena foi totalmente exterminada e não sobreviveu.
+    C: A população indígena foi reduzida a uma classe subserviente que sustentava os conquistadores.
+    D: A população indígena foi transferida para a Europa em grande número.
+    E: A população indígena foi convidada a participar de um sistema de comércio livre.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:12'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: repartimento. A Coroa também cedeu terras desabitadas aos espanhóis, as haciendas. No começo
+    do século XVII, mais da metade da terra agriculturável no vale do
+  question: Qual estratégia de trabalho forçado os espanhóis adotaram no México após a conquista, segundo
+    o autor?
+  options:
+    A: O repartimento, modelo asteca de trabalho forçado.
+    B: A mita, sistema inca de recrutamento de mão de obra.
+    C: A contratação de trabalhadores indígenas em regime de contrato livre.
+    D: O trabalho voluntário de colonos espanhóis nas minas.
+    E: O trabalho escravo de africanos trazidos para o México.
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:13'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: e frequência obrigatória. Horace Mann liderou a renovação do ensino de Massachusetts, onde, em
+    1852, foi adotado um sistema nos moldes do ensino prussiano. O
+  question: Segundo o autor, qual foi a principal razão para a diferença no nível de alfabetização entre
+    os Estados Unidos e o México no século XIX?
+  options:
+    A: Os Estados Unidos tinham mais escolas do que o México.
+    B: O México tinha menos oportunidades de educação formal devido a políticas governamentais restritivas.
+    C: O México não oferecia educação para crianças de famílias pobres.
+    D: A diferença era causada principalmente pela falta de recursos financeiros no México.
+    E: Os Estados Unidos investiram mais em escolas públicas e em educação obrigatória.
+  key: A
+  label: flawed
+  reasons:
+  - two_defensible
+  note: stem turns the 'immediate' reason into the main one
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:14'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: em Vera Cruz, que das 46 manufaturas que ainda existiam em 1793 restaram em 1802 apenas dezesseis
+    de louça e duas de vidro. Os salários
+  question: Qual foi a principal causa da queda das manufaturas de louça em Puebla no início do século
+    XIX?
+  options:
+    A: A mudança de preferências culturais em favor de porcelanas indígenas.
+    B: A imposição de altos impostos sobre a produção local.
+    C: A escassez de matérias-primas locais.
+    D: A importação de cerâmica europeia barata.
+    E: A concorrência de tecidos britânicos no mercado interno.
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:15'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: economias do Peru e do México se baseavam na cunhagem de moedas, e o aumento em suas reservas
+    monetárias elevou preços e salários acima dos
+  question: Qual é a principal razão apresentada pelo autor para que a prata não tenha impulsionado o
+    desenvolvimento econômico nas regiões do México e dos Andes?
+  options:
+    A: A dependência da prata levou a uma economia voltada exclusivamente para a produção de metais preciosos,
+      excluindo outras atividades.
+    B: A prata era um produto de exportação que gerava poucos empregos, já que as minas empregavam apenas
+      alguns milhares de homens.
+    C: A inflação causada pela expansão monetária com a prata elevou preços e salários acima dos níveis
+      mundiais.
+    D: A escassez de empregos nas minas de prata reduziu a disponibilidade de mão‑de‑obra para outras
+      indústrias.
+    E: O alto custo de transporte e as restrições comerciais impediam a entrada de importações baratas,
+      limitando o crescimento econômico.
+  key: C
+  label: flawed
+  reasons:
+  - two_defensible
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:16'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: economia latino-americana se deu, evidentemente, sob o domínio espanhol e mostra que as políticas
+    da Espanha, por menos liberais que fossem, não foram prejudiciais a
+  question: Qual das seguintes afirmações descreve corretamente a relação entre a desigualdade social
+    no México colonial e seu impacto no crescimento econômico pós‑independência, conforme apresentado
+    pelo autor?
+  options:
+    A: A desigualdade social era menor que a das regiões monocultoras do Sul dos Estados Unidos, favorecendo
+      o crescimento econômico após a independência.
+    B: A desigualdade social era semelhante à do Caribe, mas não teve impacto no crescimento econômico
+      pós‑independência.
+    C: A desigualdade social era semelhante à de Nova Inglaterra, mas não afetou o crescimento econômico
+      pós‑independência.
+    D: A desigualdade social era menor que a das colônias do Médio Atlântico, facilitando o crescimento
+      econômico após a independência.
+    E: A desigualdade social era muito maior no México colonial do que nas colônias do Médio Atlântico,
+      e essa disparidade prejudicou o crescimento econômico após a independência.
+  key: E
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:17'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: vimos no Capítulo 4. Com efeito, podemos ver essas forças operando no setor têxtil de algodão.
+    O sucesso dessa indústria exigia a existência de tarifas
+  question: Qual é a explicação que o autor oferece para o aumento dos salários nos Estados Unidos no
+    início do século XIX?
+  options:
+    A: Os salários subiram porque os trabalhadores aceitaram trabalhar em Nova York e Filadélfia por salários
+      mais altos.
+    B: A abundância de terras na fronteira motivou a migração para o oeste, elevando os salários reais.
+    C: Os salários aumentaram porque a Grã-Bretanha e a Holanda introduziram novas tecnologias no setor
+      têxtil americano.
+    D: O aumento dos salários foi causado apenas pela adoção de tarifas protetoras na indústria têxtil.
+    E: O crescimento dos salários resultou da redução do custo da mão de obra graças à tecnologia de alta
+      produtividade.
+  key: B
+  label: sound
+  reasons: []
+  note: 'muddled stem: the passage explains high wages, not their rise'
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:18'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: não constituía uma atividade de alta lucratividade até 1793, quando Eli Whitney inventou a descaroçadeira.
+    O plantio então se alastrou por todo o Sul. O
+  question: Segundo o autor, qual foi o principal fator que impulsionou a economia americana no período
+    anterior à Guerra Civil?
+  options:
+    A: A industrialização do milho e do trigo.
+    B: A expansão da indústria de aço.
+    C: A exportação de algodão.
+    D: O aumento da produção de tabaco.
+    E: O crescimento da indústria de petróleo.
+  key: C
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:19'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: décadas do século XVIII, os salários em Massachusetts acompanhavam os de Londres, mas eram mais
+    baixos do que os da Pensilvânia. Embora Massachusetts ocupe um
+  question: Segundo o autor, por que os salários na Nova Inglaterra caíram no início do século XVIII?
+  options:
+    A: Devido à queda nos preços do trigo que afetou a renda dos trabalhadores.
+    B: Por causa de políticas mercantilistas que restringiram o comércio exterior da região.
+    C: Como resultado de uma forte concorrência com a indústria naval inglesa.
+    D: Porque a demanda de mão‑de‑obra não aumentou tão rapidamente quanto o crescimento natural da população.
+    E: Como consequência da migração de trabalhadores para cidades como Florença, que ofereciam salários
+      mais baixos.
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: 'quiz_20261111T131123067024Z:historia_economica_global:Capítulo 6: As Américas:20'
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: historia_economica_global
+  chapter: 'Capítulo 6: As Américas'
+  quote: conflito de jurisdições, um estado excessivamente regulador da iniciativa privada e um sistema
+    tarifário ineficiente (embora possamos questionar sua importância, em vista do crescimento alcançado
+  question: Qual fator o autor atribui como tendo um impacto maior na economia dos Estados Unidos do que
+    as instituições de propriedade e justiça?
+  options:
+    A: As políticas econômicas, como a criação de um mercado nacional e a implementação de tarifas e bancos.
+    B: A dependência exclusiva de tecnologias de transporte como vapores e ferrovias.
+    C: A superior qualidade das instituições de propriedade e justiça.
+    D: A adoção de um sistema político com tribunais de jurisdição única.
+    E: A ausência de desigualdade social e racial nos Estados Unidos.
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:1
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: good thing, but it can be confusing. Any time you are unsure about the flow of execution through
+    your program, the simplest solution is to
+  question: According to the chapter, what is a recommended way to determine which class defines a particular
+    method for an object?
+  options:
+    A: Rely on the interpreter’s error messages to identify the method’s origin.
+    B: Call the method on the object and observe which class’s method is executed.
+    C: Print a message at the start of every method to trace execution flow.
+    D: Use the object's __class__ attribute to directly access the method’s defining class.
+    E: Use the find_defining_class function to locate the class that provides the method definition.
+  key: E
+  label: flawed
+  reasons:
+  - two_defensible
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:2
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: between numbers and suits, or between numbers and ranks. This kind of encoding is not meant to
+    be a secret (that would be “encryption”). For
+  question: What card does the Card class create when no arguments are supplied?
+  options:
+    A: The 2 of Clubs
+    B: The King of Hearts
+    C: The 10 of Diamonds
+    D: The Queen of Clubs
+    E: The Ace of Spades
+  key: A
+  label: sound
+  reasons: []
+  note: same question as think_python:Inheritance:9
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:3
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: 'class diagram: A diagram that shows the classes in a program and the relationships be- tween
+    them.'
+  question: What does the author define a class diagram as?
+  options:
+    A: A diagram that displays the data flow between different modules of a program.
+    B: A diagram that shows the classes in a program and the relationships between them.
+    C: A diagram that maps the control flow of a program’s execution.
+    D: A diagram that lists all the classes in a program and their methods.
+    E: A diagram that illustrates the inheritance hierarchy of a program’s classes.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:4
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: 'generates the standard set of fifty-two cards: class Deck: def __init__(self): self.cards =
+    [] for suit in range(4): for rank in range(1, 14): card ='
+  question: How does the Deck class populate its cards attribute?
+  options:
+    A: By recursively calling a helper method that builds the list of cards.
+    B: By using a list comprehension that generates all Card objects in a single expression.
+    C: By hard‑coding a predefined list of 52 Card objects into the class.
+    D: By looping over suits 0–3 and ranks 1–13, creating a Card for each pair and appending it to the
+      list.
+    E: By reading card data from an external file and converting each line into a Card object.
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:5
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: 'The ability to define a new class that is a modified version of a previously defined class.
+    parent class: The class from which a child'
+  question: According to the chapter, what is a parent class?
+  options:
+    A: The class that contains all methods of its child classes.
+    B: The class from which a child class inherits.
+    C: The class that is modified to create a new class.
+    D: The class that inherits from another class.
+    E: The class that is defined after a child class in the code.
+  key: B
+  label: sound
+  reasons: []
+  note: C echoes the inheritance definition as a trap
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:6
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: 'an existing class, you put the name of the existing class in parentheses: class Hand(Deck):
+    """Represents a hand of playing cards.""" This definition indicates that'
+  question: What occurs when the Hand class defines its own __init__ method?
+  options:
+    A: Python calls Deck.__init__ and then Hand.__init__ is called afterward.
+    B: Python still calls Deck.__init__ and then Hand.__init__ is ignored.
+    C: Python calls Hand.__init__ instead of Deck.__init__ when a Hand instance is created.
+    D: Python calls Deck.__init__ and then Hand.__init__ is called only if Deck.__init__ returns None.
+    E: Python calls Hand.__init__ and then Deck.__init__ is called afterward.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:7
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: is invoked, it is sometimes not clear where to find its definition. The relevant code may be
+    spread across several modules. Also, many of the
+  question: According to the chapter, what relationship does the author describe between a Hand and a
+    Deck?
+  options:
+    A: A Deck is a kind of Hand (IS‑A).
+    B: A Hand contains a Deck (HAS‑A).
+    C: A Deck contains a Hand (HAS‑A).
+    D: A Hand is a kind of Deck (IS‑A).
+    E: A Hand and a Deck are unrelated classes.
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:8
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: cards (although 5 and 7 are the most common sizes). 4. Write a method named classify that figures
+    out the highest-value classification for a hand
+  question: According to the chapter, what is the purpose of the classify method in PokerHand.py?
+  options:
+    A: It removes duplicate cards from a hand.
+    B: It counts the number of pairs in a hand.
+    C: It assigns the highest-value label to a hand based on its contents.
+    D: It shuffles the deck before dealing hands.
+    E: It prints a table of hand probabilities.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:9
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: default card is the 2 of Clubs. To create a Card, you call Card with the suit and rank of the
+    card you want. queen_of_diamonds
+  question: According to the chapter, what is the default card created by the Card class when no arguments
+    are supplied?
+  options:
+    A: 2 of Clubs
+    B: Queen of Diamonds
+    C: Ace of Spades
+    D: King of Hearts
+    E: Jack of Clubs
+  key: A
+  label: sound
+  reasons: []
+  note: same question as think_python:Inheritance:2
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:10
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: 'it. The list method pop provides a convenient way to do that: # inside class Deck: def pop_card(self):
+    return self.cards.pop() Since pop removes the last'
+  question: What does the method pop_card defined in the Deck class do?
+  options:
+    A: It adds a new card to the top of the deck.
+    B: It prints the deck to the console.
+    C: It removes and returns the last card in the deck.
+    D: It shuffles the cards in the deck.
+    E: It returns a copy of the deck without modifying it.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:11
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: type. card1 is an instance of Card, so its type is Card. To save space, I didn’t draw the contents
+    of suit_names and rank_names. For
+  question: According to the chapter, how does the author decide which card is considered greater when
+    comparing two cards?
+  options:
+    A: The author chooses that suit is more important than rank, so all Spades outrank all Diamonds, etc.
+    B: The author uses the order of appearance in the deck to determine which card is greater.
+    C: The author uses a random tie‑breaker when suits and ranks are equal.
+    D: The author decides that rank is more important than suit, so all Kings outrank all Queens, etc.
+    E: The author compares cards by their numeric value only, ignoring suit entirely.
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:12
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: 'Glossary encode: To represent one set of values using another set of values by constructing
+    a map- ping between them.'
+  question: According to the chapter, what does the term "encode" mean?
+  options:
+    A: To translate a text from one language into another using a dictionary.
+    B: To represent one set of values using another set of values by constructing a mapping between them.
+    C: To encrypt information so that only authorized users can read it.
+    D: To transform a program into machine code for execution.
+    E: To convert data into a compressed format for storage.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:13
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: 'class and its parent class. HAS-A relationship: A relationship between two classes where instances
+    of one class con- tain references to instances of the other.'
+  question: Which of the following best describes a HAS‑A relationship as defined in the chapter?
+  options:
+    A: A relationship where two classes are unrelated but share the same name.
+    B: A relationship where one class depends on another but does not store it.
+    C: A relationship where one class inherits from another.
+    D: A relationship where instances of one class contain references to instances of another.
+    E: A relationship where instances of one class store copies of another class’s data.
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:think_python:Inheritance:14
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: think_python
+  chapter: Inheritance
+  quote: defined classes to represent them. In each case there is an obvious correspondence between the
+    object and some entity in the real world (or at
+  question: According to the author, what is the consequence of violating the rule that a subclass method
+    must have the same interface as its superclass method?
+  options:
+    A: Your code will automatically correct itself at runtime.
+    B: Your code will be accepted by all static type checkers.
+    C: Your code will run faster but be harder to read.
+    D: Your code will produce more accurate results.
+    E: Your code will collapse like a house of cards.
+  key: E
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:1
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: knowledge should, I conceive, be entirely voluntary. It would be giving too dangerous a power
+    to governments, were they allowed to exclude any one from
+  question: According to the author, what is the role of public certificates of scientific or professional
+    acquirements?
+  options:
+    A: They should be required for all higher education students to graduate.
+    B: They should grant automatic employment in the teaching profession.
+    C: They should be used by governments to exclude individuals from certain professions.
+    D: They should be awarded only to those who demonstrate exceptional intellectual ability beyond the
+      standard examination.
+    E: They should be awarded to anyone who passes the examination, but they should not give any advantage
+      over competitors beyond the weight of public opinion.
+  key: E
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:2
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: and are wrong solely because they do not really produce the results which it is desired to produce
+    by them. As the principle of individual
+  question: According to the author, what is the main reason for allowing free trade?
+  options:
+    A: to prevent the spread of harmful goods
+    B: to protect producers from unfair competition
+    C: to maintain strict control over production processes
+    D: to ensure cheapness and good quality of commodities
+    E: to increase government revenue through tariffs
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:3
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: its enforcing performance, that certain formalities should be observed, such as signatures, attestation
+    of witnesses, and the like, in order that in case of subsequent
+  question: According to the author, which of the following measures would most effectively prevent the
+    illicit use of poisons without unduly restricting legitimate purchasers?
+  options:
+    A: Labeling poisons with a warning word but allowing buyers to ignore it if they wish.
+    B: Requiring sellers to record the buyer’s name, address, the quantity sold, and the stated purpose
+      of purchase, and to have a third person present when no medical prescription is provided.
+    C: Mandating that every poison sold must be accompanied by a medical practitioner’s certificate, regardless
+      of the intended use.
+    D: Requiring buyers to sign a waiver that absolves the seller of any liability for misuse of the poison.
+    E: Prohibiting the sale of all poisons to the general public, regardless of purpose.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:4
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: venture to decide whether they are sufficient to justify the moral anomaly of punishing the accessary,
+    when the principal is (and must be) allowed to
+  question: According to the author, why should public gambling‑houses be prohibited?
+  options:
+    A: Because the state has a duty to regulate all forms of gambling, including private games.
+    B: Because they are inherently immoral and should be outlawed regardless of secrecy.
+    C: Because the police can easily enforce their prohibition without any loopholes.
+    D: Because gamblers are more harmful than the operators and should be punished instead.
+    E: Because they can be forced to operate secretly, making society unaware of their existence.
+  key: E
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:5
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: exposes all to an inconvenience because there are some by whom the facility would be abused,
+    but is suited only to a state of society
+  question: According to the author, why is limiting the number of beer and spirit‑houses not justified?
+  options:
+    A: Because it would lead to a rise in illicit alcohol production.
+    B: Because it would reduce the number of places where people can gather socially.
+    C: Because it treats the labouring classes as children and contradicts the principles of a free society.
+    D: Because it would increase the cost of alcohol for consumers.
+    E: Because it would make it harder for owners to manage their businesses.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:6
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: of the political education of a free people, taking them out of the narrow circle of personal
+    and family selfishness, and accustoming them to the
+  question: According to the author, what is the main purpose of allowing localities and voluntary associations
+    to manage their own affairs?
+  options:
+    A: To ensure uniformity of policy across all regions.
+    B: To develop citizens’ active faculties and foster public motives.
+    C: To limit the influence of political parties in local governance.
+    D: To reduce the administrative burden on the central government.
+    E: To increase the profit margins of industrial enterprises.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:7
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: of interest between individuals often arise from bad social institutions, but are unavoidable
+    while those institutions last; and some would be unavoidable under any institutions.
+  question: According to the author, when is society justified in interfering with an individual's actions?
+  options:
+    A: When the individual’s actions merely result in the loss of a good that others hoped to obtain.
+    B: When the individual’s conduct involves fraud, treachery, or force that harms others.
+    C: When the individual’s conduct is merely a matter of personal preference and causes no harm to others.
+    D: When the individual pursues a legitimate object that causes unavoidable pain to others.
+    E: When the individual competes in an overcrowded profession and others lose opportunities.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:8
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: of repression or punishment, that such or such conduct affecting only the interests of the individual
+    is good or bad, they are fully justified in
+  question: According to the author, why should public gambling-houses be prohibited?
+  options:
+    A: Because they are influenced by solicitors with personal interest.
+    B: Because they encourage gambling among the poor.
+    C: Because they violate the principle of individual liberty.
+    D: Because they are immoral and corrupt society.
+    E: Because they are illegal under existing statutes.
+  key: A
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:9
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: the general principles of political science. This central organ should have a right to know all
+    that is done, and its special duty should be
+  question: According to the author, what is the primary role of a central superintendence in municipal
+    administration?
+  options:
+    A: To oversee local officers but also to create new laws for them.
+    B: To eliminate all local decision‑making in favor of central directives.
+    C: To replace local officers with a single national authority.
+    D: To act as the sole source of legislation for local matters.
+    E: To gather information from local offices and advise them, while limiting its power to enforce laws.
+  key: E
+  label: sound
+  reasons: []
+  note: 'ambiguous wording: ''limiting its power to enforce laws'''
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:10
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: least to do nothing for themselves without asking from the State not only leave to do it, but
+    even how it is to be done,
+  question: According to the author, what happens to the bureaucracy after a revolution?
+  options:
+    A: It is dissolved and its functions are taken over by the new government.
+    B: It is restructured to align with the revolutionary ideals.
+    C: It is replaced by a new, more efficient administrative body.
+    D: It remains unchanged.
+    E: It is temporarily suspended until a new constitution is drafted.
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:11
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: the rights of third parties, but it is sometimes considered a sufficient reason for releasing
+    them from an engagement, that it is injurious to themselves.
+  question: According to the author, why is an agreement that would sell a person into slavery considered
+    void?
+  options:
+    A: Because it would lead to economic instability in the community.
+    B: Because it would harm third parties who are not involved in the agreement.
+    C: Because it violates the person’s liberty and is injurious to themselves.
+    D: Because it would undermine the social contract between citizens.
+    E: Because it would create a conflict with the state’s property laws.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:12
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: 'the engagement: and even without such voluntary release, there are perhaps no contracts or engagements,
+    except those that relate to money or money''s worth, of'
+  question: According to the author, what is required for engagements that involve personal relations
+    or services?
+  options:
+    A: They should never be legally binding beyond a limited duration of time.
+    B: They should be legally binding only if they involve monetary compensation.
+    C: They should be legally binding only if the parties are related by blood or marriage.
+    D: They must be legally binding only when both parties consent to a permanent contract.
+    E: They must be legally binding for the lifetime of the parties involved.
+  key: A
+  label: flawed
+  reasons:
+  - key_not_stated
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:13
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: does not impede, but aids and stimulates, individual exertion and development. The mischief begins
+    when, instead of calling forth the activity and powers of individuals
+  question: According to the author, what is the primary purpose of the Poor Law Board in relation to
+    local administrators?
+  options:
+    A: To supervise and guide them, not to replace their work.
+    B: To enforce strict penalties on local administrators for any mismanagement.
+    C: To act as a central organ of information and instruction while allowing local administrators to
+      perform their duties.
+    D: To eliminate all local administrative powers and centralize all decision‑making at the national
+      level.
+    E: To replace local administrators entirely with its own officials.
+  key: A
+  label: flawed
+  reasons:
+  - two_defensible
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:14
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: direction and dictation in all they had to do; the able and aspiring for personal advancement.
+    To be admitted into the ranks of this bureaucracy,
+  question: According to the author, what is the main danger of concentrating all organized government
+    functions in a bureaucracy staffed by the most capable men?
+  options:
+    A: It allows the bureaucracy to act independently of any political influence.
+    B: It guarantees that reforms will always favor the interests of the general populace.
+    C: It ensures that the ruler will have complete control over all administrative decisions.
+    D: It makes the bureaucracy the sole focus of ambition and prevents reforms that oppose its interests.
+    E: It guarantees that the most talented individuals will always serve the public good.
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:15
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: its direct influence on human happiness, more important than all others taken together. The almost
+    despotic power of husbands over wives need not be enlarged
+  question: According to the author, why does the State have a duty to regulate a man's power over his
+    children?
+  options:
+    A: Because the State should never interfere in family matters.
+    B: Because parents are always the best educators for their children.
+    C: Because children are not merely an extension of the parent, and the State must ensure their education
+      and protection.
+    D: Because parents should have absolute control over their children’s education.
+    E: Because children are legally considered the property of their parents.
+  key: C
+  label: sound
+  reasons: []
+  note: loose paraphrase ('protection' not in the passage)
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:16
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: as one among many competing experiments, carried on for the purpose of example and stimulus,
+    to keep the others up to a certain standard of
+  question: According to the author, what is the main danger of a general State education?
+  options:
+    A: It guarantees equal opportunities for every child.
+    B: It encourages competition among private schools.
+    C: It ensures that only the most talented receive advanced training.
+    D: It reduces the cost of education for all citizens.
+    E: It moulds people into uniformity, creating despotism over the mind.
+  key: E
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:17
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: should do, or cause to be done, something for their benefit, instead of leaving it to be done
+    by themselves, individually, or in voluntary combination.
+  question: According to the author, what is the first type of objection to government interference that
+    does not involve infringement of liberty?
+  options:
+    A: When the government’s action would prevent individuals from pursuing their own happiness.
+    B: When the task is likely better performed by individuals than by the government.
+    C: When the government’s action would interfere with voluntary cooperation among citizens.
+    D: When the government’s action would create a monopoly over a necessary good.
+    E: When the government’s action would violate the principle of liberty.
+  key: B
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:18
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: science exclusively. The examinations on religion, politics, or other disputed topics, should
+    not turn on the truth or falsehood of opinions, but on the matter
+  question: According to the author, what is the purpose of the proposed public examinations for children?
+  options:
+    A: To replace parental responsibility with state control of education.
+    B: To eliminate the need for voluntary higher‑level examinations.
+    C: To ensure that every child acquires a minimum level of general knowledge.
+    D: To allow the state to dictate political opinions to students.
+    E: To compel children to study religious doctrines.
+  key: C
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:19
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: other offence should be increased in severity. The making himself drunk, in a person whom drunkenness
+    excites to do harm to others, is a crime
+  question: According to the author, which of the following statements best reflects his view on legislative
+    interference with drunkenness?
+  options:
+    A: He maintains that all cases of drunkenness should be treated as crimes against society.
+    B: He argues that drunkenness should never be subject to any legislative interference.
+    C: He claims that drunkenness is a private matter and should be left entirely to individual responsibility.
+    D: He believes it is legitimate to impose special legal restrictions on a person who has previously
+      committed violent acts under the influence of drink.
+    E: He suggests that only the general public should be penalized for drunkenness, regardless of past
+      offenses.
+  key: D
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:on_liberty:CHAPTER V. APPLICATIONS.:20
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: on_liberty
+  chapter: CHAPTER V. APPLICATIONS.
+  quote: the ability of the body itself up to a high standard, is liability to the watchful criticism
+    of equal ability outside the body. It is
+  question: According to the author, what is the main danger of concentrating all national ability in
+    the governing body?
+  options:
+    A: It leads to mental stagnation and loss of progressiveness.
+    B: It guarantees that the government will always act in the best interests of the people.
+    C: It eliminates the need for external criticism and oversight.
+    D: It creates a more efficient bureaucracy that can quickly adapt to change.
+    E: It ensures that all necessary skills are available within the state apparatus.
+  key: A
+  label: sound
+  reasons: []
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:quincas_borba:CAPITULO L:1
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: quincas_borba
+  chapter: CAPITULO L
+  quote: assustada para o corredor. —Está bom, disse, não fallemos mais nisto. Verei como elle se comporta,
+    e tratarei de ser mais fria... Nesse caso, tu
+  question: Qual é a razão principal que leva Palha a considerar cortar a relação?
+  options:
+    A: Ele quer viajar para o exterior.
+    B: Ele tem medo de perder a mulher.
+    C: Ele deve dinheiro à pessoa.
+    D: Ele quer se casar.
+    E: Ele quer mudar de cidade.
+  key: C
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:quincas_borba:CAPITULO L:2
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: quincas_borba
+  chapter: CAPITULO L
+  quote: arranjada. Viste o Ramos como devorava tudo o que se lhe poz no prato? Tu verás que elle um dia
+    engole a mulher. —A mulher?
+  question: Qual condição Sophia impõe para que o Palha revele o melhor episódio da noite?
+  options:
+    A: Não quero zangas nem barulhos.
+    B: Não quero que o Palha interrompa a festa.
+    C: Não quero que o Palha fale em voz alta.
+    D: Não quero que o Palha revele a história em público.
+    E: Não quero que ninguém mais escute a conversa.
+  key: A
+  label: sound
+  reasons: []
+  note: 'muddled stem: Sophia, not Palha, reveals the episode'
+  set: development
+- id: quiz_20261111T131123067024Z:quincas_borba:CAPITULO L:3
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: quincas_borba
+  chapter: CAPITULO L
+  quote: o jardim, disse o marido, procurando sorrir. —Mas, Christiano, como queres tu que lhe falle a
+    primeira vez que elle cá vier? Não tenho cara
+  question: Qual é a atitude de Palha ao fim do trecho?
+  options:
+    A: Ele corre para o jardim e chama a atenção de Sophia.
+    B: Ele abre a porta e vai embora.
+    C: Ele se senta no sofá e continua a conversar.
+    D: Ele se levanta, coloca as mãos nas calças e fica diante de Sophia.
+    E: Ele sai da sala sem dizer nada.
+  key: D
+  label: sound
+  reasons: []
+  note: refers_to_passage
+  set: development
+- id: quiz_20261111T131123067024Z:quincas_borba:CAPITULO L:4
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: quincas_borba
+  chapter: CAPITULO L
+  quote: nas costas do sophá, olhava sorrindo, sem achar que dizer. Ao cabo de alguns minutos, ponderou
+    a mulher que era tarde, que ia mandar apagar
+  question: Qual é a razão que leva Sophia a decidir cortar as relações?
+  options:
+    A: Ela decide terminar porque o marido a ameaçou com violência física.
+    B: Ela percebe que o relacionamento está se deteriorando e que é melhor terminar.
+    C: Ela acredita que o relacionamento pode ser salvo com mais presentes e juras de amor.
+    D: Ela quer se casar com outro homem para melhorar sua posição social.
+    E: Ela pensa que o fim do relacionamento é apenas uma fase passageira que será superada.
+  key: B
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: options misread 'relações' as a romance
+  set: development
+- id: quiz_20261111T131123067024Z:quincas_borba:CAPITULO L:5
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: quincas_borba
+  chapter: CAPITULO L
+  quote: que não quero levantar a voz... Bem, assim... Vamos ao caso. Não me fez declaração positiva...
+    —Ah! não? accudiu vivamente o marido. —Não, mas vem
+  question: Quem é o homem que, segundo o narrador, a mulher amou?
+  options:
+    A: Mau
+    B: O marido
+    C: Rubião
+    D: O major
+    E: Quincas Borba
+  key: C
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: null
+  set: development
+- id: quiz_20261111T131123067024Z:quincas_borba:CAPITULO L:6
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: quincas_borba
+  chapter: CAPITULO L
+  quote: nem lua. O que eu quero dizer é que o nosso amigo não estaria em si. Talvez se ache a agora arrependido
+    do que fez,
+  question: Qual é a razão que Palha dá para não convidar a beleza mencionada por Sophia a ver o Cruzeiro?
+  options:
+    A: Ele acha que a beleza não jantou lá e não havia jardim nem lua.
+    B: Ele tem medo de que a beleza cause confusão no evento.
+    C: Ele acha que a beleza não é digna de ser convidada.
+    D: Ele acredita que a beleza não tem interesse em eventos sociais.
+    E: Ele pensa que a beleza já está comprometida com outro convidado.
+  key: A
+  label: flawed
+  reasons:
+  - key_not_stated
+  - explanation_beyond_passage
+  note: 'muddled stem: Rubião, not Palha, didn''t invite her'
+  set: development
+- id: quiz_20261111T131123067024Z:quincas_borba:CAPITULO L:7
+  source: quiz run quiz_20261111T131123067024Z, marked by the agent, not reviewed by the owner
+  book: quincas_borba
+  chapter: CAPITULO L
+  quote: ser gracejo de intimidade. Rubião olhava para ella muita vez, é certo; parece tambem que Sophia,
+    em algumas occasiões, pagava os olhares com outros... Concessões
+  question: Por que Palha acha que a carta de Sophia pode cativar um homem?
+  options:
+    A: Porque ele acha que a carta tem flores.
+    B: Porque ele acha que a carta é muito longa.
+    C: Porque ele acha que a carta é escrita em tinta vermelha.
+    D: Porque ele acha que Sophia é muito bonita.
+    E: Porque ele acha que Rubião pode ser esse homem.
+  key: E
+  label: flawed
+  reasons:
+  - key_not_stated
+  - two_defensible
+  note: 'muddled stem: the wife''s gentilezas, not the letter, could captivate'
+  set: development

@@ -189,6 +189,50 @@ class SummarizationConfig(GenerationTaskConfig):
     types: dict[str, SummaryTypeConfig]
 
 
+class QuizCheckConfig(ConfigModel):
+    """The key check: a second reading of each question against its passage.
+
+    Attributes:
+        enabled: whether questions are checked before they are shown.
+        model: the checker. None means the writer, llm.model. Needs an entry in llm_profiles.
+        reasoning: replaces the checker's profile setting, as a judge's does.
+        max_tokens: its limit for a reply, reasoning included.
+    """
+
+    enabled: bool = False
+    model: str | None = None
+    reasoning: Literal["low", "medium", "high"] | None = "medium"
+    max_tokens: PositiveInt = 2000
+
+
+class QuizConfig(ConfigModel):
+    """Writing quizzes: one question per passage, by the rules of specs/003-chapter-quiz.
+
+    Attributes:
+        temperature: for writing a question.
+        max_tokens: the limit for a question's reply, reasoning included.
+        words_per_question: the default count's rate, over the chosen text's words.
+        default_max: the most questions the default count gives.
+        max_questions: the most questions a quiz can have.
+        attempts_per_passage: tries at one passage before another is used.
+        check: the key check.
+    """
+
+    temperature: float = Field(default=0.2, ge=0)
+    max_tokens: PositiveInt = 1500
+    words_per_question: PositiveInt = 300
+    default_max: PositiveInt = 20
+    max_questions: PositiveInt = 50
+    attempts_per_passage: PositiveInt = 3
+    check: QuizCheckConfig = QuizCheckConfig()
+
+    @model_validator(mode="after")
+    def check_default_max(self) -> Self:
+        if self.default_max > self.max_questions:
+            raise ValueError("default_max must not exceed max_questions")
+        return self
+
+
 class ContextConfig(ConfigModel):
     max_size: PositiveInt
     safety_margin: float = Field(ge=0, lt=1)
@@ -197,6 +241,7 @@ class ContextConfig(ConfigModel):
 class GenerationConfig(ConfigModel):
     question_answering: GenerationTaskConfig
     summarization: SummarizationConfig
+    quiz: QuizConfig
     context: ContextConfig
     response_languages: tuple[str, ...]
 
@@ -250,6 +295,12 @@ class Settings(ConfigModel):
         for task in (self.generation.question_answering, self.generation.summarization):
             if (task.max_tokens or self.llm.max_tokens) >= self.llm.context_size:
                 raise ValueError("max_tokens leaves no room for the prompt in llm.context_size")
+        quiz = self.generation.quiz
+        if quiz.check.model is not None and quiz.check.model not in self.llm_profiles:
+            raise ValueError(f"llm_profiles has no entry for generation.quiz.check.model '{quiz.check.model}'")
+        for name, limit in (("max_tokens", quiz.max_tokens), ("check.max_tokens", quiz.check.max_tokens)):
+            if limit >= self.llm.context_size:
+                raise ValueError(f"generation.quiz.{name} leaves no room for the prompt in llm.context_size")
         return self
 
     @property

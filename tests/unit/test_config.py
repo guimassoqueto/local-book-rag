@@ -127,3 +127,70 @@ def test_environment_variables_override_the_defaults(monkeypatch):
 
     assert environment.chroma_host == "elsewhere"
     assert environment.data_dir == Path("/tmp/library")
+
+
+def test_the_quiz_settings_load_with_their_defaults(settings):
+    quiz = settings.generation.quiz
+    assert (quiz.temperature, quiz.max_tokens, quiz.words_per_question) == (0.2, 1500, 300)
+    assert (quiz.default_max, quiz.max_questions, quiz.attempts_per_passage) == (20, 50, 3)
+    assert (quiz.check.enabled, quiz.check.model, quiz.check.reasoning, quiz.check.max_tokens) == (
+        False,
+        None,
+        "medium",
+        2000,
+    )
+
+
+def test_an_unknown_quiz_key_is_rejected(config_dir, edit_config):
+    edit_config("generation.yaml", lambda c: c["generation"]["quiz"].update(max_questons=10))
+
+    with pytest.raises(ConfigurationError, match="max_questons"):
+        load_settings(config_dir)
+
+
+def test_the_checker_model_needs_a_profile(config_dir, edit_config):
+    edit_config("generation.yaml", lambda c: c["generation"]["quiz"]["check"].update(model="unknown-model"))
+
+    with pytest.raises(ConfigurationError, match="unknown-model"):
+        load_settings(config_dir)
+
+
+def test_a_checker_model_with_a_profile_is_accepted(config_dir, edit_config):
+    edit_config("generation.yaml", lambda c: c["generation"]["quiz"]["check"].update(model="qwen3:14b"))
+
+    assert load_settings(config_dir).generation.quiz.check.model == "qwen3:14b"
+
+
+@pytest.mark.parametrize("path", [("max_tokens",), ("check", "max_tokens")])
+def test_the_quiz_limits_must_leave_room_for_the_prompt(config_dir, edit_config, path):
+    def change(content):
+        target = content["generation"]["quiz"]
+        for key in path[:-1]:
+            target = target[key]
+        target[path[-1]] = 8192
+
+    edit_config("generation.yaml", change)
+
+    with pytest.raises(ConfigurationError, match="room"):
+        load_settings(config_dir)
+
+
+def test_the_default_count_cannot_exceed_the_cap(config_dir, edit_config):
+    edit_config("generation.yaml", lambda c: c["generation"]["quiz"].update(default_max=60))
+
+    with pytest.raises(ConfigurationError, match="default_max"):
+        load_settings(config_dir)
+
+
+@pytest.mark.parametrize("reasoning", ["extreme", True])
+def test_the_checker_reasoning_takes_a_level_or_nothing(config_dir, edit_config, reasoning):
+    edit_config("generation.yaml", lambda c: c["generation"]["quiz"]["check"].update(reasoning=reasoning))
+
+    with pytest.raises(ConfigurationError, match="reasoning"):
+        load_settings(config_dir)
+
+
+def test_the_checker_reasoning_can_be_left_to_the_profile(config_dir, edit_config):
+    edit_config("generation.yaml", lambda c: c["generation"]["quiz"]["check"].update(reasoning=None))
+
+    assert load_settings(config_dir).generation.quiz.check.reasoning is None

@@ -38,8 +38,9 @@ dependency.
 **Storage**: None for quizzes: they live in the session's memory (FR-018). The measurement writes to
 `benchmarks/results` and `benchmarks/workspace`, inside the app container. A download is written
 by `QuizService.export()` into `data/quiz_downloads`, which is emptied when another quiz is
-prepared and at each start. Gradio serves a copy from its cache, which is emptied on restart and
-hourly.
+prepared and at each start. Gradio serves a copy from its cache, removing copies older than 50
+minutes every 10 minutes and all of them when its server shuts down, which `serve()` makes happen
+on SIGTERM.
 
 **Testing**: pytest.
 - `make test`: unit tests, with fake models, real SQLite and embedded ChromaDB.

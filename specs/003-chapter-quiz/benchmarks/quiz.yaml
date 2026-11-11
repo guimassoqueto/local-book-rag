@@ -1,0 +1,33 @@
+name: quiz
+kind: quiz
+description: >-
+  Measures question writing for the Quiz tab (specs/003-chapter-quiz, FR-019): six chapters in two
+  languages, prepared through QuizService with a fixed seed, so that prompt rounds and models pair
+  question by question. Mark the run's reading.csv by FR-020's rubric, then run benchmark-report.
+
+# The owner's copy of a book that isn't public. Copy it into benchmarks/books under this name
+# (quickstart.md § 7): it is never fetched, and a different file stops the run before any work.
+local_books:
+  - key: historia_economica_global
+    title: História econômica global
+    language: pt
+    filename: historia-economica-global.pdf
+    sha256: e51843992cbd2420ecf9a80b8cf8dd35e709f989fc16c19b13685d2ab3088d79
+
+# The six chapters of FR-019. The three of the owner's book at the counts of the spec's examples;
+# the benchmark's chapters at the default count the first run computed, written here as numbers so
+# that a change to the default rule can't change what is measured.
+targets:
+  - {book: historia_economica_global, chapter: "Capítulo 1: A grande divergência", questions: 10}
+  - {book: historia_economica_global, chapter: "Capítulo 3: A Revolução Industrial", questions: 17}
+  - {book: historia_economica_global, chapter: "Capítulo 6: As Américas", questions: 20}
+  - {book: think_python, chapter: Inheritance, questions: 14}
+  - {book: on_liberty, chapter: CHAPTER V. APPLICATIONS., questions: 20}
+  - {book: quincas_borba, chapter: CAPITULO L, questions: 7}
+
+seed: 0
+
+variants:
+  - name: gpt_oss_20b
+    overrides:
+      llm: {model: "gpt-oss:20b"}

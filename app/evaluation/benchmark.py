@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Literal
 
 import yaml
@@ -42,6 +43,7 @@ from app.evaluation.generation_metrics import (
     language_matches,
 )
 from app.evaluation.performance import measure
+from app.evaluation.quiz_metrics import KnownCase, load_known_cases, summarize_check, write_reading
 from app.evaluation.retrieval_metrics import (
     context_precision,
     context_recall,
@@ -52,11 +54,13 @@ from app.evaluation.retrieval_metrics import (
 from app.evaluation.summary_metrics import SummaryJudge
 from app.generation.base import GenerationParameters, LLMProvider
 from app.generation.factory import create_llm_provider
-from app.generation.prompts import question_answering_messages
+from app.generation.prompts import QUIZ_LETTERS, QuizSource, question_answering_messages
 from app.generation.question_answering import check_abstention, read_reply
+from app.generation.quiz import REFUSAL_KINDS, QuizWriter
 from app.ingestion.chunker import Chunk
 from app.ingestion.validation import validate_upload
 from app.retrieval.base import RetrievalFilters
+from app.services.quiz_service import QuestionReady, QuizReady
 from app.services.reset_service import CONFIRM_RESET_EVERYTHING
 from app.storage.catalog import Book, BookStatus, utc_now
 from app.utils.gpu import query_gpu
@@ -97,6 +101,10 @@ _PERFORMANCE_METRICS = (
     "gpu_fraction",
 )
 _EXTRACTION_METRICS = ("toc_coverage", "chapters", "chunks", "pages_covered")
+_QUIZ_ROW_METRICS = ("delivered_share", "seconds", "first_question_seconds")
+_QUESTION_METRICS = ("key_is_longest", "key_is_shortest", "closed_book_correct")
+QUIZ_METRICS = _QUIZ_ROW_METRICS + _QUESTION_METRICS
+_WHOLE_BOOK = "(whole book)"
 _SUMMARY_METRICS = (
     "argument_coverage",
     "concept_preservation",
@@ -115,6 +123,38 @@ class VariantConfig(BaseModel):
     overrides: dict[str, Any] = Field(default_factory=dict)
 
 
+class LocalBook(BaseModel):
+    """A book that isn't in the dataset, such as the owner's own copy of a book that isn't public.
+
+    The owner copies its file into benchmarks/books: it is never fetched, and its checksum is
+    checked before a run does anything.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    key: str
+    title: str
+    language: str
+    filename: str
+    sha256: str
+
+
+class QuizTarget(BaseModel):
+    """What a quiz experiment prepares a quiz on.
+
+    Attributes:
+        book: a dataset or local book's key.
+        chapter: a chapter's title, or None for the whole book.
+        questions: how many questions. None for the application's default count.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    book: str
+    chapter: str | None
+    questions: PositiveInt | None = None
+
+
 class Experiment(BaseModel):
     """One experiment file.
 
@@ -127,18 +167,28 @@ class Experiment(BaseModel):
         runs: measured runs per variant, for performance.
         max_tokens: tokens to generate per run, for performance.
         prompt_book: the dataset's book to take the prompt from, for performance. The first by default.
+        local_books: books outside the dataset, indexed in the workspace beside its books.
+        targets: the quizzes to prepare, for quiz.
+        seed: fixes passages, letters, order and sampling, so variants pair up, for quiz.
+        known_cases: the known cases file, relative to the experiment file, for quiz_check.
+        case_set: which known cases to run on, for quiz_check.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
-    kind: Literal["retrieval", "generation", "summarization", "performance", "extraction"]
+    kind: Literal["retrieval", "generation", "summarization", "performance", "extraction", "quiz", "quiz_check"]
     description: str
     variants: tuple[VariantConfig, ...]
     judge: JudgeConfig | None = None
     runs: PositiveInt = 3
     max_tokens: PositiveInt = 256
     prompt_book: str | None = None
+    local_books: tuple[LocalBook, ...] = ()
+    targets: tuple[QuizTarget, ...] = ()
+    seed: int = 0
+    known_cases: Path | None = None
+    case_set: Literal["development", "test"] | None = None
 
     @model_validator(mode="after")
     def distinct_variants(self) -> "Experiment":
@@ -147,12 +197,22 @@ class Experiment(BaseModel):
             raise ValueError("variant names have to differ: results are grouped by them")
         return self
 
+    @model_validator(mode="after")
+    def check_needs_its_cases(self) -> "Experiment":
+        if self.kind == "quiz_check" and (self.known_cases is None or self.case_set is None):
+            raise ValueError("a quiz_check experiment needs known_cases and a case_set: development or test")
+        return self
+
 
 def load_experiment(path: Path) -> Experiment:
+    """Read an experiment file. Its known cases, if any, are read from beside it."""
     try:
-        return Experiment.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
+        experiment = Experiment.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
     except (OSError, ValueError) as exc:
         raise ConfigurationError(f"Invalid experiment {path}: {exc}") from exc
+    if experiment.known_cases is not None and not experiment.known_cases.is_absolute():
+        experiment = experiment.model_copy(update={"known_cases": path.parent / experiment.known_cases})
+    return experiment
 
 
 def apply_overrides(settings: Settings, overrides: Mapping[str, Any]) -> Settings:
@@ -214,18 +274,23 @@ class BenchmarkRunner:
         self._dataset = load_dataset(self._dataset_directory)
         self._say = say
 
-    def run(self, experiment: Experiment, limit: int | None = None) -> Path:
+    def run(self, experiment: Experiment, limit: int | None = None, commit: str | None = None) -> Path:
         """Run an experiment and write its results.
 
         Args:
             experiment: what to run.
             limit: for a quick pass, how many questions to take per book and category, or
                 chapters per book. A full run leaves it out.
+            commit: the code's commit, recorded with the results: the container holds no .git.
 
         Returns:
             The directory holding the results.
+
+        Raises:
+            ConfigurationError: a local book's file is missing or isn't the expected one.
         """
-        environment = self._describe_environment(experiment)  # first: a run can take hours
+        self._check_local_books(experiment)
+        environment = self._describe_environment(experiment, commit)  # first: a run can take hours
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
         directory = self._root / "results" / f"{experiment.name}_{stamp}"
         directory.mkdir(parents=True)
@@ -248,8 +313,27 @@ class BenchmarkRunner:
             case "extraction":
                 self._run_extraction(experiment, rows)
                 metrics = _EXTRACTION_METRICS
+            case "quiz":
+                reading: list[dict[str, Any]] = []
+                self._run_quiz(experiment, rows, reading)
+                write_reading(directory / "reading.csv", reading)
+                metrics = QUIZ_METRICS
+            case "quiz_check":
+                self._run_quiz_check(experiment, rows)
         self._write(directory, experiment, environment, rows.all, metrics, limit)
         return directory
+
+    def _check_local_books(self, experiment: Experiment) -> None:
+        """Stop before any work when a local book isn't the owner's copy the experiment names."""
+        for book in experiment.local_books:
+            path = self._root / "books" / book.filename
+            if not path.is_file():
+                raise ConfigurationError(f"{book.key}: {path} is missing. Copy the owner's file there first.")
+            if (checksum := file_checksum(path)) != book.sha256:
+                raise ConfigurationError(
+                    f"{book.key}: {path} isn't the file the experiment names: its sha256 is {checksum}, "
+                    f"not {book.sha256}."
+                )
 
     def validate(self) -> list[str]:
         """Check every question against the real text of its book, as the current code extracts it."""
@@ -275,8 +359,8 @@ class BenchmarkRunner:
                 selected.append(question)
         return selected
 
-    def _open(self, settings: Settings) -> Workspace:
-        """Open a variant's workspace, indexing the dataset's books the first time.
+    def _open(self, settings: Settings, local_books: Sequence[LocalBook] = ()) -> Workspace:
+        """Open a variant's workspace, indexing the dataset's books, and any local ones, the first time.
 
         Changes to the ingestion code aren't detected: after one, delete benchmarks/workspace.
         """
@@ -295,7 +379,8 @@ class BenchmarkRunner:
         books: dict[str, Book] = {}
         chunks: dict[str, Sequence[Chunk]] = {}
         known = {book.checksum: book for book in container.books.list_books()}
-        for entry in self._dataset.books:
+        entries: list[LocalBook | Any] = [*self._dataset.books, *local_books]
+        for entry in entries:
             path = self._root / "books" / entry.filename
             book = known.get(file_checksum(path))
             if book is None or book.status is not BookStatus.INDEXED:  # adding retries a failed book
@@ -514,6 +599,202 @@ class BenchmarkRunner:
                 processed = pipeline.process(path, validate_upload(path, entry.filename, 2**30), "book", entry.title)
                 rows.append({"variant": variant.name, "book": entry.key, **asdict(extraction_scores(path, processed))})
 
+    def _run_quiz_check(self, experiment: Experiment, rows: "_Rows") -> None:
+        """Run the key check, and the comparator, over the known cases of one set (FR-026, FR-027).
+
+        The comparator is the shipped writer answering each case with its passage, so it is the
+        same for every variant, and asked once per case.
+        """
+        assert experiment.known_cases is not None
+        cases = [case for case in load_known_cases(experiment.known_cases) if case.case_set == experiment.case_set]
+        self._say(f"{len(cases)} {experiment.case_set} cases")
+        comparator_answers: dict[str, str | None] = {}
+        for variant in experiment.variants:
+            settings = apply_overrides(self._settings, variant.overrides)
+            workspace = self._open(settings, experiment.local_books)
+            runtime = workspace.container.runtime
+            check = settings.generation.quiz.check
+            checker = QuizWriter(
+                settings.generation.quiz,
+                settings.generation.context.safety_margin,
+                create_llm_provider(settings, runtime),
+                checker=create_llm_provider(
+                    settings, runtime, model=check.model or settings.llm.model, reasoning=check.reasoning
+                ),
+            )
+            comparator = QuizWriter(
+                self._settings.generation.quiz,
+                self._settings.generation.context.safety_margin,
+                create_llm_provider(self._settings, runtime),
+            )
+            for position, case in enumerate(cases, start=1):
+                self._say(f"{variant.name}: case {position} of {len(cases)}")
+                row: dict[str, Any] = {
+                    "variant": variant.name,
+                    "row": "case",
+                    "case": case.id,
+                    "book": case.book,
+                    "label": case.label,
+                    "set": case.case_set,
+                }
+                passage = _locate(case, workspace)
+                if passage is None:
+                    self._say(f"  {case.id}: its quote is in no passage of {case.book}, {case.chapter}")
+                    rows.append(row | {"located": False})
+                    continue
+                book = workspace.books[case.book]
+                source = QuizSource(book.title, book.author, case.chapter)
+                verdict = checker.check(case.question, case.lettered, case.key, passage, source, seed=_SEED)
+                if case.id not in comparator_answers:
+                    comparator_answers[case.id] = comparator.answer(
+                        case.question, case.lettered, passage, source, seed=_SEED
+                    )
+                answer = comparator_answers[case.id]
+                rows.append(
+                    row
+                    | {
+                        "located": True,
+                        "rejected": verdict.readable and not verdict.accepted,
+                        "supported": "".join(verdict.supported),
+                        "readable": verdict.readable,
+                        "open_book_answer": answer,
+                        "open_book_caught": None if answer is None else answer != case.key,
+                    }
+                )
+
+    def _run_quiz(self, experiment: Experiment, rows: "_Rows", reading: list[dict[str, Any]]) -> None:
+        """Prepare each target's quiz through the workspace's QuizService, as the tab does, and time it.
+
+        The same seed gives every variant the same passages, letters and order, so their rows pair
+        question by question. The writer then answers each question without its passage.
+        """
+        for variant in experiment.variants:
+            settings = apply_overrides(self._settings, variant.overrides)
+            workspace = self._open(settings, experiment.local_books)
+            answerer = QuizWriter(
+                settings.generation.quiz,
+                settings.generation.context.safety_margin,
+                create_llm_provider(settings, workspace.container.runtime),
+            )
+            for target in experiment.targets:
+                self._run_target(variant.name, experiment.seed, target, workspace, answerer, rows, reading)
+
+    def _run_target(
+        self,
+        variant: str,
+        seed: int,
+        target: QuizTarget,
+        workspace: Workspace,
+        answerer: QuizWriter,
+        rows: "_Rows",
+        reading: list[dict[str, Any]],
+    ) -> None:
+        book = workspace.books.get(target.book)
+        if book is None:
+            raise ConfigurationError(f"No book '{target.book}' in the dataset or the experiment's local_books.")
+        quizzes = workspace.container.quizzes
+        number = None
+        if target.chapter is not None:
+            numbers = {title: number for number, title in workspace.container.books.chapters(book.book_id)}
+            if target.chapter not in numbers:
+                raise ConfigurationError(f"{target.book} has no chapter '{target.chapter}'. It has: {list(numbers)}.")
+            number = numbers[target.chapter]
+        chapter = target.chapter or _WHOLE_BOOK
+        count = target.questions or quizzes.default_count(book.book_id, number)
+        self._say(f"{variant}: {count} questions on {target.book}, {chapter}")
+        quiz_row: dict[str, Any] = {"variant": variant, "row": "quiz", "book": target.book, "chapter": chapter}
+
+        started = last = perf_counter()
+        first: float | None = None
+        ready: list[tuple[QuestionReady, float]] = []
+        final: QuizReady | None = None
+        try:
+            for event in quizzes.prepare(book.book_id, number, count, seed=seed):
+                now = perf_counter()
+                if isinstance(event, QuestionReady):
+                    first = now - started if first is None else first
+                    ready.append((event, now - last))
+                    last = now
+                elif isinstance(event, QuizReady):
+                    final = event
+        except BookRagError as exc:
+            self._say(f"  {exc}")
+            rows.append(quiz_row | {"asked": count, "failed": True, "error": str(exc)})
+            return
+        seconds = perf_counter() - started
+        assert final is not None
+
+        source = QuizSource(book.title, book.author, None)
+        passages: dict[int, list[Chunk]] = defaultdict(list)
+        for chunk in workspace.chunks[target.book]:
+            passages[chunk.chapter_number].append(chunk)
+        for event, question_seconds in ready:
+            question = event.question
+            chapter_passages = sorted(passages[question.passage.chapter_number], key=lambda chunk: chunk.chunk_index)
+            place = [chunk.chunk_id for chunk in chapter_passages].index(question.passage.chunk_id)
+            key_index = QUIZ_LETTERS.index(question.key)
+            key = question.options[key_index]
+            others = [option for index, option in enumerate(question.options) if index != key_index]
+            answer = answerer.answer(question.text, question.options, None, source, seed=seed)
+            identifier = f"{target.book}:{chapter}:{question.position}"
+            rows.append(
+                {
+                    "variant": variant,
+                    "row": "question",
+                    "question": identifier,
+                    "book": target.book,
+                    "chapter": chapter,
+                    "question_chapter": question.passage.chapter_title,
+                    "relative_position": place / (len(chapter_passages) - 1) if len(chapter_passages) > 1 else 0.0,
+                    "third": 3 * place // len(chapter_passages),
+                    "letter": question.key,
+                    # Length gives the answer away both ways: models were measured writing the key
+                    # longest, or shortest (specs/003-chapter-quiz, SC-002).
+                    "key_is_longest": len(key) > max(len(option) for option in others),
+                    "key_is_shortest": len(key) < min(len(option) for option in others),
+                    "closed_book_answer": answer,
+                    "closed_book_correct": None if answer is None else answer == question.key,
+                    "question_seconds": question_seconds,
+                    "attempts": event.attempts,
+                    "refusals": sum(event.refusals.values()),
+                    **{f"refused_{kind}": event.refusals.get(kind, 0) for kind in REFUSAL_KINDS},
+                    "checked": event.check is not None,
+                    "check_accepted": None if event.check is None else event.check.accepted,
+                }
+            )
+            passage = question.passage
+            reading.append(
+                {
+                    "variant": variant,
+                    "question": identifier,
+                    "book": target.book,
+                    "chapter": passage.chapter_title,
+                    "pages": "" if passage.page_start is None else f"{passage.page_start}-{passage.page_end}",
+                    "passage": passage.text,
+                    "text": question.text,
+                    **dict(zip(QUIZ_LETTERS, question.options, strict=True)),
+                    "key": question.key,
+                    "explanation": question.explanation,
+                }
+            )
+        delivered = len(final.quiz.questions)
+        rows.append(
+            quiz_row
+            | {
+                "asked": count,
+                "delivered": delivered,
+                "delivered_share": delivered / count,
+                "seconds": seconds,
+                "first_question_seconds": first,
+                "skipped_passages": final.skipped_passages,
+                "passed_over_passages": final.passed_over_passages,
+                "ruled_out_chapters": len(final.ruled_out_chapters),
+                "check_unreadable": final.check_unreadable,
+                "check_rejected": final.check_rejected,
+                "failed": False,
+            }
+        )
+
     def _write(
         self,
         directory: Path,
@@ -523,22 +804,28 @@ class BenchmarkRunner:
         metrics: Sequence[str],
         limit: int | None,
     ) -> None:
-        summary = summarize(rows, metrics)
+        summarizer = summarize_quiz if experiment.kind == "quiz" else summarize
+        if experiment.kind == "quiz_check":
+            summary = summarize_check(rows, experiment.case_set)
+        else:
+            summary = summarizer(rows, metrics)
         report = {
-            "experiment": experiment.model_dump(),
+            "experiment": experiment.model_dump(mode="json"),
             "complete": limit is None,
             "sample_limit": limit,
             "environment": environment,
             "summary": summary,
-            "by_category": summarize(rows, metrics, "category") if rows and "category" in rows[0] else [],
-            "by_book": summarize(rows, metrics, "book") if rows and "book" in rows[0] else [],
+            "by_category": summarizer(rows, metrics, "category") if rows and "category" in rows[0] else [],
+            "by_book": summarizer(rows, metrics, "book")
+            if rows and "book" in rows[0] and experiment.kind != "quiz_check"
+            else [],
             "rows": rows,
         }
         (directory / "results.json").write_text(json.dumps(report, ensure_ascii=False, indent=1, default=str))
         _write_csv(directory / "summary.csv", summary or rows)
         _write_csv(directory / "rows.csv", rows)
 
-    def _describe_environment(self, experiment: Experiment) -> dict[str, Any]:
+    def _describe_environment(self, experiment: Experiment, commit: str | None = None) -> dict[str, Any]:
         """Say exactly what was measured: results mean nothing without it."""
         timeout = self._settings.ollama.request_timeout_seconds
         runtime = OllamaRuntime(self._environment.ollama_base_url, timeout)
@@ -564,7 +851,21 @@ class BenchmarkRunner:
             },
             "python": platform.python_version(),
             "packages": {name: _package_version(name) for name in _TRACKED_PACKAGES},
+            "commit": commit,
+            "book_sha256": {
+                entry.key: file_checksum(path) if (path := self._root / "books" / entry.filename).is_file() else None
+                for entry in [*self._dataset.books, *experiment.local_books]
+            },
         }
+
+
+def _locate(case: KnownCase, workspace: Workspace) -> Chunk | None:
+    """The passage of the case's chapter that holds its quote, under this workspace's chunking."""
+    quote = " ".join(case.quote.casefold().split())
+    for chunk in workspace.chunks.get(case.book, ()):
+        if chunk.chapter_title == case.chapter and quote in " ".join(chunk.text.casefold().split()):
+            return chunk
+    return None
 
 
 def _relevant_places(evidence: Sequence[set[str]], chunks: Sequence[Chunk]) -> dict[str, str]:
@@ -630,6 +931,47 @@ def summarize(
             entry[f"{metric}_samples"] = len(values)
         failed = sum(1 for member in members if member.get("failed"))
         if failed:
+            entry["failed"] = failed
+        result.append(entry)
+    return result
+
+
+def summarize_quiz(
+    rows: Iterable[Mapping[str, Any]], metrics: Sequence[str], group: str | None = None
+) -> list[dict[str, Any]]:
+    """Average a quiz run's measures per variant: quiz measures over quizzes, the rest over questions.
+
+    `samples` counts questions, and `quizzes` the quizzes. `closed_book_unreadable` counts the
+    closed-book answers that couldn't be read, which closed_book_correct leaves out.
+    """
+    rows = list(rows)
+    questions = [row for row in rows if row.get("row") == "question"]
+    quizzes = [row for row in rows if row.get("row") == "quiz"]
+    per_quiz = summarize(quizzes, [metric for metric in metrics if metric in _QUIZ_ROW_METRICS], group)
+    per_question = summarize(questions, [metric for metric in metrics if metric in _QUESTION_METRICS], group)
+
+    def key(entry: Mapping[str, Any]) -> tuple[Any, ...]:
+        return (entry["variant"], entry[group]) if group else (entry["variant"],)
+
+    question_entries = {key(entry): entry for entry in per_question}
+    quiz_entries = {key(entry): entry for entry in per_quiz}
+    result = []
+    for entry_key in dict.fromkeys([*quiz_entries, *question_entries]):
+        on_quizzes = quiz_entries.get(entry_key, {})
+        on_questions = question_entries.get(entry_key, {})
+        entry: dict[str, Any] = {"variant": entry_key[0]}
+        if group:
+            entry[group] = entry_key[1]
+        entry["samples"] = on_questions.get("samples", 0)
+        entry["quizzes"] = on_quizzes.get("samples", 0)
+        for metric in metrics:
+            source = on_quizzes if metric in _QUIZ_ROW_METRICS else on_questions
+            entry[metric] = source.get(metric)
+            entry[f"{metric}_samples"] = source.get(f"{metric}_samples", 0)
+        entry["closed_book_unreadable"] = sum(
+            1 for row in questions if key(row) == entry_key and row.get("closed_book_correct") is None
+        )
+        if failed := on_quizzes.get("failed"):
             entry["failed"] = failed
         result.append(entry)
     return result

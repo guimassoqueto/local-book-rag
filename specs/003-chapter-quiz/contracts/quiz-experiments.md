@@ -30,7 +30,7 @@ For each variant and target, it prepares the quiz through the workspace's `QuizS
 Then the writer answers each question without its passage. Rows follow `data-model.md` §
 Measurement. `summarize` averages these per variant, and per book:
 - `delivered_share`, `seconds`, `first_question_seconds`;
-- `key_is_longest`;
+- `key_is_longest` and `key_is_shortest`;
 - `closed_book_correct`, which leaves out the answers it can't read and counts them as
   `closed_book_unreadable`.
 

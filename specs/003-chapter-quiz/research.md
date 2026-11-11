@@ -111,6 +111,11 @@ the code raised. The figures come from the assessment's probe
 - **Rationale**: Constitution V asks to parse what models really write. The probe's two unreadable
   replies were different malformations: an object closed early, and an empty extra option. Neither
   is worth repairing, since a retry costs seconds.
+- **Corrected during implementation**: the empty extra option isn't rare. In the first
+  integration run, gpt-oss:20b ended `wrong` with an empty fifth string in 3 of 4 replies, which
+  were all refused as `wrong_count`. An empty string is no answer, so the reader drops blank
+  entries before counting: three or five written wrong answers are still refused. Nothing else is
+  repaired.
 - **Alternatives considered**: Repairing JSON as the judge's reader does was rejected. That repair
   handles one recurring gpt-oss defect in long lists of verdicts. Here a fresh attempt is cheaper,
   and safer than guessing.
@@ -209,9 +214,16 @@ the code raised. The figures come from the assessment's probe
   - **The download** is a `gr.DownloadButton` whose file `QuizService.export()` writes into the
     service's download directory. The service empties it when a new quiz is prepared and when
     the application starts, so the tab writes nothing (constitution IV). Gradio serves its own
-    copy from its cache. The Blocks set `delete_cache`, which
-    empties that cache on restart and removes stale copies hourly; `quickstart.md` checks both.
-    The spec's FR-018 and SC-012 are corrected to say so.
+    copy from its cache. The Blocks set `delete_cache=(600, 3000)`, which removes copies older
+    than 50 minutes every 10 minutes, and all of them when the server shuts down; `quickstart.md`
+    checks both. The spec's FR-018 and SC-012 are corrected to say so.
+  - **Corrected during implementation: the shutdown has to happen.** Gradio deletes its copies only
+    when its server shuts down. `docker compose restart` sends SIGTERM, which the app, as the
+    container's first process, ignored until it was killed 10 s later, so Gradio never shut down
+    and its copies outlived the restart. A Gradio app with the same settings kept its copy after a
+    SIGTERM, and deleted it once SIGTERM was turned into the interrupt Gradio answers by closing
+    the server, which `serve()` now does. The restart also takes 1 s instead of 10. The sweep was
+    hourly with copies older than an hour, which let one last almost two.
   - **The book list.** `gradio_app.refresh` also refreshes the Quiz tab's book list.
 - **Rationale**: `gr.render` was considered for the variable number of questions. It rebuilds its
   components on every change, which would clear answers while later questions arrive. A

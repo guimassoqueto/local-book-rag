@@ -107,10 +107,10 @@ Benchmarks):
 git archive c7bb785 benchmarks | tar -x
 cp specs/003-chapter-quiz/benchmarks/*.yaml benchmarks/experiments/
 docker compose cp -a benchmarks app:/app/
+docker compose exec app book-rag fetch-benchmark-books   # creates benchmarks/books
 docker compose cp ~/Documents/livros/01_historia_economica_global.pdf \
     app:/app/benchmarks/books/historia-economica-global.pdf   # the name quiz.yaml lists
-docker compose exec app book-rag fetch-benchmark-books
-docker compose exec app book-rag benchmark benchmarks/experiments/quiz.yaml --commit "$(git rev-parse --short HEAD)"
+docker compose exec app book-rag benchmark benchmarks/experiments/quiz.yaml --commit "$(git describe --always --dirty)"
 docker compose cp app:/app/benchmarks/results benchmarks/
 ```
 
@@ -141,7 +141,7 @@ beside the experiment, which reads it from there, and run the proof:
 ```bash
 cp specs/003-chapter-quiz/key_cases.yaml specs/003-chapter-quiz/benchmarks/quiz_check.yaml benchmarks/experiments/
 docker compose cp benchmarks/experiments app:/app/benchmarks/
-docker compose exec app book-rag benchmark benchmarks/experiments/quiz_check.yaml --commit "$(git rev-parse --short HEAD)"
+docker compose exec app book-rag benchmark benchmarks/experiments/quiz_check.yaml --commit "$(git describe --always --dirty)"
 ```
 
 **Expected**: per variant, the shares the check catches and wrongly rejects, the comparator's

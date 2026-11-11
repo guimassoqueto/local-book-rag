@@ -62,7 +62,10 @@ or the passage is refused before sending. With 500-token chunks this doesn't hap
     "fragmento" or "texto". Likewise "according to the passage", "in this excerpt", "the text
     above", "selon le passage", "según el fragmento", "laut dem Abschnitt", "secondo il brano".
   - **"página", "page", "p." with a number**, a section's title from the passage's metadata, and,
-    in a whole-book quiz, the chapter's title.
+    in a whole-book quiz, the chapter's title. A title counts when it is quoted, follows a word for
+    a chapter or section ("no capítulo", "na seção sobre"), or comes with its number ("Capítulo 3"):
+    titles are mostly subjects, such as "Japão" or "A Revolução Industrial", which a question may
+    well ask about.
 
   "Trecho" also means a stretch of road or railway in Portuguese, so the bare word, without a
   pointer or a number, doesn't count. The lists live with the reader, and grow from what the
@@ -70,8 +73,10 @@ or the passage is refused before sending. With 500-token chunks this doesn't hap
 - `cross_reference` is decided by phrases and by letters:
   - **Phrases**: "all of the above", "none of the above", and their equivalents in Portuguese,
     Spanish, French, German and Italian, such as "todas as anteriores", "nenhuma das anteriores",
-    "ninguna de las anteriores", "toutes les réponses", "keine der", "nessuna delle". The list
-    lives with the reader, and grows from what the measurement finds.
+    "ninguna de las anteriores", "toutes les réponses", "keine der genannten", "nessuna delle
+    precedenti". In German and Italian the phrase counts only before a word for the options or
+    answers, since "keine der Kolonien" is an ordinary option. The list lives with the reader, and
+    grows from what the measurement finds.
   - **Letters**: an option naming another by letter, such as "A e B", "both A and B" or "option
     C". A standalone capital letter A to E counts only next to a word for "option", "answer",
     "and" or "or", so "vitamin A" or Portuguese's article "a" don't trip it.

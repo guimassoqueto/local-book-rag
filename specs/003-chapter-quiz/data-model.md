@@ -117,10 +117,11 @@ and its Result holds a copy of the quiz in state `graded`, so a graded quiz can'
 | --------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `QuizStarted`   | `asked`, `limit`, `book_title`, `chapter_title`                        | Before the first call.                                     |
 | `QuestionReady` | `question`, `ready` (count), `attempts`, `refusals` (kind → count), `check` (`CheckVerdict` or None) | Each time a question is ready, checked if the check is on. |
-| `QuizReady`     | `quiz`, `shortfall` (int, 0 if none), `skipped_passages`, `passed_over_passages`, `ruled_out_chapters` (chapter numbers), `check_unreadable` | Last, when preparation finishes. |
+| `QuizReady`     | `quiz`, `shortfall` (int, 0 if none), `skipped_passages`, `passed_over_passages`, `ruled_out_chapters` (chapter numbers), `check_unreadable`, `check_rejected` | Last, when preparation finishes. |
 
-`attempts` counts the model calls for that position, replaced passages included. The tab ignores
-the counts; the measurement's rows come from them (§ Measurement).
+`attempts` counts the model calls for that position, replaced passages included. `check_rejected`
+counts the questions the check rejected, which were replaced. The tab ignores the counts; the
+measurement's rows come from them (§ Measurement).
 
 A stop or an error ends the stream without `QuizReady`. An error is raised as a `BookRagError`.
 
@@ -155,24 +156,33 @@ result on demand.
 
 ## Measurement
 
+Every row has `row`: `question`, `quiz` or `case`.
+
 **Question row** (`kind: quiz`):
-- `variant`, `book`, `chapter`, `question`: the pairing ID, `book:chapter:position`;
-- `relative_position`, from 0 to 1 within its chapter;
+- `variant`, `book`, `chapter`, `question`: the pairing ID, `book:chapter:position`. A whole-book
+  target's `chapter` is `(whole book)`, and `question_chapter` says which chapter each question
+  came from;
+- `relative_position`, from 0 to 1 within its chapter, and `third`, 0 to 2, by the rule the
+  service spreads questions with;
 - `letter`: the key's letter. The model never orders the options (research R3), so there is no
   order of its own to compare it with;
-- `key_is_longest`;
-- `closed_book_correct`: None when the answer can't be read, which is left out and counted;
-- `seconds`, `attempts`, `refusals` (by kind), `checked`, `check_accepted`.
+- `key_is_longest` and `key_is_shortest`: whether the key is strictly the longest, or the shortest,
+  of the five options;
+- `closed_book_answer`, and `closed_book_correct`: None when the answer can't be read, which is
+  left out and counted;
+- `question_seconds`, `attempts`, `refusals` (their total) and `refused_<kind>` for each of
+  FR-010's kinds, `checked`, `check_accepted`.
 
 **Quiz row** (`kind: quiz`):
 - `variant`, `book`, `chapter`;
 - `asked`, `delivered`, `delivered_share`;
 - `seconds`, `first_question_seconds`;
-- `skipped_passages`, `passed_over_passages`, `ruled_out_chapters`;
-- `check_unreadable`: verdicts that couldn't be read twice (FR-024).
+- `skipped_passages`, `passed_over_passages`, `ruled_out_chapters` (how many);
+- `check_unreadable`: verdicts that couldn't be read twice (FR-024), and `check_rejected`;
+- `failed`, with `error` when the preparation stopped on one.
 
 **Reading row** (`reading.csv`, results directory only):
-- `question` (the pairing ID), `book`, `chapter`, `pages`, `passage`;
+- `variant`, `question` (the pairing ID), `book`, `chapter`, `pages`, `passage`;
 - `text`, the options A to E, `key`, `explanation`;
 - `mark`: `sound`, `flawed` or empty. Empty means unmarked, and counts as neither (FR-020);
 - `reasons`, for a flawed mark, one or more of:
@@ -202,6 +212,9 @@ result on demand.
 | `note`        | str or null           |                                                         |
 | `set`         | `development` or `test` | FR-026. A test case comes from a run no wording was tried on. |
 
-**Check row** (`kind: quiz_check`): `variant`, `case`, `label`, `rejected`, `supported`,
-`readable`, `open_book_answer` and `open_book_caught`. The last two come from the comparator: the
-writer answering with the passage. Both are None when its answer can't be read.
+**Check row** (`kind: quiz_check`): `variant`, `case`, `book`, `label`, `set`, `located`, then
+`rejected`, `supported`, `readable`, `open_book_answer` and `open_book_caught`. A case whose quote is
+in no passage has `located: false` and nothing else: it is counted, not run. `rejected` is what the
+service would do: a readable verdict that isn't exactly the key. The last two come from the
+comparator: the shipped writer answering with the passage. Both are None when its answer can't be
+read.

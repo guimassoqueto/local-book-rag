@@ -9,6 +9,10 @@ _SAMPLE_CHARACTERS = 20_000
 
 _NAMES = {"en": "English", "pt": "Portuguese", "es": "Spanish", "fr": "French", "de": "German", "it": "Italian"}
 
+# A reply's language is refused only when it is identified this surely: a short or mixed text, such
+# as a quiz question listing names, can read as anything. Full drafts read at 0.9999 or more.
+_MIN_REPLY_CONFIDENCE = 0.9
+
 # A short text is often ambiguous: "Explain recursion." reads as French at 0.17, and an English
 # question quoting Portuguese as Portuguese at 0.27. Below this, no language is named at all.
 _MIN_QUESTION_CONFIDENCE = 0.5
@@ -41,6 +45,12 @@ def reply_language(text: str) -> str:
     Unrestricted, a Portuguese answer quoting a 19th-century novel can read as Galician.
     """
     return _identifier(restricted=True).classify(text)[0]
+
+
+def confident_reply_language(text: str) -> str | None:
+    """Identify a reply's language as reply_language does, or None when it can't be told surely."""
+    code, confidence = _identifier(restricted=True).classify(text)
+    return code if confidence >= _MIN_REPLY_CONFIDENCE else None
 
 
 @cache

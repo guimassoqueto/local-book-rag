@@ -168,8 +168,8 @@ def recording_llms(sink: list[dict[str, Any]], label: Label) -> Iterator[None]:
 
     original = container_module.create_llm_provider
 
-    def wrapped(settings: Any, runtime: Any) -> RecordingLLM:
-        return RecordingLLM(original(settings, runtime), sink, label)
+    def wrapped(settings: Any, runtime: Any, **options: Any) -> RecordingLLM:
+        return RecordingLLM(original(settings, runtime, **options), sink, label)
 
     container_module.create_llm_provider = wrapped
     try:

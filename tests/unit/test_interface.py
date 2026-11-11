@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import gradio as gr
 import pytest
 
@@ -7,6 +9,7 @@ from app.errors import BookNotFoundError
 from app.generation.base import Generation, Message
 from app.generation.citations import citation_for
 from app.generation.question_answering import Answer, QuestionAnsweringService
+from app.generation.quiz import QuizWriter
 from app.generation.summarization import ChapterSummary
 from app.interface import formatting
 from app.interface.common import reports_errors
@@ -14,6 +17,7 @@ from app.interface.gradio_app import build_interface
 from app.retrieval.base import Passage
 from app.retrieval.pipeline import RetrievalResult
 from app.services.health_service import HealthService
+from app.services.quiz_service import QuizService
 from app.storage.catalog import Book, BookStatus, IndexRecord
 from app.utils.gpu import GpuStatus
 from app.utils.ollama_runtime import LoadedModel
@@ -260,6 +264,14 @@ def interface(library):
         retrieval=library.retrieval,
         questions=QuestionAnsweringService(library.settings, library.retrieval, llm),
         summaries=library.summarizer,
+        quizzes=QuizService(
+            library.settings.generation.quiz,
+            library.settings.generation.response_languages,
+            library.catalog,
+            library.processed,
+            QuizWriter(library.settings.generation.quiz, 0.1, llm),
+            library.root / "quiz_downloads",
+        ),
     )
     return build_interface(container)
 
@@ -282,6 +294,8 @@ def test_every_primary_operation_is_reachable(interface):
         "ask",
         "summarize",
         "save_summary",
+        "prepare_quiz",
+        "grade_quiz",
         "system_status",
     } <= names
 
@@ -396,3 +410,201 @@ def test_replacing_through_the_interface_uses_the_service(interface, library, tm
     handler(interface, "replace_book")(book.book_id, str(upload(tmp_path, "new.md", other_text("new"))))
 
     assert library.books.get_book(book.book_id).revision == 2
+
+
+# The Quiz tab's formatting (specs/003-chapter-quiz, contracts/quiz-tab.md)
+
+
+def quiz_question(position=7, key="C"):
+    from app.services.quiz_service import Question
+
+    passage = make_chunk(
+        "Wages were high in Britain and energy was cheap, so machines paid.",
+        section="Salários reais",
+        page_start=12,
+        page_end=13,
+    )
+    return Question(
+        position=position,
+        text="Por que as máquinas compensavam na Grã-Bretanha?",
+        options=("Pelo crédito.", "Pelo clima.", "Pelos salários altos.", "Pela guerra.", "Pelo ouro."),
+        key=key,
+        explanation="Salários altos e energia barata tornavam as máquinas lucrativas.",
+        passage=passage,
+    )
+
+
+def test_a_quiz_slot_shows_its_number_and_question():
+    assert formatting.quiz_slot_markdown(quiz_question()) == "**7.** Por que as máquinas compensavam na Grã-Bretanha?"
+
+
+def test_a_quiz_slots_choices_are_lettered():
+    choices = formatting.quiz_choices(quiz_question())
+
+    assert [label for label, _ in choices] == [
+        "A) Pelo crédito.",
+        "B) Pelo clima.",
+        "C) Pelos salários altos.",
+        "D) Pela guerra.",
+        "E) Pelo ouro.",
+    ]
+    assert [value for _, value in choices] == list("ABCDE")
+
+
+def test_the_progress_line_counts_the_questions_ready():
+    assert formatting.quiz_progress(7, 20) == "Preparing: 7 of 20 questions ready"
+
+
+def test_a_slot_shows_nothing_of_its_answer_before_submission():
+    question = quiz_question()
+    shown = formatting.quiz_slot_markdown(question) + " ".join(label for label, _ in formatting.quiz_choices(question))
+
+    assert question.explanation not in shown
+    assert question.passage.text not in shown
+    assert "Salários reais" not in shown
+    assert "12" not in shown
+    assert "✓" not in shown
+
+
+def test_a_missed_question_shows_the_answers_the_explanation_and_the_passage():
+    feedback = formatting.quiz_feedback(quiz_question(), "B")
+
+    assert "✗" in feedback
+    assert "**Your answer**: B" in feedback
+    assert "**Right answer**: C" in feedback
+    assert "Salários altos e energia barata" in feedback
+    assert "Wages were high in Britain" in feedback
+    assert "Title" in feedback
+    assert "Chapter 1" in feedback
+    assert "Salários reais" in feedback
+    assert "pp. 12–13" in feedback
+
+
+def test_an_unanswered_question_says_so():
+    assert "**Your answer**: not answered" in formatting.quiz_feedback(quiz_question(), None)
+
+
+def test_a_right_answer_shows_only_that_it_is_right():
+    feedback = formatting.quiz_feedback(quiz_question(), "C")
+
+    assert "✓" in feedback
+    assert "Wages were high" not in feedback
+
+
+ENGLISH_DRAFT = (
+    '{"question": "Why does the fox go back to the forest, according to the book?",'
+    ' "correct": "To rest there for the rest of the day.",'
+    ' "wrong": ["To hunt for food in the evening.", "To hide from the farmer and his dog.",'
+    ' "To meet the other foxes of the valley.", "To sleep through the cold winter."],'
+    ' "explanation": "The book says the fox goes back to the forest to rest for the day."}'
+)
+
+
+@pytest.fixture
+def quiz_interface(library):
+    llm = FakeLLM([ENGLISH_DRAFT])
+    quiz = library.settings.generation.quiz
+    container = Container(
+        settings=library.settings,
+        environment=EnvironmentSettings(),
+        runtime=library.runtime,
+        health=HealthService(library.settings, library.runtime, library.server, library.indexes),
+        indexes=library.indexes,
+        books=library.books,
+        library=library.library,
+        resets=library.resets,
+        retrieval=library.retrieval,
+        questions=QuestionAnsweringService(library.settings, library.retrieval, llm),
+        summaries=library.summarizer,
+        quizzes=QuizService(
+            quiz,
+            library.settings.generation.response_languages,
+            library.catalog,
+            library.processed,
+            QuizWriter(quiz, 0.1, llm),
+            library.root / "quiz_downloads",
+        ),
+    )
+    return build_interface(container)
+
+
+CURRENT = 5  # the tab's outputs: progress, prepare, stop, submit, result, current, download, then the slots
+DOWNLOAD = 6
+SLOTS = 7
+
+
+def test_a_quiz_is_prepared_shown_and_graded_through_the_tab(quiz_interface, library, tmp_path):
+    book = library.add(tmp_path)
+
+    frames = list(handler(quiz_interface, "prepare_quiz")(book.book_id, 1, 1, "Same as the book"))
+
+    quiz = frames[-1][CURRENT]
+    assert len(quiz.questions) == 1
+    assert frames[-1][3].interactive is True  # Submit
+    filled = frames[-2]
+    assert filled[SLOTS].visible is True  # the first slot's group
+    assert filled[SLOTS + 1] == formatting.quiz_slot_markdown(quiz.questions[0])
+    assert filled[SLOTS + 4] == {"__type__": "update"}  # the second slot is left alone
+
+    answers = [quiz.questions[0].key] + [None] * 49
+    graded = handler(quiz_interface, "grade_quiz")(quiz, *answers)
+
+    assert graded[CURRENT].score == 100
+    assert "1 of 1" in graded[4]
+    served = graded[DOWNLOAD].value  # Gradio's own copy, in its cache
+    [written] = (library.root / "quiz_downloads").iterdir()  # the service's file
+    assert served["orig_name"] == written.name
+    assert Path(served["path"]).read_text(encoding="utf-8") == written.read_text(encoding="utf-8")
+    assert written.read_text(encoding="utf-8").startswith("# Quiz:")
+    with pytest.raises(gr.Error, match="new quiz"):
+        handler(quiz_interface, "grade_quiz")(graded[CURRENT], *answers)
+
+
+def test_the_tab_reports_the_services_refusal_before_clearing_anything(quiz_interface, library, tmp_path):
+    book = library.add(tmp_path)
+
+    with pytest.raises(gr.Error, match="between 1 and"):
+        next(handler(quiz_interface, "prepare_quiz")(book.book_id, 1, 99, "Same as the book"))
+
+
+def quiz_result(ranking=()):
+    from datetime import UTC, datetime
+
+    from app.services.quiz_service import ChapterTally, Quiz, QuizState, Result, Scope
+
+    questions = (quiz_question(1), quiz_question(2), quiz_question(3))
+    quiz = Quiz(
+        Scope("book_001", None if ranking else 1), "Title", None, "Portuguese", "w", None, 3, questions,
+        datetime.now(UTC), QuizState.GRADED,
+    )  # fmt: skip
+    tallies = tuple(ChapterTally(number, f"Chapter {number}", asked, missed) for number, asked, missed in ranking)
+    return Result(quiz, ("C", "B", None), (True, False, False), 100 / 3, tallies, datetime.now(UTC))
+
+
+def test_the_result_shows_the_score():
+    assert formatting.quiz_result_markdown(quiz_result()).startswith("**Score**: 1 of 3 (33%)")
+
+
+def test_a_one_chapter_result_has_no_ranking():
+    assert "Chapters to reread" not in formatting.quiz_result_markdown(quiz_result())
+
+
+def test_a_whole_book_result_ranks_the_chapters_to_reread():
+    shown = formatting.quiz_result_markdown(quiz_result(ranking=[(2, 2, 2), (1, 1, 0)]))
+
+    assert "**Chapters to reread**" in shown
+    assert "| Chapter | Questions | Missed |" in shown
+    assert shown.index("| Chapter 2 | 2 | 2 |") < shown.index("| Chapter 1 | 1 | 0 |")
+
+
+def test_the_interface_clears_gradios_copies_of_downloads_within_the_hour(interface):
+    frequency, age = interface.delete_cache
+
+    assert frequency + age <= 3600
+
+
+def test_sigterm_shuts_gradio_down_as_an_interrupt_does():
+    from app.interface.gradio_app import stop_on_sigterm
+
+    with pytest.raises(KeyboardInterrupt):
+        stop_on_sigterm(15, None)

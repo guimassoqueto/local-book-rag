@@ -106,13 +106,14 @@ it or `make up` recreates it after a rebuild:
 
 ## Interface
 
-The Gradio interface at <http://localhost:7860> has four tabs:
+The Gradio interface at <http://localhost:7860> has five tabs:
 
 | Tab           | What it does                                                                        |
 | ------------- | ----------------------------------------------------------------------------------- |
 | Library       | Upload, replace, remove and reindex books, and reset. Shows each book's status      |
 | Chat          | Ask about one book, one chapter or several books, and inspect the retrieved passages |
 | Summarization | Summarize a chapter in any of the types, and save the result                        |
+| Quiz          | A graded multiple-choice quiz on a chapter or the whole book, with the passage to reread for each question missed |
 | Research      | The latest question from the inside: models, each stage's scores, final context, reasoning, tokens, timings, and GPU memory |
 
 Everything in it goes through the same services as the commands. Destructive actions need
@@ -349,6 +350,49 @@ Statements close to no passage stay uncited and are counted, as the first place 
 for something the model added. The references quote each passage's opening words, because
 that is how to find it in a book without pages.
 
+## Quizzes
+
+The Quiz tab quizzes you on one chapter or a whole book, for study. Choose the book, the chapter or
+"The whole book", how many questions, and the language. The count starts at one question per 300
+words of the text, between 1 and 20, and can go up to one per passage, at most 50. Questions appear
+one by one as they are ready, about 3 s each, and can be answered while the rest arrive; Stop ends
+a preparation. Submit grades the quiz: each question missed shows your answer, the right one, why,
+and the passage it came from, with its chapter, section and pages. A whole-book quiz also ranks the
+chapters by questions missed. The result downloads as Markdown.
+
+The model writes one question from one passage at a time, and never sees a letter: the application
+owns what the model was seen doing badly when asked for a whole quiz at once
+(`.specify/assessments/chapter-quiz/`).
+
+- **Which passages.** One chapter is cut into as many contiguous strata as questions, one passage
+  drawn from each, so that the start, middle and end all get questions. The whole book is divided
+  by the chapters' share of its words.
+- **Which letter is right.** A balanced set: each letter is the key as often as any other.
+- **The order.** Random, and never the order of the text.
+- **Replies that can't be used.** A reply that can't be read, or a question not in form, is written
+  again, up to three times, then another passage of the same stretch is used. Refused are: blank
+  fields, anything but four wrong answers, repeated options, an option that refers to the others
+  ("all of the above"), a question or option that points to where its answer is ("segundo o
+  trecho", a page, a section, or the chapter in a whole-book quiz), and another language than the
+  one asked for. The passage reaches the model without a number, section or pages, so the
+  question has nothing to point at.
+- **Nothing to ask.** The model skips a passage that says nothing about the book's subject, such as
+  references, lists of illustrations or acknowledgements, and another passage is used. A chapter
+  whose first two passages tried are both skipped is left out, and in a whole-book quiz its
+  questions go to the other chapters.
+
+Nothing is kept: the quiz and its result live in the browser session, and a new quiz or a restart
+discards them. The download's file is written by the service into `data/quiz_downloads`, which is
+emptied whenever a quiz is prepared and at each start, and Gradio's own copy is removed on a restart
+and within the hour.
+
+`generation.quiz` in `config/generation.yaml` holds the settings, including the key check: a second
+reading of each question against its passage, by the writer's model or another, which rejects a
+key the passage doesn't state, a wrong key, or a second defensible answer. It is switched off: it
+can be on by default only once it passes the rule in `specs/003-chapter-quiz` (FR-027), on test
+cases, with the `quiz_check` experiment below, and that proof is left to a later change. Switched
+on by hand, each question takes a second reading, at `medium` reasoning.
+
 ## Benchmarks
 
 Comparing configurations under controlled conditions is the point of this project, so the
@@ -380,6 +424,38 @@ The experiments in that commit:
 | `generation`    | The four LLMs, on identical retrieved contexts                         | Faithfulness, correctness, relevance, citation accuracy, language, abstention             |
 | `summarization` | The four LLMs, on chapters with known key points                       | Argument coverage, concepts, consistency, coherence, completeness, citation traceability  |
 | `performance`   | The four LLMs, at 8K and 16K of context                                | Load time, time to first token, speeds, peak memory: the median of 3 runs after a warm-up |
+
+Two more kinds measure the Quiz tab. Their experiment files are in `specs/003-chapter-quiz/benchmarks/`:
+
+| Experiment   | Compares                                                       | Measures                                                                       |
+| ------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `quiz`       | Writer models and prompt rounds, on six chapters, with a fixed seed | Letter spread, the key as the longest or shortest option, where questions come from, refusals and skips, delivery, times, closed-book answers, and the reading's marks |
+| `quiz_check` | Key-check wordings and models, on known cases                  | Flawed cases caught and sound ones rejected, against the writer answering with the passage, and the rule that decides the check's default |
+
+A `quiz` experiment can list `local_books`: the owner's copy of a book that isn't public, copied by
+hand into `benchmarks/books` and checked against its checksum before anything runs. It is never
+fetched. Pass the code's commit with `--commit`, since the container holds no `.git`:
+
+```bash
+cp specs/003-chapter-quiz/benchmarks/*.yaml benchmarks/experiments/
+docker compose cp -a benchmarks app:/app/
+docker compose exec app book-rag fetch-benchmark-books
+docker compose cp ~/Documents/livros/01_historia_economica_global.pdf app:/app/benchmarks/books/historia-economica-global.pdf
+docker compose exec app book-rag benchmark benchmarks/experiments/quiz.yaml --commit "$(git describe --always --dirty)"
+```
+
+A `quiz` run also writes `reading.csv`: every question with its options, key, explanation and
+passage, and empty `mark`, `reasons` and `note` columns. Mark each row `sound` or `flawed`, with
+reasons for a flawed one (`wrong_key`, `key_not_stated`, `two_defensible`,
+`explanation_beyond_passage`, `option_depends_on_others`, `nothing_to_ask`), and note
+`refers_to_passage` on a question that points to where its answer is. `benchmark-report` then adds
+the share of sound keys over the marked rows. The file holds the books' text, so it stays with the
+results, out of the repository.
+
+`quiz_check` runs on `specs/003-chapter-quiz/key_cases.yaml`, read from beside the experiment: known
+questions, labeled by reading, each locating its passage by a quote of at most 30 words, so that
+no passage text is stored. Development cases choose the check's wording; only test cases, from runs
+no wording was tried on, decide whether it ships switched on.
 
 Results go to `benchmarks/results/<experiment>_<time>/`: `summary.csv`, `rows.csv` with every
 question, answer and summary, and `results.json`, which also records what a result means nothing
@@ -453,7 +529,7 @@ first look.
 | `config/models.yaml`      | The LLM, embedding model and reranker                   |
 | `config/ingestion.yaml`   | PDF extraction, normalization, languages and chunking   |
 | `config/retrieval.yaml`   | Retrieval strategy and its parameters                   |
-| `config/generation.yaml`  | Temperature and token limits per task                   |
+| `config/generation.yaml`  | Temperature and token limits per task, and the quiz     |
 
 Unknown keys are errors, so a typo stops the app at startup instead of being ignored.
 Addresses and directories come from the environment; their defaults are the Compose

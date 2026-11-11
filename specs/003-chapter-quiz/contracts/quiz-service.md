@@ -56,7 +56,12 @@ Guarantees:
 - **Reads only.** It reads the book's chunks once at the start, and nothing in the library
   changes (constitution II). A book replaced or removed afterwards doesn't affect the quiz.
   Besides emptying the download directory (§ `export`), it writes nothing.
-- **Logging.** It runs inside `operation(logger, "prepare_quiz", book_id=…, chapter=…, model=…)`.
+- **Logging.** It logs the lines of an operation named `prepare_quiz`, with `book_id`, `chapter`,
+  `model` and an execution ID: started, then finished, failed, or stopped when the generator is
+  closed. It logs them itself instead of running inside `operation()`: that keeps its fields in a
+  context variable, which can't be reset when Gradio's worker threads run the generator's steps in
+  contexts of their own. So the lines logged inside the preparation, such as the provider's, don't
+  carry its execution ID.
 
 Raises, besides those of `limit()`:
 - `NothingToAskError`: a one-chapter quiz whose chapter is ruled out (FR-007).

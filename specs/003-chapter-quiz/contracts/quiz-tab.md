@@ -44,8 +44,11 @@ The tab reads input, calls `QuizService`, and shows what it returns. It checks n
    - Download becomes active, with the file `QuizService.export()` wrote. The tab writes nothing
      (constitution IV).
 6. **Nothing is kept** (FR-018). The quiz and result live in the session's State. A new Prepare or
-   a restart discards them. The app's Blocks are created with `delete_cache=(3600, 3600)`, so
-   Gradio's copies of downloads are cleared hourly and on restart.
+   a restart discards them. The app's Blocks are created with `delete_cache=(600, 3000)`: every 10
+   minutes, Gradio removes its copies of downloads older than 50 minutes, so none lasts an hour, and
+   it removes all of them when the server shuts down. `serve()` turns SIGTERM into the interrupt
+   Gradio shuts down on: as the container's first process, the app would otherwise ignore it and be
+   killed 10 s later, without shutting down, and the copies would outlive the restart.
 
 ## Download (`result_document()`)
 
