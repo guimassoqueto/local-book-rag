@@ -1,5 +1,7 @@
 """The Gradio interface. Every tab is a thin layer over the same services as the commands."""
 
+import signal
+from types import FrameType
 from typing import Any
 
 import gradio as gr
@@ -10,21 +12,29 @@ from app.interface.chat import build_chat_tab
 from app.interface.diagnostics import build_diagnostics_tab
 from app.interface.formatting import book_choices, book_rows, index_status
 from app.interface.library import build_library_tab
+from app.interface.quiz import build_quiz_tab
 from app.interface.summarization import build_summarization_tab
 from app.utils.logging import get_logger, log_event
 
 logger = get_logger("interface")
 
+CACHE_SWEEP = (600, 3000)  # every 10 minutes, the copies older than 50 minutes
+
 
 def build_interface(container: Container) -> gr.Blocks:
-    with gr.Blocks(title=container.settings.application.name) as interface:
+    # Gradio serves a download from its cache. delete_cache removes the copies older than 50 minutes
+    # every 10 minutes, so none lasts an hour, and all of them when the server shuts down (FR-018).
+    with gr.Blocks(title=container.settings.application.name, delete_cache=CACHE_SWEEP) as interface:
         gr.Markdown(f"# {container.settings.application.name}")
         library = build_library_tab(container)
         chat = build_chat_tab(container)
         summarization = build_summarization_tab(container)
+        quiz = build_quiz_tab(container)
         build_diagnostics_tab(container, chat.last_answer, chat.answered)
 
-        def refresh(library_book: str | None, chat_books: list[str], summary_book: str | None) -> tuple[Any, ...]:
+        def refresh(
+            library_book: str | None, chat_books: list[str], summary_book: str | None, quiz_book: str | None
+        ) -> tuple[Any, ...]:
             """Show what the library holds now, keeping each selection that still exists."""
             books = container.books.list_books()
             choices = book_choices(books)
@@ -35,10 +45,11 @@ def build_interface(container: Container) -> gr.Blocks:
                 gr.Dropdown(choices=choices, value=library_book if library_book in existing else None),
                 gr.Dropdown(choices=choices, value=[book for book in chat_books or [] if book in existing]),
                 gr.Dropdown(choices=choices, value=summary_book if summary_book in existing else None),
+                gr.Dropdown(choices=choices, value=quiz_book if quiz_book in existing else None),
             )
 
-        selections = [library.book, chat.books, summarization.book]
-        outputs = [library.table, library.status, library.book, chat.books, summarization.book]
+        selections = [library.book, chat.books, summarization.book, quiz.book]
+        outputs = [library.table, library.status, library.book, chat.books, summarization.book, quiz.book]
         interface.load(refresh, inputs=selections, outputs=outputs, api_visibility="private")
         for change in library.changes:
             # Gradio's `then` doesn't run after an error, which is when a failed book appears.
@@ -64,6 +75,11 @@ def serve(container: Container) -> None:
     except BookRagError as exc:  # ChromaDB may still be starting: the next change to the library retries it
         log_event(logger, "recovery postponed", reason=str(exc))
 
+    # docker stop and restart send SIGTERM. The app is the container's first process, which ignores
+    # it unless told otherwise, and is killed 10 s later: Gradio never shuts down, and its cached
+    # copies of quiz results outlive the restart. As an interrupt, Gradio closes the server, which
+    # deletes them (FR-018).
+    signal.signal(signal.SIGTERM, stop_on_sigterm)
     server = container.settings.server
     build_interface(container).queue().launch(
         server_name=server.host,
@@ -74,3 +90,8 @@ def serve(container: Container) -> None:
         ssr_mode=False,
         theme=gr.themes.Soft(),
     )
+
+
+def stop_on_sigterm(signum: int, frame: FrameType | None) -> None:
+    """Turn SIGTERM into the interrupt that Gradio's main loop answers by shutting down."""
+    raise KeyboardInterrupt

@@ -42,6 +42,40 @@ generation:
           they assume, and how the concepts depend on each other, while staying within what
           the chapter says.
 
+  # Quizzes on a chapter or a whole book: one question per passage, written by llm.model.
+  quiz:
+    temperature: 0.2
+
+    # Reasoning counts against this limit, so it has to leave room for the question too.
+    max_tokens: 1500
+
+    # The default number of questions: one per this many words of the chosen text, rounded
+    # half up, at least 1 and at most default_max.
+    words_per_question: 300
+    default_max: 20
+
+    # The most questions a quiz can have, and the number of question slots in the Quiz tab.
+    max_questions: 50
+
+    # Tries at one passage, for a reply that can't be read or a question not in form, before
+    # another passage is used.
+    attempts_per_passage: 3
+
+    # A second reading of each question against its passage, which rejects a key the passage
+    # doesn't state, a wrong key, or a second defensible answer. It ships switched on only if it
+    # passes the rule of specs/003-chapter-quiz (FR-027), measured with the quiz_check experiment.
+    check:
+      enabled: false
+
+      # The checker. null means llm.model. Another model needs an entry in llm_profiles.
+      model: null
+
+      # Replaces the checker's profile setting, as a judge's does: a judge should read before it
+      # rates. null keeps the profile's.
+      reasoning: medium
+
+      max_tokens: 2000
+
   context:
     # Upper bound for llm.context_size in models.yaml, which sets the active window.
     max_size: 16384

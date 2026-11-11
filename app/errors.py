@@ -91,3 +91,11 @@ class BenchmarkDatasetError(BookRagError):
 
 class BenchmarkJudgeError(BookRagError):
     """A benchmark's judge can't give a verdict it could be trusted on."""
+
+
+class NothingToAskError(BookRagError):
+    """A chapter holds nothing to ask about: its first passages are references, lists or captions."""
+
+
+class QuizAlreadyGradedError(BookRagError):
+    """A quiz is graded once. Practicing again takes a new quiz, with questions written anew."""

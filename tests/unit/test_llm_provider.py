@@ -7,6 +7,7 @@ import respx
 from app.config.settings import LLMConfig, LLMProfile, TokenizerConfig
 from app.errors import ConfigurationError, ModelNotFoundError, ServiceUnavailableError
 from app.generation.base import Generation, GenerationParameters, Message, TextDelta
+from app.generation.factory import create_llm_provider
 from app.generation.ollama_provider import OllamaLLMProvider
 from app.utils.ollama_runtime import OllamaRuntime
 from tests.fakes import WordCounter
@@ -180,3 +181,41 @@ def test_running_out_of_memory_reaches_the_user():
 
     with pytest.raises(ServiceUnavailableError, match="more system memory"):
         provider().generate(MESSAGES, PARAMETERS)
+
+
+# create_llm_provider: a model other than llm.model, and a reasoning of its own (generation.quiz.check)
+
+
+def sent_reasoning(llm):
+    route = respx.post(f"{BASE_URL}/api/chat").mock(return_value=reply(assistant("Answer.")))
+    llm.generate(MESSAGES, PARAMETERS)
+    return json.loads(route.calls[-1].request.content).get("think")
+
+
+@respx.mock
+def test_the_factory_builds_a_named_model_from_its_own_profile(settings):
+    mock_model()
+    runtime = OllamaRuntime(BASE_URL, timeout=5)
+
+    llm = create_llm_provider(settings, runtime, model="gemma4:12b")
+
+    assert llm.model == "gemma4:12b"
+    assert sent_reasoning(llm) is False  # gemma4's profile, not gpt-oss's "low"
+    assert llm._counter._name == "o200k_base"  # gemma4's tokenizer, not gpt-oss's o200k_harmony
+
+
+@respx.mock
+def test_a_reasoning_level_replaces_the_profiles_for_that_provider_only(settings):
+    mock_model()
+    runtime = OllamaRuntime(BASE_URL, timeout=5)
+
+    checker = create_llm_provider(settings, runtime, model=settings.llm.model, reasoning="medium")
+    writer = create_llm_provider(settings, runtime)
+
+    assert sent_reasoning(checker) == "medium"
+    assert sent_reasoning(writer) == "low"
+
+
+def test_a_model_without_a_profile_is_refused(settings):
+    with pytest.raises(ConfigurationError, match="unknown-model"):
+        create_llm_provider(settings, OllamaRuntime(BASE_URL, timeout=5), model="unknown-model")

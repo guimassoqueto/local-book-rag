@@ -106,6 +106,7 @@ def _build_parser() -> argparse.ArgumentParser:
     benchmark = commands.add_parser("benchmark", help="run an experiment from benchmarks/experiments")
     benchmark.add_argument("experiment", type=Path, help="the experiment's YAML file")
     benchmark.add_argument("--limit", type=int, help="questions per book and category, for a quick pass")
+    benchmark.add_argument("--commit", help="the code's commit, recorded with the results")
     benchmark.set_defaults(handler=_benchmark)
 
     report = commands.add_parser("benchmark-report", help="show a benchmark run's results as Markdown")
@@ -269,16 +270,19 @@ def _benchmark(container: Container, arguments: argparse.Namespace) -> None:
     from app.evaluation.benchmark import BenchmarkRunner, load_experiment  # loads the evaluation stack
 
     runner = BenchmarkRunner(container.settings, container.environment)
-    print(f"Results: {runner.run(load_experiment(arguments.experiment), arguments.limit)}")
+    print(f"Results: {runner.run(load_experiment(arguments.experiment), arguments.limit, arguments.commit)}")
 
 
 def _benchmark_report(_: Container, arguments: argparse.Namespace) -> None:
-    from app.evaluation.report import render  # needs nothing the other commands load
+    from app.evaluation.quiz_metrics import read_reading  # needs nothing the other commands load
+    from app.evaluation.report import render
 
     path = arguments.results / "results.json"
     if not path.is_file():
         sys.exit(f"error: {arguments.results} holds no results.json")
-    print(render(json.loads(path.read_text(encoding="utf-8")), arguments.baseline), end="")
+    reading_path = arguments.results / "reading.csv"  # a quiz run's, with the marks it holds
+    reading = read_reading(reading_path) if reading_path.is_file() else None
+    print(render(json.loads(path.read_text(encoding="utf-8")), arguments.baseline, reading), end="")
 
 
 def _search(container: Container, arguments: argparse.Namespace) -> None:

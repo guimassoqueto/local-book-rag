@@ -1,6 +1,6 @@
 # Benchmark results
 
-What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 09. The result files are
+What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 11. The result files are
 no longer kept, and the experiments and their dataset are no longer in the repository: their last
 versions are in commit `c7bb785`. So this page is the record of the runs. Every number in it comes
 from those files, and `book-rag benchmark-report` showed each run with the paired comparisons
@@ -393,6 +393,69 @@ full generation run was made.
   - **The wait for the first visible word didn't change**: gemma4's median was 1.12 s on the
     unanswerable questions, against 1.14 s before. The check runs after the reply.
 
+## The quiz
+
+The Quiz tab's measurement (`specs/003-chapter-quiz`), on 2026-11-11, with gpt-oss:20b, on the same
+machine and Ollama. Its experiment files are in `specs/003-chapter-quiz/benchmarks/`. Every run was
+on the feature's uncommitted code, recorded as `753f205-dirty`. The six chapters are Capítulo 1, 3
+and 6 of *História econômica global*, from the owner's copy, at 10, 17 and 20 questions, and
+*Inheritance*, *CHAPTER V. APPLICATIONS.* and *CAPITULO L* at 14, 20 and 7: 88 questions a run, with
+seed 0, so every run asks on the same passages with the same letters.
+
+| Run | Prompt | Key the longest | Key the shortest | Right without the passage | Delivered |
+| --- | --- | --- | --- | --- | --- |
+| `quiz_20261111T130111197357Z` | round 1 | 0.852 | 0.057 | 0.852 | 1.000 |
+| `quiz_20261111T131123067024Z` | round 2: five alike answers, the right one never the longest | 0.534 | 0.125 | 0.761 | 1.000 |
+| `quiz_20261111T131922236657Z` | round 3: the wrong answers first | 0.875 | 0.080 | 0.841 | 1.000 |
+| `quiz_models_20261111T132900247542Z`, gpt-oss | round 2 again | 0.409 | 0.182 | 0.784 | 1.000 |
+| `quiz_models_20261111T132900247542Z`, gemma4:12b | round 2 | 0.000 | 0.966 | 0.659 | 1.000 |
+| `quiz_20261111T155628394801Z`, the final pass | round 2 | 0.455 | 0.204 | 0.670 | 1.000 |
+| `quiz_models_20261111T160250850655Z`, gpt-oss | round 2 | 0.534 | 0.193 | 0.761 | 1.000 |
+| `quiz_models_20261111T160250850655Z`, gemma4:12b | round 2 | 0.000 | 0.966 | 0.659 | 1.000 |
+
+- **Round 2 against round 1**, question by question: key the longest −0.318 (−0.420 to −0.216),
+  right without the passage −0.091 (−0.182 to +0.000). Round 3 against round 1: +0.023 (−0.057 to
+  +0.102), no difference. Round 2's prompt ships.
+- **The same configuration four times** gave 0.534, 0.409, 0.455 and 0.534: runs vary by about
+  0.1, since sampling on the GPU isn't exactly repeatable even with a seed.
+- **What holds by construction**: every letter is the key in 0.18 to 0.22 of questions, and the
+  questions come from the three thirds of their chapters in 0.33, 0.31 and 0.36.
+- **Refusals in round 2**, over 88 questions: 4 unreadable, 1 blank field, 3 with the wrong number of
+  wrong answers, 1 repeated option, 4 pointing to their passage, and 2 skips. The first question
+  came after 2.8 s, and a quiz of 10 to 20 questions took 39 s on average.
+- **gemma4:12b** delivered every question too. Against gpt-oss, question by question in the
+  final pass: key the longest −0.534 (−0.636 to −0.432), the shortest +0.773 (+0.682 to +0.864),
+  first question +5.5 s (+0.3 to +15.0). Its right answer is the shortest option almost always,
+  which gives it away as much as the longest.
+
+**The reading of round 2.** Three readers, each an agent given FR-020's rubric and a third of the
+questions, marked all 88 against their passages: 65 sound, **0.739**, against a target of 0.90.
+The owner hasn't reviewed these marks yet: that comes with the key check's proof.
+
+| Book | Flawed |
+| --- | --- |
+| *História econômica global* | 13 of 47 |
+| *Think Python* | 1 of 14 |
+| *On Liberty* | 4 of 20 |
+| *Quincas Borba* | 5 of 7 |
+
+By reason: the key not stated by the passage 16, an explanation beyond it 16, two defensible
+options 6, a wrong key 1. Most give the author an argument the passage only reports ("it may be
+said") or rejects, or, in the novel, misread who says what. One question said "ao fim do trecho",
+which the reader now refuses.
+
+**The key check's first try**, `quiz_check_20261111T133933416099Z`, on the 112 development cases of
+`specs/003-chapter-quiz/key_cases.yaml` (27 flawed: the probe's 24 and round 2's 88):
+
+| Checker | Flawed caught | Sound rejected |
+| --- | --- | --- |
+| gpt-oss:20b at `medium` | 12 of 27 | 2 of 85 |
+| gemma4:12b | 11 of 27 | 2 of 85 |
+| The comparator: the writer answering with the passage | 2 of 27 | – |
+
+Development cases choose a wording and decide nothing. The owner left the proof on test cases
+(FR-026, FR-027) to a later feature, so the check ships switched off, and SC-003 stands at 0.739.
+
 ## Recommendations
 
 The defaults stay as they are. These are what the results suggest changing, and what each change
@@ -438,6 +501,12 @@ would cost.
 - **A summary's "References" heading is always in English.**
 - **The embedding comparison also compares chunk sizes**, since each model's tokenizer counts the
   500 tokens: see Retrieval.
+- **A publisher's back matter is indexed as the book's.** In *História econômica global*'s e-book,
+  the catalog record, the copyright notice and five advertisements for other books ("Compre agora e
+  leia") came in as part of its last chapter, "Lista de tabelas". gpt-oss wrote quiz questions from
+  3 of the 5 advertisements, and one reached a 20-question whole-book quiz (SC-006 of
+  `specs/003-chapter-quiz`). Chat can retrieve them as well. Ingestion is to set them apart, in a
+  fix of its own, which will need a reindex.
 
 ## Changes these benchmarks led to
 

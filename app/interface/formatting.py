@@ -6,7 +6,9 @@ from app.generation.base import GenerationStats, Message
 from app.generation.citations import Citation
 from app.generation.question_answering import Answer
 from app.generation.summarization import ChapterSummary
+from app.ingestion.chunker import Chunk
 from app.retrieval.base import Passage
+from app.services.quiz_service import Question, QuizReady, Result
 from app.storage.catalog import Book, IndexRecord
 from app.utils.gpu import GpuStatus
 from app.utils.ollama_runtime import LoadedModel
@@ -225,3 +227,69 @@ def summary_report(summary: ChapterSummary) -> str:
     if summary.verification:
         lines.append(f"**Claim check:** {summary.verification}")
     return "\n\n".join(lines)
+
+
+# The Quiz tab (contracts/quiz-tab.md)
+
+
+def quiz_slot_markdown(question: Question) -> str:
+    """A question as the reader sees it before submission: nothing of its answer (FR-013)."""
+    return f"**{question.position}.** {question.text}"
+
+
+def quiz_choices(question: Question) -> list[tuple[str, str]]:
+    """The options, labeled "A) …" to "E) …", each with its letter as the value."""
+    letters = "ABCDE"
+    return [(f"{letter}) {option}", letter) for letter, option in zip(letters, question.options, strict=True)]
+
+
+def quiz_progress(ready: int, asked: int) -> str:
+    return f"Preparing: {ready} of {asked} questions ready"
+
+
+def quiz_outcome(event: QuizReady) -> str:
+    """Say the quiz is ready, and how many questions it has when passages ran out (FR-010)."""
+    quiz = event.quiz
+    if not event.shortfall:
+        return f"Ready: {_count(len(quiz.questions), 'question')}. Answer them, then submit."
+    return (
+        f"Ready, with **{_count(len(quiz.questions), 'question')}** of the {quiz.asked} asked: the text ran out of "
+        "passages to write from. Answer them, then submit."
+    )
+
+
+def quiz_pages(chunk: Chunk) -> str:
+    if chunk.page_start is None:
+        return ""
+    if chunk.page_end is None or chunk.page_end == chunk.page_start:
+        return f"p. {chunk.page_start}"
+    return f"pp. {chunk.page_start}–{chunk.page_end}"
+
+
+def quiz_reference(chunk: Chunk, with_book: bool = True) -> str:
+    """Where a passage is: book, chapter, section and pages."""
+    parts = [chunk.book_title if with_book else None, chunk.chapter_title, chunk.section_title, quiz_pages(chunk)]
+    return ", ".join(part for part in parts if part)
+
+
+def quiz_feedback(question: Question, answer: str | None) -> str:
+    """After submission: right, or what was missed, why, and the passage to reread (FR-015)."""
+    if answer == question.key:
+        return f"✓ **Right**: {question.key}"
+    given = answer or "not answered"
+    quoted = "\n".join(f"> {line}" if line else ">" for line in question.passage.text.splitlines())
+    return (
+        f"✗ **Your answer**: {given} · **Right answer**: {question.key}\n\n"
+        f"{question.explanation}\n\n"
+        f"*Source*: {quiz_reference(question.passage)}\n\n{quoted}"
+    )
+
+
+def quiz_result_markdown(result: Result) -> str:
+    """The score, and for a whole-book quiz the chapters to reread (FR-016)."""
+    right = sum(result.right)
+    lines = [f"**Score**: {right} of {len(result.right)} ({result.score:.0f}%)"]
+    if result.ranking:
+        lines += ["", "**Chapters to reread**", "", "| Chapter | Questions | Missed |", "| --- | --- | --- |"]
+        lines += [f"| {tally.chapter_title} | {tally.questions} | {tally.missed} |" for tally in result.ranking]
+    return "\n".join(lines)

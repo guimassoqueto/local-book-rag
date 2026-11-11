@@ -1,0 +1,30 @@
+name: quiz_check
+kind: quiz_check
+description: >-
+  Proves the quiz's key check on known cases (specs/003-chapter-quiz, FR-026, FR-027): how many
+  flawed keys the check catches and how many sound ones it rejects, against the shipped writer
+  answering each case with its passage. Development runs choose the wording; one run on the test
+  set gives FR-027's verdict.
+
+# Read from beside this file: copy both into benchmarks/experiments (quickstart.md § 8).
+known_cases: key_cases.yaml
+
+# development while wordings are tried, at most three; test once, for the verdict.
+case_set: development
+
+local_books:
+  - key: historia_economica_global
+    title: História econômica global
+    language: pt
+    filename: historia-economica-global.pdf
+    sha256: e51843992cbd2420ecf9a80b8cf8dd35e709f989fc16c19b13685d2ab3088d79
+
+# The writer's model checking at medium reasoning, and at most one other configured model.
+variants:
+  - name: gpt_oss_20b_medium
+    overrides:
+      generation: {quiz: {check: {model: "gpt-oss:20b", reasoning: medium}}}
+
+  - name: gemma4_12b
+    overrides:
+      generation: {quiz: {check: {model: "gemma4:12b", reasoning: null}}}

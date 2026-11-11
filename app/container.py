@@ -7,6 +7,7 @@ from app.config.settings import EnvironmentSettings, Settings
 from app.embeddings.factory import create_embedding_provider
 from app.generation.factory import create_llm_provider
 from app.generation.question_answering import QuestionAnsweringService
+from app.generation.quiz import QuizWriter
 from app.generation.summarization import ChapterSummarizer
 from app.ingestion.base import DocumentFormat, DocumentLoader
 from app.ingestion.chunker import Chunker
@@ -23,6 +24,7 @@ from app.services.index_service import COLLECTION_PREFIX, IndexService
 from app.services.ingestion_service import IngestionService
 from app.services.library_data import LibraryData
 from app.services.library_service import LibraryService
+from app.services.quiz_service import QuizService
 from app.services.recovery_service import LibraryGuard
 from app.services.reset_service import ResetService
 from app.services.retrieval_service import RetrievalService
@@ -47,6 +49,7 @@ class Container:
     retrieval: RetrievalService
     questions: QuestionAnsweringService
     summaries: ChapterSummarizer
+    quizzes: QuizService
 
 
 def build_container(console_logs: bool = False) -> Container:
@@ -101,6 +104,16 @@ def assemble(
     retrieval = RetrievalService(settings, catalog, indexes, processed, CrossEncoderReranker(settings.reranker))
     llm = create_llm_provider(settings, runtime)
     summarizer = ChapterSummarizer(settings, llm, catalog, processed, data.summaries, retrieval)
+    quiz = settings.generation.quiz
+    # The key check reasons at its own level, which is a provider's setting: it gets a provider of
+    # its own even on the writer's model, which writes at its profile's level (research R11).
+    checker = create_llm_provider(
+        settings, runtime, model=quiz.check.model or settings.llm.model, reasoning=quiz.check.reasoning
+    )
+    quiz_writer = QuizWriter(quiz, settings.generation.context.safety_margin, llm, checker)
+    quizzes = QuizService(
+        quiz, settings.generation.response_languages, catalog, processed, quiz_writer, root / "quiz_downloads"
+    )
     return Container(
         settings=settings,
         environment=environment,
@@ -113,6 +126,7 @@ def assemble(
         retrieval=retrieval,
         questions=QuestionAnsweringService(settings, retrieval, llm),
         summaries=summarizer,
+        quizzes=quizzes,
     )
 
 
