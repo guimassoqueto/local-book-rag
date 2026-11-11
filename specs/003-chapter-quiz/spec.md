@@ -306,6 +306,29 @@ Each one came from checking the spec against the code. `research.md` gives the r
   - FR-020 notes the rest;
   - SC-015 counts them.
 
+### Corrections from the analysis, 2026-11-10
+
+`/speckit-analyze` compared the spec, plan and tasks with each other and with the constitution,
+and the owner asked for its findings to be fixed:
+- **The chapter rule** follows research R5. A chapter is ruled out only when the first two
+  passages tried in it are both skipped, before any of its questions is ready. Read as "any two
+  in a row", it would have ended a one-chapter quiz short over two captions in a row, after the
+  chapter had already given questions (FR-007).
+- **Shares after a chapter is ruled out** are among the chapters still in play (FR-006, SC-006).
+- **Rules and writes stay in the service** (constitution IV). The service writes the download's
+  file and empties its directory, and refuses to grade a quiz twice (FR-018). The tab only shows
+  what it returns.
+- **Model replies.** The comparator answers in JSON: a search for a letter would read the article
+  in "A resposta é C" as the answer. The checker gets a model provider of its own, so its
+  reasoning setting takes effect (FR-025).
+- **A second model is measured** before the feature is done, as SC-010 asks.
+
+A second run, on 2026-11-11, found only text that predated these corrections:
+- **FR-018 names the download's two copies**: the service's file, kept until another quiz is
+  prepared or the application restarts, and the copy the interface serves, removed on a restart
+  and within the hour.
+- **FR-027 (a)** says that a case whose comparator answer can't be read is left out and counted.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -355,7 +378,8 @@ Each one came from checking the spec against the code. `research.md` gives the r
   - **One chapter**: spread from the chapter's start to its end. With 3 or more questions, each
     third of the chapter has at least one.
   - **The whole book**: each chapter's number of questions MUST be within one of its share of the
-    book's text.
+    book's text. If a chapter is ruled out (FR-007), the shares are among the chapters still in
+    play.
   - **The order**: the questions MUST be shown in a random order, never in the order of their
     passages. A question's place in the quiz says nothing about where in the chapter or book it
     comes from. Question 1 may come from the start, question 9 from the start too, and question
@@ -370,10 +394,11 @@ Each one came from checking the spec against the code. `research.md` gives the r
   - **What is asked about.** A passage that states something about the subject, in any form: a
     table of figures, a list of events, an epigraph, a chapter's own summary, or a caption that
     says what its figure shows.
-  - **A chapter with nothing to ask about.** When two of a chapter's passages in a row turn out to
-    have nothing to ask about, the chapter is treated as having none. In a whole-book quiz, its
-    questions go to the other chapters (FR-006). In a one-chapter quiz, the preparation ends and
-    says the chapter has nothing to ask about.
+  - **A chapter with nothing to ask about.** When the first two passages tried in a chapter both
+    have nothing to ask about, before any question from it is ready, the chapter is treated as
+    having none. A skip after that is replaced like any other. In a whole-book quiz, its
+    questions go to the other chapters (FR-006), as do those of a chapter whose passages run out.
+    In a one-chapter quiz, the preparation ends and says the chapter has nothing to ask about.
 - **FR-008**: The application, not the model, MUST decide which letter holds the right option.
   Over a quiz of N questions, each letter holds it between ⌊N/5⌋ and ⌈N/5⌉ times.
 - **FR-009**: Every option MUST be readable on its own, whatever its letter and whatever the other
@@ -445,9 +470,10 @@ Each one came from checking the spec against the code. `research.md` gives the r
   prepares another quiz, and not after a restart. The downloaded document is the only record.
   A graded quiz can't be retaken. To practice again, the reader prepares a new quiz, whose
   questions are written anew. Its passages may repeat earlier ones, since nothing is kept to
-  avoid them. To serve the download, the interface keeps a copy of the file in temporary storage.
-  That copy is removed on a restart and within the hour, and holds nothing the downloaded file
-  doesn't.
+  avoid them. To serve the download, the application writes the file into a directory of its
+  own, emptied when another quiz is prepared and at each start, and the interface serves a copy
+  of it from temporary storage, removed on a restart and within the hour. Neither holds anything
+  the downloaded file doesn't.
 
 #### The measurement
 
@@ -541,7 +567,8 @@ Each one came from checking the spec against the code. `research.md` gives the r
 - **FR-027**: The check is switched on by default only if, on the test cases, both of these hold:
   - **(a) It catches more flawed questions than the comparator does.**
     - The comparator is the shipped writer model answering each case with its passage. A flawed
-      case is caught when its answer isn't the key. The probe's equivalent caught 1 of 4.
+      case is caught when its answer isn't the key. A case whose answer can't be read is left
+      out of the comparison and counted (constitution VI). The probe's equivalent caught 1 of 4.
     - Compared case by case, the difference counts only when its paired bootstrap interval (4,000
       resamples, 95%) excludes zero (constitution VI). A tie fails.
   - **(b) It rejects no more than 10% of the sound questions.**
@@ -617,7 +644,8 @@ How each criterion is judged:
 - **SC-005**: In one-chapter quizzes of 3 or more questions, every third of the chapter has a
   question. Baseline: 14 of 18 questions came from the first 3 passages of 9–10.
 - **SC-006**: In a 20-question whole-book quiz on *História econômica global*, each chapter's
-  number of questions is within one of its share of the text. No question comes from its
+  number of questions is within one of its share of the text, among the chapters still in play
+  (FR-006). No question comes from its
   acknowledgements, references, further reading, or lists of illustrations and tables.
 - **SC-007**: Every question in every result shows its passage, with chapter, section and pages.
   Baseline: 24 of 24.

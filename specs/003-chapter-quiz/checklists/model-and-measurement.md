@@ -68,9 +68,10 @@ CHK021, CHK030 and CHK032. Uncheck any whose resolution you don't accept.
 - [x] CHK010 Does the spec define what happens when every passage of a chosen chapter is skipped?
   For example, a one-chapter quiz on *Referências bibliográficas*. The rule ruling out a chapter
   after two skips is in the plan only. [Gap, Spec §FR-007, §FR-010, research.md R5]
-  → FR-007 now holds the rule: two skipped passages in a row. A whole-book quiz moves the
-  questions to other chapters; a one-chapter quiz ends, saying the chapter has nothing to ask
-  about.
+  → FR-007 now holds the rule: the first two passages tried in a chapter both skipped, before any
+  of its questions is ready (R5's wording, restored by `/speckit-analyze`). A whole-book quiz
+  moves the questions to other chapters; a one-chapter quiz ends, saying the chapter has nothing
+  to ask about.
 - [x] CHK011 Are the kinds of refusal the measurement reports defined in the spec, or only in the
   data model? FR-019 asks for "the replies it couldn't read, by kind". [Traceability, Spec
   §FR-019, data-model.md § Draft]

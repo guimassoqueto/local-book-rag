@@ -102,10 +102,19 @@ checker's profile setting. The model is `check.model`, or the writer.
 
 ## The comparator (measurement only)
 
-**Sent**: the passage and the lettered question, asking for the letter of the right answer only.
-The parameters are temperature 0 and the writer's `max_tokens`.
+**Sent**: the passage and the lettered question, asking for the letter of the right answer as
+JSON, with the field name only. The parameters are temperature 0 and the writer's `max_tokens`.
 
-**Read**: the first standalone letter A to E in the reply. None if there is none.
+**Reply**: a JSON object, alone or with text around it:
+
+```json
+{"answer": "C"}
+```
+
+**Read**: the first `{…}` in the reply, parsed as JSON. `answer` has to be one letter A to E,
+once trimmed and upper-cased. Anything else is unreadable: left out and counted, never scored as
+a wrong answer (constitution VI). The letter isn't searched for in free text, which would misread
+Portuguese: "A resposta é C" starts with the article "A".
 
 - **Without the passage** (`kind: quiz`), the answer gives `closed_book_correct`.
 - **With the passage** (`kind: quiz_check`), it gives `open_book_caught`: the answer differs from

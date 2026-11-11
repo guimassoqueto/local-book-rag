@@ -72,24 +72,30 @@ Project Structure).
   - `max_tokens` or `check.max_tokens` that leaves no room in `llm.context_size` is refused;
   - `default_max` larger than `max_questions` is refused;
   - `check.reasoning` outside `low`, `medium`, `high` or null is refused.
-- [ ] T004 [P] Add tests to `tests/unit/test_llm_provider.py`: `create_llm_provider(settings, runtime, model="other")` builds a provider for that model with its own profile's tokenizer and reasoning, and a model without a profile raises `ConfigurationError`.
-- [ ] T005 [P] Create `tests/unit/test_quiz_writer.py`, with tests of `read_draft`, per `contracts/model-replies.md` § The writer. They cover:
-  - a JSON object alone, inside code fences, or with text around it;
-  - `{"skip": …}` read as a skip;
-  - each refusal kind:
-    - `unreadable` and `cut_off` (`finish_reason == "length"`);
-    - `blank_field`;
-    - `wrong_count` (3 or 5 wrong answers);
-    - `repeated_option`, compared casefolded, with spacing collapsed and final punctuation removed;
-    - `cross_reference`: "todas as anteriores", "none of the above", "ninguna de las anteriores", "both A and B", "opção C". "vitamina A" and the Portuguese article "a" must pass;
-    - `passage_reference`: "segundo o trecho", "de acordo com a passagem 2", "trecho 3", "the passage", "page 12", a section title from the chunk's metadata, and the chapter's title in a whole-book quiz only. A bare "o trecho da ferrovia" must pass;
-    - `wrong_language`: a Spanish draft when Portuguese was named. A short ambiguous text passes.
+- [ ] T004 [P] Add tests to `tests/unit/test_llm_provider.py`: `create_llm_provider(settings, runtime, model="other")` builds a provider for that model with its own profile's tokenizer and reasoning. `reasoning="medium"` on gpt-oss's profile gives a provider that sends `medium`, while the writer's provider stays at `low`. A model without a profile raises `ConfigurationError`.
+- [ ] T005 [P] Create `tests/unit/test_quiz_writer.py`, with tests of the three readers of `contracts/model-replies.md`:
+  - `read_draft` (§ The writer):
+    - a JSON object alone, inside code fences, or with text around it;
+    - `{"skip": …}` read as a skip;
+    - each refusal kind:
+      - `unreadable` and `cut_off` (`finish_reason == "length"`);
+      - `blank_field`;
+      - `wrong_count` (3 or 5 wrong answers);
+      - `repeated_option`, compared casefolded, with spacing collapsed and final punctuation removed;
+      - `cross_reference`: "todas as anteriores", "none of the above", "ninguna de las anteriores", "both A and B", "opção C". "vitamina A" and the Portuguese article "a" must pass;
+      - `passage_reference`: "segundo o trecho", "de acordo com a passagem 2", "trecho 3", "the passage", "page 12", a section title from the chunk's metadata, and the chapter's title in a whole-book quiz only. A bare "o trecho da ferrovia" must pass;
+      - `wrong_language`: a Spanish draft when Portuguese was named. A short ambiguous text passes.
+  - `read_check(text, key)` (§ The checker), with key C:
+    - `{"supported": ["C"]}` is accepted, and so are `["C", "C"]` and `["C", "x"]`;
+    - `[]`, `["B"]` and `["B", "C"]` are rejected;
+    - no `supported` list, or no JSON, is unreadable.
+  - `read_answer(text)` (§ The comparator): `{"answer": "c"}` gives C; "A resposta é C" without JSON, and `{"answer": "F"}`, give None.
 - [ ] T006 [P] Add prompt tests to `tests/unit/test_quiz_writer.py`. The writer's messages:
   - carry the passage without a number, section or pages, under the book's title and author;
   - add the chapter's title only in a one-chapter quiz;
   - name the language, e.g. "Write … in Portuguese";
   - hold the rules of `contracts/model-replies.md`, and contain no sample values;
-  - a passage too long for `context_size × (1 − safety_margin) − max_tokens` is refused before sending (FR-011).
+  - a passage too long for `context_size × (1 − safety_margin) − max_tokens` is passed over before sending, and counted apart from refusals (FR-011).
 
 ### Implementation
 
@@ -97,18 +103,18 @@ Project Structure).
   - `check.model` needs an `llm_profiles` entry;
   - `quiz.max_tokens` and `quiz.check.max_tokens` must each be below `llm.context_size`;
   - `default_max ≤ max_questions`.
-- [ ] T008 Add the `generation.quiz` block to `config/generation.yaml`, with the defaults of T003 and a comment on each key in the file's style. `check.enabled: false` until FR-027's verdict (T054).
-- [ ] T009 Give `create_llm_provider` in `app/generation/factory.py` an optional `model: str | None = None`. It builds the `LLMConfig` with that model and uses `settings.llm_profiles[model]`, raising `ConfigurationError` when there is no profile.
+- [ ] T008 Add the `generation.quiz` block to `config/generation.yaml`, with the defaults of T003 and a comment on each key in the file's style. `check.enabled: false` until FR-027's verdict (T053).
+- [ ] T009 Give `create_llm_provider` in `app/generation/factory.py` an optional `model: str | None = None` and `reasoning: Literal["low", "medium", "high"] | None = None`. It builds the `LLMConfig` with that model and uses `settings.llm_profiles[model]`, with `reasoning` replacing the profile's when given, and raises `ConfigurationError` when there is no profile. Reasoning lives in the profile, not in `GenerationParameters`, so a checker reasoning differently from the writer needs a provider of its own.
 - [ ] T010 Add `quiz_question_messages`, `quiz_check_messages` and `quiz_answer_messages` to `app/generation/prompts.py`, per `contracts/model-replies.md` (writer, checker, comparator):
   - the passage is formatted without a number, section or pages;
   - the language is named through `language_name`;
   - the field names come without sample values.
 - [ ] T011 Create `app/generation/quiz.py` with `Draft`, `Skip`, `Refusal` (kinds: `unreadable`, `cut_off`, `blank_field`, `wrong_count`, `repeated_option`, `cross_reference`, `passage_reference`, `wrong_language`) and `CheckVerdict` (`supported`, `accepted`, `readable`). It also holds:
   - `read_draft(generation, named_language, forbidden_titles)`, with the phrase and pattern lists of `contracts/model-replies.md`, and `reply_language` for the language;
-  - `read_check(text, key)`;
+  - `read_check(text, key)` and `read_answer(text)`;
   - `QuizWriter`, whose methods are:
     - `write(chunk, …)`: one attempt; it returns a `Draft`, a `Skip`, a `Refusal`, or "passed over" when the passage doesn't fit;
-    - `check(question, chunk)`: temperature 0, `check.max_tokens`, `check.reasoning`, one retry at 0.5 with a new seed when unreadable;
+    - `check(question, chunk)`: on the checker's provider, at temperature 0 and `check.max_tokens`, with one retry at 0.5 and a new seed when unreadable;
     - `answer(question, chunk | None)`: the comparator, at temperature 0.
 
   Every call goes through `LLMProvider.generate`.
@@ -142,8 +148,8 @@ Project Structure).
 - [ ] T015 [P] [US1] Add preparation tests to `tests/unit/test_quiz_service.py`:
   - events come as `QuizStarted`, then `QuestionReady` in position order, then `QuizReady`;
   - a refused draft is written again, up to 3 times, then another passage of the same stratum is used, then the nearest one. It keeps its position and letter;
-  - every refusal is counted;
-  - a skip is replaced the same way. Two skips in a row rule the chapter out: the quiz ends with a shortfall, or raises `NothingToAskError` when no question is ready (FR-007);
+  - every refusal is counted: `QuestionReady` carries its `attempts` and `refusals` by kind, and `QuizReady` the passages skipped and passed over and the chapters ruled out;
+  - a skip is replaced the same way. When the first two passages tried are both skipped, before any question is ready, the preparation raises `NothingToAskError`. Two skips in a row later on are replaced like refusals (FR-007);
   - passages running out give `QuizReady.shortfall > 0`;
   - closing the generator stops at once;
   - a provider error propagates;
@@ -152,22 +158,24 @@ Project Structure).
   - `score = 100 × right / len(questions)`, exactly (SC-009);
   - None counts as wrong;
   - answers of the wrong length raise `ConfigurationError`;
+  - the Result holds the quiz in state `graded`, and grading it again raises `QuizAlreadyGradedError` (FR-018);
   - a one-chapter quiz gets an empty ranking.
 - [ ] T017 [P] [US1] Add tests of the new formatting helpers to `tests/unit/test_interface.py`:
   - the slot's Markdown, "**7.** <question>";
   - the Radio's choices, "A) …" to "E) …";
   - the progress line, "Preparing: 7 of 20 questions ready";
-  - a missed question's feedback: the reader's answer or "not answered", the right answer, the explanation, and the passage with its book, chapter, section and pages.
+  - a missed question's feedback: the reader's answer or "not answered", the right answer, the explanation, and the passage with its book, chapter, section and pages;
+  - before submission, a slot and its choices carry no key, explanation or passage (FR-013).
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Add `NothingToAskError(BookRagError)` to `app/errors.py`.
+- [ ] T018 [US1] Add `NothingToAskError` and `QuizAlreadyGradedError`, both `BookRagError`, to `app/errors.py`. The second says to prepare a new quiz to practice again.
 - [ ] T019 [US1] Create `app/services/quiz_service.py` with the types of `data-model.md` (`Scope`, `Question`, `Quiz` and its state, `QuizStarted`, `QuestionReady`, `QuizReady`, `Result`, `ChapterTally`) and `QuizService`:
   - `limit()` and `default_count()`, per research R8;
   - one-chapter passage selection: strata, with a redraw until every third is covered (R6);
   - balanced letters and the order, redrawn if it matches the text's (R7);
-  - `prepare()`, with retries, skips and the chapter rule (R5), the event stream, and the `seed`;
-  - `grade()`.
+  - `prepare()`, with retries, skips and the chapter rule (R5), the event stream and its counts, and the `seed`;
+  - `grade()`, which refuses a quiz that isn't `ready`.
 
   It reads chunks once through the `ChunkSource`. It runs inside `operation(logger, "prepare_quiz", …)`. It holds a hook for the check, off until US5.
 - [ ] T020 [US1] Wire `QuizService` into `app/container.py`: `Container.quizzes`, with the writer's `QuizWriter` on the configured LLM.
@@ -176,7 +184,7 @@ Project Structure).
   - Book, Scope (chapters only, until US2), Questions (set from `default_count()`, with the limit in its info line), and Write in;
   - Prepare, and Stop through `cancels`;
   - `max_questions` pre-built slots, filled by the streaming generator with `gr.skip()` for the other slots;
-  - Submit, active only on `QuizReady`, and the per-slot feedback;
+  - Submit, active only on `QuizReady`, and the per-slot feedback. After submission the State holds the Result only;
   - handlers wrapped in `reports_errors`.
 - [ ] T023 [US1] Add the Quiz tab to `app/interface/gradio_app.py`, after Summarization, and add its book list to `refresh`'s inputs and outputs.
 - [ ] T024 [US1] Create `tests/integration/test_quiz.py` (`pytestmark = pytest.mark.integration`). It writes the passages into the file, from *On Liberty* (public domain), and runs the configured model through `QuizWriter`:
@@ -202,16 +210,17 @@ Project Structure).
   - a `local_book` whose file is missing, or whose checksum differs, stops the run before any work;
   - the workspace indexes local books beside the dataset's;
   - a quiz run with a scripted writer gives question rows and quiz rows with the fields of `data-model.md` § Measurement;
+  - a closed-book answer the writer can't read leaves `closed_book_correct` None, and the summary counts it as `closed_book_unreadable`;
   - the environment holds `commit` and every book file's checksum.
 - [ ] T027 [P] [US4] Create `tests/unit/test_quiz_metrics.py`. It covers:
-  - the letter spread, and `model_order_letter`;
+  - the letter spread;
   - the share of questions in each third;
   - `reading.csv` written with empty `mark`, `reasons` and `note`, and read back;
   - the share of sound keys over the marked rows only, with the unmarked counted (FR-020);
   - flawed rows counted by reason;
   - `refers_to_passage` notes counted (SC-015).
 - [ ] T028 [P] [US4] Add tests to `tests/unit/test_report.py`. The quiz sections render:
-  - the letter spread, `key_is_longest`, `closed_book_correct` (without a target), the thirds, `delivered_share`, refusals by kind, skips, passed-over passages, unreadable verdicts and times;
+  - the letter spread, `key_is_longest`, `closed_book_correct` (without a target) with `closed_book_unreadable`, the thirds, `delivered_share`, refusals by kind, skips, passed-over passages, unreadable verdicts and times;
   - with marks, the sound share and `refers_to_passage`.
 
 ### Implementation for User Story 4
@@ -220,7 +229,7 @@ Project Structure).
   - `Experiment.kind` adds `quiz`, plus `local_books`, `targets` and `seed`;
   - a pre-flight that checks local books' files and checksums;
   - `_open` indexes local books;
-  - `_run_quiz` prepares each target through `workspace.container.quizzes` with the seed, times it, and has the writer answer each question without its passage;
+  - `_run_quiz` prepares each target through `workspace.container.quizzes` with the seed, times it, builds the rows from the events' counts, and has the writer answer each question without its passage. An answer it can't read is left out of `closed_book_correct` and counted;
   - `_describe_environment` adds `commit` and the book checksums;
   - the run writes `reading.csv`.
 - [ ] T030 [P] [US4] Create `app/evaluation/quiz_metrics.py`: the letter spread, the thirds, `reading.csv` writing and reading, the sound share over marked rows, the counts by reason and the `refers_to_passage` count.
@@ -236,6 +245,7 @@ Project Structure).
   - **If a target misses**, revise the writer's prompt in `app/generation/prompts.py`, run T034 again with the same seed, and compare with `benchmark-report --baseline`. An interval including zero counts as no difference.
   - **Limit**: at most three rounds before reporting to the owner.
   - **Every marked question** of these runs is a development case for US5.
+- [ ] T036 [US4] Measure a second model, with no code change (SC-010, FR-022). Create `specs/003-chapter-quiz/benchmarks/quiz_models.yaml`, a copy of `quiz.yaml` with a second variant, `gemma4_12b` (`llm.model: gemma4:12b`, which has a profile); `quiz.yaml` keeps the shipped writer only. Pull the model if it's missing (`docker compose exec ollama ollama pull gemma4:12b`), run the experiment with the same seed in the background, and check that `benchmark-report` shows every FR-019 measure for both variants. Compare them with `--baseline gpt_oss_20b`, and record the run in this file's Notes. Its reading isn't marked: SC-003 is judged on the shipped writer.
 
 **Checkpoint**: The measurement runs and pairs across variants, and the first quality numbers are known.
 
@@ -249,17 +259,17 @@ Project Structure).
 
 ### Tests for User Story 2 (write first, and see them fail)
 
-- [ ] T036 [P] [US2] Add whole-book tests to `tests/unit/test_quiz_service.py`:
+- [ ] T037 [P] [US2] Add whole-book tests to `tests/unit/test_quiz_service.py`:
   - the largest-remainder allocation keeps each chapter within one of its share of words, over many N and seeds (SC-006);
-  - a chapter ruled out by two skips in a row hands its questions to the others;
+  - a chapter ruled out, its first two passages tried both skipped, hands its questions to the others, as does a chapter whose passages run out, such as a one-passage chapter whose passage is skipped. The shares are then among the chapters still in play;
   - `forbidden_titles` passed to the writer includes the chapter's title in a whole-book quiz only;
   - the ranking orders by misses, then by share missed, then by book order.
 
 ### Implementation for User Story 2
 
-- [ ] T037 [US2] Add whole-book scope (`chapter_number` None) to `app/services/quiz_service.py`: the allocation and its reallocation (R5, R6), the chapter's title in the writer's forbidden titles, and the ranking in `grade()`.
-- [ ] T038 [US2] Add "The whole book" as the first Scope choice in `app/interface/quiz.py`, and render the ranking table in the Result through a helper in `app/interface/formatting.py`, with its test in `tests/unit/test_interface.py`.
-- [ ] T039 [US2] Run `make test`. Then `make up`, which empties the library: re-add `book_001`. Walk through `quickstart.md` § 5, and record in this file's Notes the spread and any question from *Agradecimentos*, *Referências bibliográficas*, *Leituras complementares*, *Lista de ilustrações* or *Lista de tabelas* (SC-006).
+- [ ] T038 [US2] Add whole-book scope (`chapter_number` None) to `app/services/quiz_service.py`: the allocation and its reallocation (R5, R6), the chapter's title in the writer's forbidden titles, and the ranking in `grade()`.
+- [ ] T039 [US2] Add "The whole book" as the first Scope choice in `app/interface/quiz.py`, and render the ranking table in the Result through a helper in `app/interface/formatting.py`, with its test in `tests/unit/test_interface.py`.
+- [ ] T040 [US2] Run `make test`. Then `make up`, which empties the library: re-add `book_001`. Walk through `quickstart.md` § 5, and record in this file's Notes the spread and any question from *Agradecimentos*, *Referências bibliográficas*, *Leituras complementares*, *Lista de ilustrações* or *Lista de tabelas* (SC-006).
 
 **Checkpoint**: Whole-book quizzes and the chapter ranking work.
 
@@ -273,18 +283,19 @@ Project Structure).
 
 ### Tests for User Story 3 (write first, and see them fail)
 
-- [ ] T040 [P] [US3] Add `result_document()` tests to `tests/unit/test_quiz_service.py`:
+- [ ] T041 [P] [US3] Add `result_document()` tests to `tests/unit/test_quiz_service.py`:
   - the file name is `quiz-<book_id>[-ch<NN>]-<YYYYMMDDTHHMMSSZ>.md`;
   - every element of FR-017 is there, in `contracts/quiz-tab.md` § Download's layout, for a one-chapter and a whole-book quiz;
   - "not answered" appears for an unanswered question;
   - the checker's model appears only when the check is on;
-  - passages appear as references, not text.
+  - passages appear as references, not text;
+  - `export()` writes the document into the download directory and returns its path. The directory holds only that file, and `prepare()` and a new service empty it.
 
 ### Implementation for User Story 3
 
-- [ ] T041 [US3] Add `result_document()` to `app/services/quiz_service.py`.
-- [ ] T042 [US3] Add the Download button to `app/interface/quiz.py`. It writes `result_document()` into a temporary directory the tab owns, which is emptied on each Prepare and when the app starts. Create the Blocks in `app/interface/gradio_app.py` with `delete_cache=(3600, 3600)`.
-- [ ] T043 [US3] Run `make test`. Then `make up`, which empties the library: re-add `book_001`. Walk through `quickstart.md` § 6, including the `find` after `docker compose restart app`, which keeps the library (SC-012).
+- [ ] T042 [US3] Add `result_document()` and `export()` to `app/services/quiz_service.py`, per `contracts/quiz-service.md`. `assemble` in `app/container.py` gives the service its download directory, `environment.data_dir / "quiz_downloads"`, so a benchmark workspace has its own.
+- [ ] T043 [US3] Add the Download button to `app/interface/quiz.py`. On submission, its file comes from `QuizService.export(result)`: the tab writes nothing (constitution IV). Create the Blocks in `app/interface/gradio_app.py` with `delete_cache=(3600, 3600)`.
+- [ ] T044 [US3] Run `make test`. Then `make up`, which empties the library: re-add `book_001`. Walk through `quickstart.md` § 6, including the `find` after `docker compose restart app`, which keeps the library (SC-012).
 
 **Checkpoint**: Results download, and nothing remains after a new quiz or a restart.
 
@@ -298,37 +309,38 @@ Project Structure).
 
 ### Tests for User Story 5 (write first, and see them fail)
 
-- [ ] T044 [P] [US5] Add check tests to `tests/unit/test_quiz_service.py`:
+- [ ] T045 [P] [US5] Add check tests to `tests/unit/test_quiz_service.py`:
   - with `check.enabled`, a rejected question is replaced from its stratum, keeping its position and letter;
   - an unreadable verdict, after its retry, leaves the question shown and counted;
   - `checker` is recorded on the quiz;
-  - a `check.model` other than the writer gets its own provider.
-- [ ] T045 [P] [US5] Add `quiz_check` tests to `tests/unit/test_benchmark.py`:
+  - the verdict is on `QuestionReady.check`, and `check_unreadable` on `QuizReady`;
+  - the service checks through the checker's provider, never the writer's, even with `check.model` null, so `check.reasoning` takes effect.
+- [ ] T046 [P] [US5] Add `quiz_check` tests to `tests/unit/test_benchmark.py`:
   - `case_set` is required;
   - cases are filtered by set;
   - passages are located by quote, and a quote found nowhere is counted, not run;
   - rows and the summary follow `data-model.md` § Check row;
   - `rule_passes` is null on `development`, and null on `test` with fewer than 10 flawed or 30 sound;
-  - (a) uses `paired_difference` and fails a tie;
+  - (a) uses `paired_difference` and fails a tie. It leaves out flawed cases whose comparator answer couldn't be read, counted as `comparator_unreadable`;
   - (b) is `sound_rejected / sound_cases ≤ 0.10`.
 
 ### Implementation for User Story 5
 
-- [ ] T046 [US5] Enable the check in `app/services/quiz_service.py` through `QuizWriter.check`. Build the checker's provider in `app/container.py`, from `check.model` with `check.reasoning` replacing its profile's reasoning, or reuse the writer's.
-- [ ] T047 [US5] Add `kind: quiz_check` with `known_cases` and `case_set` to `app/evaluation/benchmark.py`, and FR-027's rule to `app/evaluation/quiz_metrics.py`, per `contracts/quiz-experiments.md` § `kind: quiz_check`.
-- [ ] T048 [US5] Add to `tests/integration/test_quiz.py` the check's verdict on two cases written into the file, from *On Liberty*: one with a sound key, one with a deliberately wrong key. The verdict must be readable for both (FR-030).
-- [ ] T049 [US5] Create `specs/003-chapter-quiz/key_cases.yaml`, per `contracts/quiz-experiments.md` § `key_cases.yaml`:
+- [ ] T047 [US5] Enable the check in `app/services/quiz_service.py` through `QuizWriter.check`. Build the checker's provider in `app/container.py` with `create_llm_provider(settings, runtime, model=check.model or llm.model, reasoning=check.reasoning)`. It is a provider of its own even on the writer's model: gpt-oss writes at `low` and checks at `medium`.
+- [ ] T048 [US5] Add `kind: quiz_check` with `known_cases` and `case_set` to `app/evaluation/benchmark.py`, and FR-027's rule to `app/evaluation/quiz_metrics.py`, per `contracts/quiz-experiments.md` § `kind: quiz_check`.
+- [ ] T049 [US5] Add to `tests/integration/test_quiz.py` the check's verdict on two cases written into the file, from *On Liberty*: one with a sound key, one with a deliberately wrong key. The verdict must be readable for both, and so must the comparator's answer, with and without the passage (FR-030).
+- [ ] T050 [US5] Create `specs/003-chapter-quiz/key_cases.yaml`, per `contracts/quiz-experiments.md` § `key_cases.yaml`:
   - the probe's 24 as `set: development`: Q16 `key_not_stated`, Q17 `wrong_key`, Q18 and Q22 `two_defensible`, and the other 20 sound, with notes on Q2, Q7, Q9 and Q13;
   - every question marked in T035, also as development cases.
 
   Each case's `quote` is a verbatim span of at most 30 words, taken from its passage through the measurement's workspace. No passage text otherwise.
-- [ ] T050 [US5] Create `specs/003-chapter-quiz/benchmarks/quiz_check.yaml` (`case_set: development`, `known_cases: …/key_cases.yaml`, the `local_books` of T033). Run the development tries, in the background:
+- [ ] T051 [US5] Create `specs/003-chapter-quiz/benchmarks/quiz_check.yaml` (`case_set: development`, `known_cases: key_cases.yaml`, the `local_books` of T033). `known_cases` is read beside the experiment file: copy both into the container as `quickstart.md` § 8 says. Run the development tries, in the background:
   - at most three wordings of `quiz_check_messages`, each a commit, passed with `--commit`;
   - each wording with the writer and with at most one other configured model as variants.
 
   Fix the try that does best on the development cases, and record every try in this file's Notes.
-- [ ] T051 [US5] Gather the test cases. Run the `quiz` experiment of T033 with a new `seed`, never used before, in the background, and mark its reading. Add its questions to `key_cases.yaml` as `set: test`, and repeat with further new seeds until there are at least 10 flawed and 30 sound. **STOP**: the owner reviews every flawed label and a sample of the sound ones (spec, Assumptions).
-- [ ] T052 [US5] Run `quiz_check` with `case_set: test` on the fixed try, and record the verdict. Set `check.enabled` in `config/generation.yaml` as FR-027's rule says, and `check.model` and `check.reasoning` to the try's. If the check ships on, run the `quiz` experiment once more in the shipped configuration and mark it, so SC-003 is judged there. Record the remaining rate of flawed keys.
+- [ ] T052 [US5] Gather the test cases. Run the `quiz` experiment of T033 with a new `seed`, never used before, in the background, and mark its reading. Add its questions to `key_cases.yaml` as `set: test`, and repeat with further new seeds until there are at least 10 flawed and 30 sound. **STOP**: the owner reviews every flawed label and a sample of the sound ones (spec, Assumptions).
+- [ ] T053 [US5] Run `quiz_check` with `case_set: test` on the fixed try, and record the verdict. Set `check.enabled` in `config/generation.yaml` as FR-027's rule says, and `check.model` and `check.reasoning` to the try's. If the check ships on, run the `quiz` experiment once more in the shipped configuration and mark it, so SC-003 is judged there. Record the remaining rate of flawed keys.
 
 **Checkpoint**: The check is on or off by its proof, and the shipped configuration is measured.
 
@@ -338,15 +350,15 @@ Project Structure).
 
 **Purpose**: The records the constitution requires, and an end-to-end pass.
 
-- [ ] T053 [P] Update `README.md`:
+- [ ] T054 [P] Update `README.md`:
   - **the Interface table**: add a Quiz row;
   - **a Quiz section**: one chapter or the whole book, the default count, questions shown as they come, Stop, submission and feedback, the download, and nothing kept;
   - **the Benchmarks section**: the `quiz` and `quiz_check` experiments, copying them and the owner's book into the container, `--commit`, marking `reading.csv`, and the known cases.
-- [ ] T054 [P] Add entries to `docs/decisions.md`, each with the measurement or failure behind it:
-  - **under Generation**: one question per call (R2), the model never choosing a letter (R3), reading and refusals including `passage_reference` (R4), skips and the chapter rule (R5), passages and letters and order (R6, R7), the length-based default (R8), and the tab's pre-built slots, Stop and download cache (R9);
-  - **under Evaluation**: the quiz measurement and its pairing, the rubric, development and test cases, and the check's verdict and remaining rate.
-- [ ] T055 [P] Add a section to `docs/benchmark-results.md`: the measurement runs, each with its environment and commit; the prompt rounds; SC-002, SC-003, SC-004 and SC-015; the check's development tries and its verdict on the test cases.
-- [ ] T056 Run the whole of `quickstart.md`, § 1 to § 8, on a fresh `make up`, which empties the library: re-add `book_001` first. Then `make lint-check`, `make test` and `make test-integration`, and record the results in this file's Notes.
+- [ ] T055 [P] Add entries to `docs/decisions.md`, each with the measurement or failure behind it:
+  - **under Generation**: one question per call (R2), the model never choosing a letter (R3), reading and refusals including `passage_reference` (R4), skips and the chapter rule (R5), passages and letters and order (R6, R7), the length-based default (R8), the tab's pre-built slots and Stop, and the download the service writes and empties (R9), and the checker's own provider and reasoning (R11, R13);
+  - **under Evaluation**: the quiz measurement and its pairing, the rubric, development and test cases, the comparator answering in JSON, since a search for a letter misreads Portuguese, and the check's verdict and remaining rate.
+- [ ] T056 [P] Add a section to `docs/benchmark-results.md`: the measurement runs, each with its environment and commit; the prompt rounds; SC-002, SC-003, SC-004 and SC-015; the check's development tries and its verdict on the test cases.
+- [ ] T057 Run the whole of `quickstart.md`, § 1 to § 8, on a fresh `make up`, which empties the library: re-add `book_001` first. Then `make lint-check`, `make test` and `make test-integration`, and record the results in this file's Notes.
 
 ---
 
@@ -360,7 +372,7 @@ Project Structure).
 - **US4 (Phase 4)**: needs US1, since the experiment calls `QuizService`.
 - **US2 (Phase 5)** and **US3 (Phase 6)**: need US1. They are independent of each other and of US4.
 - **US5 (Phase 7)**: needs US4, for the measurement and the development cases of T035.
-- **Polish (Phase 8)**: needs every story. T054 and T055 record US5's verdict.
+- **Polish (Phase 8)**: needs every story. T055 and T056 record US5's verdict.
 
 ### Within Each Story
 
@@ -373,11 +385,12 @@ Project Structure).
 
 - **Foundational**: T003, T004, T005 and T006, which are separate test files or sections.
 - **US1**: tests T013 to T017; then T021, beside T019.
-- **US4**: tests T026 to T028; then T030 and T032, beside T029.
+- **US4**: tests T026 to T028; then T030 and T032, beside T029. T036 changes no code, but a
+  `make up` during its run would end it.
 - **US2 and US3**: they can proceed in parallel once US1 is done. They touch the same two files,
   so one of them has to merge the other's changes.
-- **US5**: tests T044 and T045.
-- **Polish**: T053, T054 and T055.
+- **US5**: tests T045 and T046.
+- **Polish**: T054, T055 and T056.
 
 ---
 
@@ -428,4 +441,5 @@ Task: "Slot, choices, progress and feedback helpers in app/interface/formatting.
 - **The owner's copy's sha256** (T002): _to fill_.
 - **US1 timings** (T025): _to fill_.
 - **Measurement results** (T035): _to fill_.
-- **Check tries and verdict** (T050–T052): _to fill_.
+- **Second model** (T036): _to fill_.
+- **Check tries and verdict** (T051–T053): _to fill_.

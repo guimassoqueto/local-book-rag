@@ -18,7 +18,7 @@ The experiment files are `specs/003-chapter-quiz/benchmarks/quiz.yaml` and `quiz
 | `local_books` | all               | list of `{key, title, language, filename, sha256}` | Read from `benchmarks/books/<filename>`, never fetched. A missing file or a different checksum stops the run before any work. Indexed in the workspace beside the dataset's books. |
 | `targets`     | `quiz`            | list of `{book, chapter, questions}`   | `book` is a dataset or local key. `chapter` is a title, or null for the whole book. `questions` is null for the default rule. |
 | `seed`        | `quiz`            | int, default 0                         | Passed to `QuizService.prepare` (research R6).         |
-| `known_cases` | `quiz_check`      | path                                   | The known cases file.                                  |
+| `known_cases` | `quiz_check`      | path                                   | The known cases file, relative to the experiment file. |
 | `case_set`    | `quiz_check`      | `development` or `test`, required      | Which known cases to run on (FR-026).                  |
 
 Variants override configuration as before: `llm.model` for the writer, and `generation.quiz.check.*`
@@ -30,11 +30,12 @@ For each variant and target, it prepares the quiz through the workspace's `QuizS
 Then the writer answers each question without its passage. Rows follow `data-model.md` §
 Measurement. `summarize` averages these per variant, and per book:
 - `delivered_share`, `seconds`, `first_question_seconds`;
-- `key_is_longest`, `closed_book_correct`.
+- `key_is_longest`;
+- `closed_book_correct`, which leaves out the answers it can't read and counts them as
+  `closed_book_unreadable`.
 
 `benchmark-report` adds:
-- the letter spread: the share of keys on each letter, which should be balanced by construction,
-  beside the model's own order (`model_order_letter`);
+- the letter spread: the share of keys on each letter, balanced by construction (SC-001);
 - where questions come from: the share in each third of their chapter;
 - refusals by FR-010's kinds, passages skipped and passed over, and check verdicts that couldn't
   be read;
@@ -61,10 +62,11 @@ reported, and the case is left out and counted. For each variant:
 
 **Rows** follow `data-model.md` § Check row. The **summary**, per variant:
 - `flawed_caught`, `flawed_cases`, `sound_rejected`, `sound_cases`, `unreadable`;
-- the comparator's `flawed_caught`;
+- the comparator's `flawed_caught` and `comparator_unreadable`;
 - on the `test` set only, `rule_passes`:
-  - (a) the paired difference, check caught minus comparator caught, over the flawed cases, from
-    `paired_difference` (4,000 resamples, 95%), has an interval above zero;
+  - (a) the paired difference, check caught minus comparator caught, over the flawed cases whose
+    comparator answer could be read, from `paired_difference` (4,000 resamples, 95%), has an
+    interval above zero;
   - (b) `sound_rejected/sound_cases` ≤ 0.10 (FR-027).
 
 On the `development` set, `rule_passes` is always null: those runs choose a wording, and decide
@@ -75,7 +77,8 @@ verdict either: `rule_passes` is null, with the reason (FR-026).
 
 ## `key_cases.yaml`
 
-A YAML list of known cases (`data-model.md` § Known case). Its comment header says:
+A YAML list of known cases (`data-model.md` § Known case). It is read from beside the experiment
+file, so `quickstart.md` § 8 copies both into the container. Its comment header says:
 - how cases are labeled;
 - that quotes are at most 30 words, verbatim;
 - that no passage text is stored.

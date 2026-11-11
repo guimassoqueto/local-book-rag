@@ -123,8 +123,10 @@ the code raised. The figures come from the assessment's probe
     illustrations or tables, acknowledgements, indexes, or a bare caption (FR-007). The
     application then tries another passage.
   - **A chapter can be ruled out.** When the first two passages tried in a chapter are both
-    skipped, the chapter is treated as having nothing to ask about. In a whole-book quiz, its
-    questions move to the other chapters (R6).
+    skipped, before any of its questions is ready, the chapter is treated as having nothing to
+    ask about. Later skips are replaced like refusals, so two captions in a row don't end a
+    chapter that has already given questions. In a whole-book quiz, its questions move to the
+    other chapters (R6); in a one-chapter quiz, preparation ends with `NothingToAskError`.
   - **The limit counts every passage.** The limit in FR-002 is the number of passages in the chosen
     text, capped at 50. If skipped passages leave too few, the quiz comes out shorter, and the
     reader is told how many it has (FR-010). This settles the point `/speckit-clarify` left open:
@@ -151,7 +153,8 @@ the code raised. The figures come from the assessment's probe
     largest remainder, which keeps each chapter within one of its share (FR-006, SC-006). Each
     chapter's questions are then drawn as above.
   - **A ruled-out chapter (R5).** Its questions are divided again among the chapters still in play,
-    by the same method.
+    by the same method. So are the remaining questions of a chapter whose passages run out, such
+    as a one-passage chapter whose passage is skipped.
   - **Randomness.** Use is random. The measurement sets a seed, so that every model and every
     prompt round writes on the same passages, and their rows pair up for `benchmark-report
     --baseline` (constitution VI).
@@ -203,9 +206,10 @@ the code raised. The figures come from the assessment's probe
   - **After submission** each slot shows right or wrong. A missed one also shows the reader's
     answer, the right one, the explanation and the passage (FR-015). A result block shows the
     score and, for a whole book, the ranking (FR-016).
-  - **The download** is a `gr.DownloadButton` whose file is written to a temporary directory the
-    tab owns. The directory is emptied when a new quiz is prepared and when the application
-    starts. Gradio serves its own copy from its cache. The Blocks set `delete_cache`, which
+  - **The download** is a `gr.DownloadButton` whose file `QuizService.export()` writes into the
+    service's download directory. The service empties it when a new quiz is prepared and when
+    the application starts, so the tab writes nothing (constitution IV). Gradio serves its own
+    copy from its cache. The Blocks set `delete_cache`, which
     empties that cache on restart and removes stale copies hourly; `quickstart.md` checks both.
     The spec's FR-018 and SC-012 are corrected to say so.
   - **The book list.** `gradio_app.refresh` also refreshes the Quiz tab's book list.
@@ -241,7 +245,8 @@ the code raised. The figures come from the assessment's probe
     position and letter.
   - **The settings.** The checker's model is `generation.quiz.check.model`, by default the writer.
     Its reasoning is `generation.quiz.check.reasoning`, which replaces the model's profile setting
-    as the judge's `reasoning` does. The first wording runs at `medium`.
+    as the judge's `reasoning` does. The first wording runs at `medium`. Reasoning is set per
+    provider, not per call, so the checker gets a provider of its own even on the writer's model.
   - **A verdict that can't be read** is asked again once, sampling. If it still can't be read, the
     question is shown, and the event is logged and counted. The passage shown after submission
     remains the reader's safeguard, as the abstention check never costs the reader an answer.
@@ -355,8 +360,9 @@ the code raised. The figures come from the assessment's probe
   - each `max_tokens` leaves room in `llm.context_size`;
   - `default_max` is at most `max_questions`.
 
-  `create_llm_provider` takes an optional model name, so the container can build the checker's
-  provider from that model's profile.
+  `create_llm_provider` takes an optional model name and reasoning level, so the container can
+  build the checker's provider from that model's profile, with `check.reasoning` replacing the
+  profile's.
 - **Rationale**: Constitution I keeps model names in configuration, and validates all of
   `config/` at startup. None of these settings shapes the index, so the fingerprint is untouched
   (constitution III).
@@ -371,7 +377,8 @@ the code raised. The figures come from the assessment's probe
     - a question comes back readable and in form;
     - a bibliography passage is skipped;
     - the language named is the one written;
-    - the check's verdict is readable on a sound case and a flawed one.
+    - the check's verdict is readable on a sound case and a flawed one;
+    - the comparator's answer is readable, with and without the passage.
   - **The measurement and the proof**, on the six chapters (R12), decide the quality targets:
     SC-002 to SC-006, and FR-027.
 - **Rationale**: Constitution V. Unit tests with fake models check the rules; only real output

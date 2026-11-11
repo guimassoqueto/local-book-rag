@@ -37,7 +37,8 @@ make test-integration
 - a question comes back readable and in form;
 - the bibliography passage is skipped;
 - the named language is the one written;
-- the check's verdict is readable.
+- the check's verdict is readable;
+- the comparator's answer is readable, with and without the passage.
 
 ## 3. One chapter (User Story 1)
 
@@ -74,7 +75,8 @@ In the Quiz tab, choose `book_001`, then *Capítulo 1: A grande divergência*.
 Choose `book_001` and "The whole book", with 20 questions.
 
 **Expected**:
-- **Each chapter's count** is within one of its share of the book's words.
+- **Each chapter's count** is within one of its share of the book's words, among the chapters
+  still in play.
 - **No question comes from** *Agradecimentos*, *Referências bibliográficas*, *Leituras
   complementares*, *Lista de ilustrações* or *Lista de tabelas*. If those chapters had a share,
   the quiz still has 20, or says how many it has (SC-006).
@@ -86,7 +88,8 @@ A one-chapter quiz shows no ranking.
 ## 6. Nothing kept (User Story 3, SC-012)
 
 1. After a submission and a download, prepare another quiz. The earlier questions and result are
-   gone from the tab, and the tab's temporary directory holds no earlier file.
+   gone from the tab, and the service's download directory, `data/quiz_downloads`, holds no
+   earlier file.
 2. Restart the app with `docker compose restart app`, which keeps the library. Then:
 
    ```bash
@@ -126,14 +129,18 @@ docker compose cp app:/app/benchmarks/results benchmarks/
 Then:
 1. **Mark** `reading.csv` (sound or flawed, with a reason), and run `benchmark-report` again. The
    share of sound keys appears: at least 90% is the target (SC-003).
-2. **Run it again** with another configured model as a variant (SC-010). It reports the same
-   measures, and the two pair question by question with `--baseline`.
+2. **Run `quiz_models.yaml`** (SC-010): the shipped writer and a second configured model, with the
+   same seed and no code change. It reports the same measures for both, and the two pair question
+   by question with `--baseline gpt_oss_20b`.
 
 ## 8. The key check's proof (User Story 5)
 
-Once `key_cases.yaml` holds at least 10 flawed and 30 sound cases:
+Once `key_cases.yaml` holds at least 10 flawed and 30 sound cases, copy it into the container
+beside the experiment, which reads it from there, and run the proof:
 
 ```bash
+cp specs/003-chapter-quiz/key_cases.yaml specs/003-chapter-quiz/benchmarks/quiz_check.yaml benchmarks/experiments/
+docker compose cp benchmarks/experiments app:/app/benchmarks/
 docker compose exec app book-rag benchmark benchmarks/experiments/quiz_check.yaml --commit "$(git rev-parse --short HEAD)"
 ```
 

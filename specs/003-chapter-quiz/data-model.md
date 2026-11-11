@@ -1,8 +1,12 @@
 # Data Model: A quiz on a chapter or a book
 
 Nothing here is stored by the application. Quizzes and results live in memory for one session
-(FR-018), and only the measurement writes files, in `benchmarks/results` and the experiment's
-workspace. The types below are frozen dataclasses, like the rest of the code.
+(FR-018). Two things write files:
+- `QuizService.export()` writes the current result's download into `quiz_downloads`, which is
+  emptied when another quiz is prepared and at each start;
+- the measurement writes into `benchmarks/results` and the experiment's workspace.
+
+The types below are frozen dataclasses, like the rest of the code.
 
 ## Quiz settings (`generation.quiz`, in `config/generation.yaml`)
 
@@ -27,7 +31,7 @@ What a quiz is about.
 
 | Field            | Type        | Rule                                                                  |
 | ---------------- | ----------- | --------------------------------------------------------------------- |
-| `book_id`        | str         | A book in the catalog, in status `INDEXED`. Otherwise refused, saying why. |
+| `book_id`        | str         | A book in the catalog, in status `INDEXED` or `REINDEXING`, as for the other tabs. Otherwise refused, saying why. |
 | `chapter_number` | int or None | A chapter of the book. None means the whole book.                     |
 
 The structure stays a book and an optional chapter. A later change could widen it to several
@@ -99,18 +103,24 @@ A draft placed in the quiz.
  any ── new quiz or restart ──► discarded (nothing remains)
 ```
 
-Only `ready` can be submitted (FR-012). `stopped` and `failed` keep their shown questions visible,
-but can't be submitted.
+A `Quiz` exists only from `QuizReady` on, so only a ready quiz can be submitted (FR-012).
+`preparing`, `stopped` and `failed` are states of the preparation: the tab keeps their shown
+questions visible, but they make no Quiz to submit. `grade()` refuses a quiz that isn't `ready`,
+and its Result holds a copy of the quiz in state `graded`, so a graded quiz can't be graded again
+(FR-018).
 
 ## Preparation events
 
 `QuizService.prepare` yields these, in order:
 
-| Event           | Fields                                    | When                                          |
-| --------------- | ----------------------------------------- | --------------------------------------------- |
-| `QuizStarted`   | `asked`, `limit`, `book_title`, `chapter_title` | Before the first call.                  |
-| `QuestionReady` | `question`, `ready` (count)               | Each time a question is ready, checked if the check is on. |
-| `QuizReady`     | `quiz`, `shortfall` (int, 0 if none)      | Last, when preparation finishes.              |
+| Event           | Fields                                                                 | When                                                       |
+| --------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `QuizStarted`   | `asked`, `limit`, `book_title`, `chapter_title`                        | Before the first call.                                     |
+| `QuestionReady` | `question`, `ready` (count), `attempts`, `refusals` (kind → count), `check` (`CheckVerdict` or None) | Each time a question is ready, checked if the check is on. |
+| `QuizReady`     | `quiz`, `shortfall` (int, 0 if none), `skipped_passages`, `passed_over_passages`, `ruled_out_chapters` (chapter numbers), `check_unreadable` | Last, when preparation finishes. |
+
+`attempts` counts the model calls for that position, replaced passages included. The tab ignores
+the counts; the measurement's rows come from them (§ Measurement).
 
 A stop or an error ends the stream without `QuizReady`. An error is raised as a `BookRagError`.
 
@@ -148,9 +158,10 @@ result on demand.
 **Question row** (`kind: quiz`):
 - `variant`, `book`, `chapter`, `question`: the pairing ID, `book:chapter:position`;
 - `relative_position`, from 0 to 1 within its chapter;
-- `letter`, `model_order_letter` (the letter the right answer would have had in the model's
-  order);
-- `key_is_longest`, `closed_book_correct`;
+- `letter`: the key's letter. The model never orders the options (research R3), so there is no
+  order of its own to compare it with;
+- `key_is_longest`;
+- `closed_book_correct`: None when the answer can't be read, which is left out and counted;
 - `seconds`, `attempts`, `refusals` (by kind), `checked`, `check_accepted`.
 
 **Quiz row** (`kind: quiz`):
@@ -193,4 +204,4 @@ result on demand.
 
 **Check row** (`kind: quiz_check`): `variant`, `case`, `label`, `rejected`, `supported`,
 `readable`, `open_book_answer` and `open_book_caught`. The last two come from the comparator: the
-writer answering with the passage.
+writer answering with the passage. Both are None when its answer can't be read.

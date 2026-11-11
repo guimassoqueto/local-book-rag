@@ -24,8 +24,8 @@ The tab reads input, calls `QuizService`, and shows what it returns. It checks n
 
 1. **Choosing book and scope** sets Questions to the default, with the limit shown. A book that
    isn't indexed shows its error and offers no scope.
-2. **Prepare.** It clears every slot, the result, and the tab's temporary download directory.
-   Then it streams:
+2. **Prepare.** It clears every slot and the result. The service empties its download directory
+   (`contracts/quiz-service.md` § `export`). Then it streams:
    - `QuizStarted` shows the progress line;
    - each `QuestionReady` makes its slot visible, filled. Every other slot is left untouched
      (`gr.skip()`), so answers already chosen stay. The reader can answer while the rest arrive;
@@ -40,9 +40,9 @@ The tab reads input, calls `QuizService`, and shows what it returns. It checks n
      explanation, and the passage, with its book, chapter, section and pages;
    - the Result shows the score, and for a whole-book quiz the ranking table: chapter, questions,
      missed;
-   - the Radios become inactive;
-   - Download becomes active. Its file is `result_document()` written into the tab's temporary
-     directory.
+   - the Radios become inactive, and the State holds the Result only;
+   - Download becomes active, with the file `QuizService.export()` wrote. The tab writes nothing
+     (constitution IV).
 6. **Nothing is kept** (FR-018). The quiz and result live in the session's State. A new Prepare or
    a restart discards them. The app's Blocks are created with `delete_cache=(3600, 3600)`, so
    Gradio's copies of downloads are cleared hourly and on restart.

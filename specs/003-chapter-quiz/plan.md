@@ -36,8 +36,10 @@ every missed question shows its passage. A Markdown download is the only record.
 dependency.
 
 **Storage**: None for quizzes: they live in the session's memory (FR-018). The measurement writes to
-`benchmarks/results` and `benchmarks/workspace`, inside the app container. Downloads go through a
-temporary directory and Gradio's cache, which is emptied on restart and hourly.
+`benchmarks/results` and `benchmarks/workspace`, inside the app container. A download is written
+by `QuizService.export()` into `data/quiz_downloads`, which is emptied when another quiz is
+prepared and at each start. Gradio serves a copy from its cache, which is emptied on restart and
+hourly.
 
 **Testing**: pytest.
 - `make test`: unit tests, with fake models, real SQLite and embedded ChromaDB.
@@ -72,8 +74,8 @@ two minutes for 20, plus the check when it is on. The first question appears aft
 | **I. Local-first and model-independent** | No inference leaves the machine; models named only in configuration; new settings validated at startup. | PASS: writer and checker are local Ollama models. | PASS. `generation.quiz` is validated, unknown keys fail (FR-029). `check.model` must have a profile. `create_llm_provider` gains an optional model name and still resolves its profile. No code branches on a model name. The cloud-checker idea is left to its own change, after an amendment (`spec.md` § Clarifications). |
 | **II. The library is never at risk** | Library changes journaled; no volumes; benchmarks only in their workspace. | PASS: a quiz only reads. | PASS. `QuizService` reads a book's chunks once and writes nothing to the catalog, index or files. The experiments index into `benchmarks/workspace`, including the owner's book as a `local_book` copied into `benchmarks/books`, and never read the library (FR-021). No volume or host folder. The quickstart's restarts and stops say what they keep. |
 | **III. Index integrity** | Embedding and chunking unchanged; new settings outside the fingerprint unless they shape the index. | PASS. | PASS. No quiz setting shapes stored vectors, so `IndexService.current_configuration` is untouched. |
-| **IV. One service layer** | Operations are service methods; the tab only reads and shows. | PASS. | PASS. `QuizService` holds every rule. The tab streams its events and shows them (`contracts/quiz-tab.md`). The benchmark calls the same service. |
-| **V. Verified on real models and real books** | Prompts, parsers and judges checked on real models; long calls through `app/generation`; prompts fitted. | Applies: a new prompt, a new reader, a judge. | PASS. `tests/integration/test_quiz.py` covers the reply format, the skip, the language and the check's readability on the configured model. The `quiz` experiment covers quality on six real chapters in two languages (R14). Readers accept what models write (R4). Every call goes through the provider and is fitted (FR-011). |
+| **IV. One service layer** | Operations are service methods; the tab only reads and shows. | PASS. | PASS. `QuizService` holds every rule. The tab streams its events and shows them (`contracts/quiz-tab.md`). The service writes the download's file (`export`) and refuses to grade a quiz twice, so no rule or write sits in the tab. The benchmark calls the same service. |
+| **V. Verified on real models and real books** | Prompts, parsers and judges checked on real models; long calls through `app/generation`; prompts fitted. | Applies: a new prompt, a new reader, a judge. | PASS. `tests/integration/test_quiz.py` covers the reply format, the skip, the language, the check's readability and the comparator's on the configured model. The `quiz` experiment covers quality on six real chapters in two languages (R14). Readers accept what models write (R4). Every call goes through the provider and is fitted (FR-011). |
 | **VI. Measured, not assumed** | Claims measured against a baseline; a judge proves itself first; results record their environment; intervals read honestly. | Applies: quality targets, and the key check is a judge. | PASS. The `quiz` experiment measures SC-001 to SC-006 and SC-008 against the probe's baselines. Seeded passages pair variants for `--baseline` (R6). `quiz_check` applies FR-027, with its comparator and a paired interval, on held-out test cases no wording was tried on, before the check can be on by default. Results record digests, versions, hardware, configuration, commit and book checksums (FR-023). Sound keys come from hand marks, never a judge's score. |
 | **VII. Every answer traceable** | Claims trace to passages; no-evidence path kept. | Applies: keys are claims. | PASS. Every question carries its one passage, shown with pages after submission and referenced in the download. Keys must be stated by the passage (FR-005), and the check's verdict is about exactly that. The answering and summary paths are untouched. |
 | **VIII. Decisions are recorded** | README and `docs/decisions.md` updated; odd behavior's reasons read first. | Applies. | PASS. The tasks update `README.md` (Interface table, a Quiz section, Benchmarks) and `docs/decisions.md` (R2 to R12, and the check's verdict), and record the runs in `docs/benchmark-results.md`. The decisions this plan builds on were read first: language naming, judges' reasoning, the abstention check's fail-open, benchmarks out of the repository. |
@@ -98,6 +100,7 @@ specs/003-chapter-quiz/
 │   └── quiz-experiments.md  # kinds quiz and quiz_check, reading.csv, key_cases.yaml
 ├── benchmarks/              # created by /speckit-implement
 │   ├── quiz.yaml
+│   ├── quiz_models.yaml     # the shipped writer and a second model (SC-010)
 │   └── quiz_check.yaml
 ├── key_cases.yaml           # created by /speckit-implement, from the probe's 24
 ├── checklists/
@@ -110,9 +113,10 @@ specs/003-chapter-quiz/
 ```text
 app/
 ├── config/settings.py              # + QuizConfig, QuizCheckConfig, GenerationConfig.quiz, cross-file rules
-├── container.py                    # + Container.quizzes; the checker's provider
+├── container.py                    # + Container.quizzes; the checker's provider; the download directory
+├── errors.py                       # + NothingToAskError, QuizAlreadyGradedError
 ├── generation/
-│   ├── factory.py                  # create_llm_provider(…, model=None)
+│   ├── factory.py                  # create_llm_provider(…, model=None, reasoning=None)
 │   ├── prompts.py                  # + quiz writer, checker and comparator messages
 │   └── quiz.py                     # new: QuizWriter, Draft/Skip/Refusal, read_draft, read_check
 ├── services/
@@ -132,7 +136,7 @@ config/generation.yaml              # + generation.quiz
 tests/
 ├── unit/
 │   ├── test_quiz_service.py        # new: passages, letters, order, default, events, grading, document
-│   ├── test_quiz_writer.py         # new: reading replies, form, cross-references, check verdicts
+│   ├── test_quiz_writer.py         # new: reading replies, form, cross-references, check verdicts, comparator answers
 │   ├── test_config.py              # + the quiz settings
 │   ├── test_benchmark.py           # + the quiz kinds, local books, known cases
 │   ├── test_report.py              # + the quiz sections
@@ -196,6 +200,19 @@ The owner then asked that questions never point to where the answer is: no "segu
 passage numbers, pages, sections, or chapters in a whole-book quiz. 20 of the probe's 24 questions
 did this. The writer now gets its passage without anything to point at, and replies that point
 anyway are refused and written again (FR-004, FR-010, SC-015, research R4).
+
+`/speckit-analyze` then found the rest, recorded in `spec.md` § Clarifications, "Corrections from
+the analysis":
+- the chapter rule of R5;
+- shares among the chapters still in play;
+- the download's file and the refusal to grade twice, moved into the service (constitution IV);
+- the checker's own provider, so its reasoning takes effect;
+- the comparator's JSON reply;
+- a second model measured (SC-010).
+
+A second run found only text that predated these corrections: the download's two copies, the
+comparator in the integration test, an unreadable comparator answer in FR-027 (a), and two test
+items.
 
 ## Complexity Tracking
 
