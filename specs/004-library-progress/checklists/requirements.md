@@ -32,7 +32,7 @@
 ## Notes
 
 - The Context names PyMuPDF, the embedding model and ChromaDB only to state the conditions of the
-  measurements, and FR-015 and FR-016 name the service layer, the lock and the journal because
+  measurements, and FR-016 and FR-017 name the service layer, the lock and the journal because
   the constitution's principles II and IV are written in those terms, as in `specs/003`. No
   requirement prescribes how the progress is built.
 - The owner is the one stakeholder, and a developer; the spec is written for them.

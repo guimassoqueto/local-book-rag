@@ -59,8 +59,8 @@ library, the catalog or ChromaDB:
 
 The owner adds a book in the Library tab. A progress area, visible without opening any section,
 shows the operation and the stage it is in, such as "Extracting the text, stage 2 of 5", with
-"130 of 244 pages" and the time left once the stage has a pace, and the time since the operation
-began. The next stage, embedding the passages, counts passages the same way. While it runs, the
+"130 of 244 pages" on a bar that fills, the time left once the stage has a pace, and the time since
+the operation began. The next stage, embedding the passages, counts passages the same way. While it runs, the
 tab's buttons can't start another operation. When it ends, the area says how it ended: the book
 added, with its chapters and passages, or the stage it failed at and why. Replacing a book and
 processing it again from its original show the same stages, plus the swap to the new version.
@@ -202,6 +202,23 @@ result line against today's.
 - **A second click during an operation.** It can't start anything while the buttons are
   disabled; one from another page is refused as busy.
 
+## Clarifications
+
+### Session 2026-11-12
+
+- Q: Should the time left cover only the current stage, or also the books and summaries left, or
+  the whole operation? → A: Only the current stage (pages, passages). Books and summaries show
+  their count and the time elapsed, without a time left.
+- Q: Should the progress area have a bar that fills, or is text with the counts and times enough?
+  → A: A bar that fills with the count in a countable stage, and a moving indicator that doesn't
+  fill in a stage without one, with the text in both.
+- Q: Should the application's log record the end of each stage, with its name, count and
+  duration? → A: Yes, one line per stage, among the lines the operation already logs.
+- Q: Should extracting an EPUB or a Markdown file show only the stage's name, without counting
+  files? → A: Yes. Only a PDF's extraction counts pages.
+- Q: Should the tab's list of books refresh during an operation, as each book's status changes, or
+  only when it ends, as today? → A: Only when it ends, as today.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -215,13 +232,16 @@ result line against today's.
   has one; the current stage by name, and its position among the operation's stages; for a
   countable stage, the items done of the total, with their unit (pages, passages, books,
   summaries); the time left in the stage where FR-006 allows one; and the time since the
-  operation began.
+  operation began. A countable stage MUST also show a bar that fills with its count, and a stage
+  without a count an indicator that moves without filling, so that no bar suggests a share it
+  doesn't have.
 - **FR-003**: The area MUST change within 1 second of an operation starting, and at least once a
   second while it runs, the elapsed time included, so that a stage without a count still shows
   the operation is alive.
 - **FR-004**: When an operation ends, the area MUST say how: what it did, as today's notification
   says it, or the stage it failed at and why. That line stays until the next operation starts.
-  The notifications the tab shows today stay.
+  The notifications the tab shows today stay, and the list of books refreshes when the operation
+  ends, as today, not during it.
 - **FR-005**: While an operation started from the tab runs, the tab's seven buttons MUST NOT start
   another one, and all of them MUST be usable again once it ends, whether it succeeded, failed or
   was refused.
@@ -265,17 +285,25 @@ result line against today's.
   often than every 2 seconds, plus one when it ends. Standard output MUST hold only what it holds
   today, apart from `reindex-all`'s progress lines, which move to the error stream.
 
+#### The log
+
+- **FR-015**: Every stage an operation reaches MUST leave one line in the application's log when it
+  ends, with its name, its count and total when it has them, and its duration, among the lines the
+  operation already logs. A stage that fails leaves its line too, saying so. The line holds no
+  text from the book.
+
 #### Constraints from the constitution
 
-- **FR-015**: The stages, counts and times left MUST come from the operations themselves, in the
+- **FR-016**: The stages, counts and times left MUST come from the operations themselves, in the
   service layer. The Library tab and the commands MUST only display them, and compute none
   (principle IV).
-- **FR-016**: Every operation MUST keep running under the library lock and its journal entry as
+- **FR-017**: Every operation MUST keep running under the library lock and its journal entry as
   today, with the progress reported from inside them (principle II).
-- **FR-017**: The feature MUST be checked on the four benchmark books, real ones, for counts that
+- **FR-018**: The feature MUST be checked on the four benchmark books, real ones, for counts that
   reach their totals, for estimates against SC-003, and for processed documents and passages
   identical to today's (principle V).
-- **FR-018**: `README.md` MUST describe the progress area and the commands' progress lines, and
+- **FR-019**: `README.md` MUST describe the progress area, the commands' progress lines and the
+  stage lines in the log, and
   `docs/decisions.md` MUST record what is counted, what isn't, and why, with this spec's
   measurements (principle VIII).
 
@@ -311,15 +339,20 @@ result line against today's.
   it ends, by success, failure or refusal, all seven work again within 1 second.
 - **SC-008**: Each command prints a line per stage it reaches, and no more than one count line
   every 2 seconds for a stage, plus its last.
+- **SC-009**: For each operation on the four benchmark books, the log holds one line per stage
+  reached, and their durations add up to the operation's logged duration within 1 second.
 
 ## Assumptions
 
-- **Books and summaries are counted without a time left**, a departure from the description: the
-  books took from 3.1 to 39 s each, and summaries differ with their chapters' length, so the pace
-  of those done says little about those left. The current book's or summary's own stages give
-  the time left where they can. To be confirmed by the owner at `/speckit-clarify`.
+- **Books and summaries are counted without a time left**, a departure from the description that
+  the owner confirmed (Clarifications): the books took from 3.1 to 39 s each, and summaries differ
+  with their chapters' length, so the pace of those done says little about those left. The
+  current book's or summary's own stages give the time left where they can. A time left for the
+  whole operation, from paces kept from earlier operations on this machine, was left out: it would
+  keep data across operations, which this feature doesn't. The stage lines in the log (FR-015) are
+  what such an estimate would start from.
 - **An EPUB's or a Markdown file's extraction shows no count**, a departure from the description's
-  "files": it took 0.1 s or less on both EPUBs.
+  "files" that the owner confirmed (Clarifications): it took 0.1 s or less on both EPUBs.
 - **The measurements are this machine's**, with the default configuration. A slower GPU, OCR, or
   a larger book makes every stage longer, and the counts and times left matter more there.
 - **The progress belongs to the page that started the operation.** Another page, or the same page
