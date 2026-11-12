@@ -76,9 +76,9 @@ replace it with another document, and see the same.
 
 **Acceptance Scenarios**:
 
-1. **Given** a PDF, **When** the owner adds it, **Then** the area shows, in order, checking and
-   storing the file, extracting the text (counting pages), preparing the passages, embedding them
-   (counting passages) and saving them to the index, each with its position among the stages.
+1. **Given** a PDF, **When** the owner adds it, **Then** the area shows, in order, storing the
+   file, extracting the text (counting pages), preparing the passages, embedding them (counting
+   passages) and saving them to the index, each with its position among the stages.
 2. **Given** a countable stage that has run long enough to have a pace, **When** the area
    updates, **Then** it shows the time left in that stage, and it never shows one from the
    stage's first items alone.
@@ -219,6 +219,17 @@ result line against today's.
 - Q: Should the tab's list of books refresh during an operation, as each book's status changes, or
   only when it ends, as today? → A: Only when it ends, as today.
 
+### Corrections during planning, 2026-11-12
+
+- **Adding a book starts with storing the file, not checking it.** The checks that can refuse an
+  addition (a busy library, a duplicate, an index that needs a reindex) run before the progress
+  begins (`research.md`, R9), so a refused file shows no stage, as User Story 1's scenario 7 asks.
+  When the file retries a book that failed before, removing that failed attempt comes first, as a
+  stage of its own.
+- **A reindex brings kept originals back before its checks**, as it does today, and that order
+  stays (FR-011). So that stage is reported already done when the progress begins, with the number
+  of originals brought back.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -253,12 +264,13 @@ result line against today's.
   once it has run 3 seconds and done 10% of its items, a default the plan may tune against SC-003
   on the four benchmark books. A stalled batch, as in the Context, must not throw it off for the
   rest of the stage.
-- **FR-007**: The stages of adding a book MUST be: checking and storing the file; extracting the
-  text, counting pages for a PDF read for its text, and without a count for OCR, an EPUB or a
-  Markdown file; preparing the passages; embedding the passages, counting them; and saving them
-  to the index. Replacing a book MUST show the same stages, and processing it again the same from
-  extraction on, since it has no file to check; both then show the swap to the new version. The
-  plan may name the stages differently, but not merge a countable one into another.
+- **FR-007**: The stages of adding a book MUST be: removing the earlier failed attempt, only when
+  the file retries a book that failed; storing the file; extracting the text, counting pages for a
+  PDF read for its text, and without a count for OCR, an EPUB or a Markdown file; preparing the
+  passages; embedding the passages, counting them; and saving them to the index. Replacing a book
+  MUST show the same stages, without the first, and processing it again the same from extraction
+  on, since it has no file to store; both then show the swap to the new version. The plan may name
+  the stages differently, but not merge a countable one into another.
 - **FR-008**: Reindexing the library MUST show: bringing back kept originals, when there are
   any; each book as k of N, with its title and its own stages of FR-007 from extraction to saving;
   the switch to the new index; and, when chosen, the saved summaries as s of S, each with the
