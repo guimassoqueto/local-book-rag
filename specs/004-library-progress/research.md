@@ -11,7 +11,7 @@ of the seven service methods takes an optional `progress` and makes a silent one
 none, so the stage lines of FR-015 are logged for every operation, from the tab, the commands, the
 benchmarks or the tests alike.
 
-**Rationale.** The counts come from below the services: pages from the PDF loader, passages from
+**Rationale.** The counts come from below the services: pages from the PDF loader, chunks from
 the embedding provider's batches. `app/ingestion` and `app/embeddings` can't import from
 `app/services`, so the tracker lives in `app/utils`, beside `logging`, which they all use already.
 The stage lists, the time left and the outcome are computed in it, so the tab and the commands only
@@ -107,7 +107,7 @@ indeterminate state, and a slider invites dragging.
 
 ## R6. The time left
 
-**Decision.** For a countable stage that shows one (pages, passages), the pace is the weighted
+**Decision.** For a countable stage that shows one (pages, chunks), the pace is the weighted
 median of the seconds per item over every advance of the stage so far, each advance weighing as
 many items as it carried. The time left shows once the stage has run 3 seconds and done 10% of its
 items (FR-006), and is `max(items left × pace − seconds since the last advance, 0)`, so it counts
@@ -147,8 +147,8 @@ operation goes on (FR-012).
 | ----------------------------------- | -------------------------------------------------- | -------------------------------------------- |
 | Storing the file                    | `BookService.add_book` and `replace_book`          | –                                            |
 | Extracting the text                 | `IngestionPipeline.process`                        | `PdfLoader.load`, a page at a time           |
-| Preparing the passages              | `IngestionPipeline.process`                        | –                                            |
-| Embedding the passages              | `IngestionService.ingest`                          | `embed_documents`'s `on_batch`, which exists |
+| Preparing the chunks              | `IngestionPipeline.process`                        | –                                            |
+| Embedding the chunks              | `IngestionService.ingest`                          | `embed_documents`'s `on_batch`, which exists |
 | Saving to the index                 | `IngestionService.ingest`                          | –                                            |
 | Swapping in the new version         | `BookService.replace_book` and `reindex_book`      | –                                            |
 | The steps of a removal or a reset   | `LibraryData.delete_book` and `clear`              | –                                            |
@@ -232,7 +232,7 @@ isolated library in `benchmarks/workspace/progress`, with `bench_progress_v` col
 benchmarks do (principle II). On the four benchmark books, it adds each one, processes it again,
 replaces one, reindexes the library with two saved summaries, removes a book, and resets the index
 and everything. It records each operation's duration, a digest of each book's extracted, normalized
-and passage files, and, with the feature's code, a snapshot every quarter second. It writes them,
+and chunk files, and, with the feature's code, a snapshot every quarter second. It writes them,
 with the environment, to `benchmarks/results/library_progress_<time>/`, and computes SC-002,
 SC-003, SC-005 and SC-009. The environment has the fields a benchmark run records
 (`Benchmark._describe_environment`): the date, the configuration and its digest, the Ollama

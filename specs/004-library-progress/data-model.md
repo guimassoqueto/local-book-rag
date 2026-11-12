@@ -11,7 +11,7 @@ A stage an operation declares before it starts, so that the area can say "stage 
 | ---------- | ------------------------- | -------------------------------------------------------------------------------- |
 | `key`      | `str`                     | The name in the log, such as `extract`.                                          |
 | `label`    | `str`                     | The name on screen, such as "Extracting the text".                               |
-| `unit`     | `str \| None`             | What a count counts: `pages`, `passages`, `books`, `summaries`, `originals`.     |
+| `unit`     | `str \| None`             | What a count counts: `pages`, `chunks`, `books`, `summaries`, `originals`.     |
 | `estimate` | `bool`                    | Whether a count shows a time left. False for books and summaries (Clarifications). |
 | `steps`    | `tuple[StageSpec, ...]`   | The stages inside each item, for the books and summaries of a reindex.          |
 
@@ -28,13 +28,13 @@ another).
 | Adding a book                     | `store` "Storing the file", `extract`, `prepare`, `embed`, `save`                                                                                                         |
 | Replacing a book                  | `store` "Storing the replacement", `extract`, `prepare`, `embed`, `save`, `swap` "Swapping in the new version"                                                            |
 | Processing a book again           | `extract`, `prepare`, `embed`, `save`, `swap`                                                                                                                             |
-| Removing a book                   | `vectors` "Deleting its passages from the index", `processed` "Deleting its processed documents", `summaries` "Deleting its summaries", `original` "Deleting its original" or "Moving its original to the archive", `catalog` "Removing it from the catalog" |
+| Removing a book                   | `vectors` "Deleting its chunks from the index", `processed` "Deleting its processed documents", `summaries` "Deleting its summaries", `original` "Deleting its original" or "Moving its original to the archive", `catalog` "Removing it from the catalog" |
 | Resetting the index               | `collections` "Deleting the index", `processed` "Deleting the processed documents", `summaries` "Deleting the summaries", `sources` "Keeping a record of the originals", `catalog` "Clearing the catalog" |
 | Resetting everything              | `collections`, `processed`, `summaries`, `originals` "Deleting the originals", `catalog`                                                                                  |
 | Reindexing the library            | `adopt` "Bringing back kept originals" (only when there were any), `books` "Indexing the books", `switch` "Switching to the new index", `summaries` "Writing the summaries again" (only when chosen) |
 
 Where `extract` is "Extracting the text" (unit `pages`, estimated), `prepare` "Preparing the
-passages", `embed` "Embedding the passages" (unit `passages`, estimated) and `save` "Saving to the
+chunks", `embed` "Embedding the chunks" (unit `chunks`, estimated) and `save` "Saving to the
 index". The `books` stage counts books without a time left, with `extract`, `prepare`, `embed` and
 `save` as its steps; the `summaries` stage counts summaries without a time left, with no declared
 steps: the summarizer's own messages show as its note.

@@ -24,7 +24,7 @@ Extracting the text — stage 2 of 5
 - The first line: the operation, its subject, and the time elapsed, as m:ss.
 - The second: the stage's label and its position. For a reindex, the book's step follows on a
   line of its own, with its own position, count and time left: "Indexing the books — stage 2 of 3
-  · 2 of 5 books · *Quincas Borba*", then "Embedding the passages — step 3 of 4".
+  · 2 of 5 books · *Quincas Borba*", then "Embedding the chunks — step 3 of 4".
 - The bar: a `<progress>` with `value` and `max` when the stage, or the step, is counted; without
   `value`, the browser's moving bar, when it isn't (FR-002, Clarifications).
 - The count and the time left, when there are; the stage's note, such as "with OCR".
@@ -42,8 +42,8 @@ When the operation ends, the area keeps one line until the next operation starts
 | Reindexed               | "Reindexed in 1:12. Index v4 is active: 4 books, 1313 chunks." plus the books brought back, still failing, and summaries not written, as today's notifications |
 | Index reset             | "Reset in 0:01. The index is gone and the originals are kept. Reindex the library to rebuild it." |
 | Everything reset        | "Reset in 0:01. The library is empty."                                                   |
-| Failed                  | "Failed after 0:15, while embedding the passages: Ollama is down."                       |
-| Reindex failed          | "Failed after 0:40, while indexing the books, at book_002, *Quincas Borba*, while embedding the passages: Ollama is down." (FR-004) |
+| Failed                  | "Failed after 0:15, while embedding the chunks: Ollama is down."                       |
+| Reindex failed          | "Failed after 0:40, while indexing the books, at book_002, *Quincas Borba*, while embedding the chunks: Ollama is down." (FR-004) |
 
 The notifications of today stay, with the same text (FR-004).
 
@@ -88,9 +88,9 @@ anything starts), then:
    `gr.Error`; otherwise shows today's notifications.
 
 A `gradio_client` caller gets the same endpoints, with the same inputs. Their outputs gain the
-area's final HTML, first: `add_book`, `replace_book`, `reindex_book` and `reindex_all` now return it
-where they returned nothing, and `remove_book`, `reset_index` and `reset_everything` a pair, the area
-and the emptied confirmation box. No caller in the repository reads them. A refused call raises, as
+area's final HTML, first: `add_book`, `replace_book`, `reindex_book` and `reindex_all` now return
+it where they returned nothing, and `remove_book`, `reset_index` and `reset_everything` a pair, the
+area and the emptied confirmation box. No caller in the repository reads them. A refused call raises, as
 `tests/integration/test_interface.py` expects.
 
 ## What the tab doesn't do

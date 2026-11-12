@@ -15,8 +15,8 @@ One line per call of the sink, prefixed with the elapsed time:
 [0:04] Adding a book, book_003: stage 2 of 5, Extracting the text, 58 of 244 pages, about 18 s left
 ...
 [0:22] Adding a book, book_003: stage 2 of 5, Extracting the text, 244 of 244 pages
-[0:22] Adding a book, book_003: stage 3 of 5, Preparing the passages
-[0:22] Adding a book, book_003: stage 4 of 5, Embedding the passages, 0 of 425 passages
+[0:22] Adding a book, book_003: stage 3 of 5, Preparing the chunks
+[0:22] Adding a book, book_003: stage 4 of 5, Embedding the chunks, 0 of 425 chunks
 ...
 [0:28] Adding a book, book_003: done
 ```
@@ -24,9 +24,9 @@ One line per call of the sink, prefixed with the elapsed time:
 - A line when a stage starts; while it advances, a line with its count at most every 2 seconds;
   a line when it ends with its final count (SC-008).
 - For a reindex, the book's step follows its stage: `stage 2 of 3, Indexing the books, 2 of 5
-  books, Quincas Borba: step 3 of 4, Embedding the passages, 120 of 454 passages`.
+  books, Quincas Borba: step 3 of 4, Embedding the chunks, 120 of 454 chunks`.
 - The last line says `done`, or `failed while <stage>`, and for a reindex's book `failed while
-  indexing the books, at book_002, Quincas Borba, while embedding the passages`. The error itself is
+  indexing the books, at book_002, Quincas Borba, while embedding the chunks`. The error itself is
   printed after it, as today (`error: <message>`, exit status 1).
 - Times and counts read as in the tab (FR-002): `[0:38]`, `about 10 s left`, `0 of 0`.
 

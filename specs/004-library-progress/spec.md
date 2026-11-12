@@ -31,12 +31,12 @@ the app container, on the four benchmark books, with the default configuration (
 tables, no OCR, `qwen3-embedding:0.6b` on the GPU in batches of 16), writing nothing to the
 library, the catalog or ChromaDB:
 
-| Book                        | Format | Pages | Passages | Extraction  | Cleaning, structure, passages | Embedding     |
-| --------------------------- | ------ | ----- | -------- | ----------- | ----------------------------- | ------------- |
-| *Think Python*              | PDF    | 244   | 425      | 22.2–22.5 s | under 0.1 s                   | 5.5 s, 16.6 s |
-| *História econômica global* | PDF    | 212   | 258      | 14.5–14.9 s | under 0.1 s                   | 4.4 s         |
-| *On Liberty*                | EPUB   | –     | 176      | under 0.1 s | 0.1 s                         | 3.0 s         |
-| *Quincas Borba*             | EPUB   | –     | 454      | 0.1 s       | 0.2 s                         | 6.7 s         |
+| Book                        | Format | Pages | Chunks | Extraction  | Cleaning, structure, chunks | Embedding     |
+| --------------------------- | ------ | ----- | ------ | ----------- | --------------------------- | ------------- |
+| *Think Python*              | PDF    | 244   | 425    | 22.2–22.5 s | under 0.1 s                 | 5.5 s, 16.6 s |
+| *História econômica global* | PDF    | 212   | 258    | 14.5–14.9 s | under 0.1 s                 | 4.4 s         |
+| *On Liberty*                | EPUB   | –     | 176    | under 0.1 s | 0.1 s                       | 3.0 s         |
+| *Quincas Borba*             | EPUB   | –     | 454    | 0.1 s       | 0.2 s                       | 6.7 s         |
 
 - **A PDF's extraction is the longest stage of adding one**, at 0.07 to 0.09 s a page, and its
   pace is steady from page to page.
@@ -46,8 +46,8 @@ library, the catalog or ChromaDB:
   times off.
 - **An EPUB's extraction takes a tenth of a second**: a count of its files would be gone before
   it could be read.
-- **Books differ ten-fold**: from 3.1 s for *On Liberty* to 28 or 39 s for *Think Python*, so the pace
-  of the books done so far says little about the ones left. Saved summaries differ the same way:
+- **Books differ ten-fold**: from 3.1 s for *On Liberty* to 28 or 39 s for *Think Python*, so the
+  pace of the books done so far says little about the ones left. Saved summaries differ the same way:
   gpt-oss takes 104 s for a chapter on average (`docs/benchmark-results.md`, Summarization), and
   chapters differ several times in length.
 - **Removing a book and the resets delete** vectors, files and catalog rows, which takes moments,
@@ -60,9 +60,9 @@ library, the catalog or ChromaDB:
 The owner adds a book in the Library tab. A progress area, visible without opening any section,
 shows the operation and the stage it is in, such as "Extracting the text, stage 2 of 5", with
 "130 of 244 pages" on a bar that fills, the time left once the stage has a pace, and the time since
-the operation began. The next stage, embedding the passages, counts passages the same way. While
+the operation began. The next stage, embedding the chunks, counts chunks the same way. While
 it runs, the tab's buttons can't start another operation. When it ends, the area says how it
-ended: the book added, with its chapters and passages, or the stage it failed at and why.
+ended: the book added, with its chapters and chunks, or the stage it failed at and why.
 Replacing a book and processing it again from its original show the same stages, plus the swap to
 the new version.
 
@@ -71,20 +71,20 @@ single book. It also builds what every other story uses: the progress area, the 
 disabled buttons.
 
 **Independent Test**: Add *Think Python* through the Library tab and watch the area: the stages
-in order, pages counting to 244, passages counting to 425, a time left that appears once a stage
+in order, pages counting to 244, chunks counting to 425, a time left that appears once a stage
 has a pace, buttons disabled until the end, and the outcome line. Then process it again, and
 replace it with another document, and see the same.
 
 **Acceptance Scenarios**:
 
 1. **Given** a PDF, **When** the owner adds it, **Then** the area shows, in order, storing the
-   file, extracting the text (counting pages), preparing the passages, embedding them (counting
-   passages) and saving them to the index, each with its position among the stages.
+   file, extracting the text (counting pages), preparing the chunks, embedding them (counting
+   chunks) and saving them to the index, each with its position among the stages.
 2. **Given** a countable stage that has run long enough to have a pace, **When** the area
    updates, **Then** it shows the time left in that stage, and it never shows one from the
    stage's first items alone.
 3. **Given** an EPUB or a Markdown file, **When** the owner adds it, **Then** extracting the text
-   shows no count, and embedding counts passages.
+   shows no count, and embedding counts chunks.
 4. **Given** a scanned PDF and OCR switched on, **When** the owner adds it, **Then** reading its
    pages counts them, and the OCR that follows shows that it is running, without a count.
 5. **Given** an operation running from the tab, **When** the owner looks at the tab's buttons,
@@ -106,7 +106,7 @@ The owner reindexes the library. The area shows which book is being indexed, suc
 5: *Quincas Borba*", with that book's own stage and its count, then the switch to the new index,
 then, if chosen, the saved summaries being written again, such as "Summary 3 of 7", with what the
 summary is doing. Questions keep working on the current index meanwhile, and the area says so.
-When it ends, it says what the reindex did: the index version, the books and passages, the books
+When it ends, it says what the reindex did: the index version, the books and chunks, the books
 that still fail, and the summaries that couldn't be written.
 
 **Why this priority**: It is the longest operation by far, a sum of every book and, with
@@ -137,7 +137,7 @@ the switch, summaries counting to 2, and the outcome line matching the report.
 ### User Story 3 - Removing a book and resetting, without a guess (Priority: P3)
 
 The owner removes a book, resets the index or resets everything. The area shows each step as it
-happens, such as deleting the book's passages from the index, its processed documents, its
+happens, such as deleting the book's chunks from the index, its processed documents, its
 summaries, its original or moving it to the archive, and removing it from the catalog, without a
 count or a percentage. When it
 ends, it says what was removed.
@@ -166,7 +166,7 @@ outcome line.
 
 The owner runs `add-book`, `replace-book`, `reindex-book`, `remove-book`, `reindex-all`,
 `reset-index` or `reset-everything`. The terminal shows the same stages and counts as the tab,
-without a line per page or passage, and the command's result as today.
+without a line per page or chunk, and the command's result as today.
 
 **Why this priority**: The commands call the same operations, so they get the progress at little
 cost, and a long `reindex-all` from the terminal stops being silent between books.
@@ -191,11 +191,11 @@ result line against today's.
 - **The page is reloaded, or the browser closed, during an operation.** The operation runs to its
   end, unaffected. The reloaded page shows no progress for it, and refuses a new operation as
   busy until it ends.
-- **A stage too fast to read**, such as removing a book or preparing the passages. It may flash
+- **A stage too fast to read**, such as removing a book or preparing the chunks. It may flash
   by; the outcome line stays after the operation ends.
 - **A PDF found to be scanned after its pages are read.** Without OCR, it fails at extraction as
   today, and the area says so. With OCR, the stage changes to OCR, without a count.
-- **A document with no text after cleaning.** It fails at preparing the passages, as today.
+- **A document with no text after cleaning.** It fails at preparing the chunks, as today.
 - **A reindex of an empty library.** Refused before any stage, as today.
 - **A summary that fails during a reindex.** The count goes on, and the outcome line lists it, as
   the warning does today.
@@ -210,7 +210,7 @@ result line against today's.
 ### Session 2026-11-12
 
 - Q: Should the time left cover only the current stage, or also the books and summaries left, or
-  the whole operation? → A: Only the current stage (pages, passages). Books and summaries show
+  the whole operation? → A: Only the current stage (pages, chunks). Books and summaries show
   their count and the time elapsed, without a time left.
 - Q: Should the progress area have a bar that fills, or is text with the counts and times enough?
   → A: A bar that fills with the count in a countable stage, and a moving indicator that doesn't
@@ -251,6 +251,13 @@ result line against today's.
 - **The equivalence of FR-011 is verified** by comparing each operation with and without progress,
   and `research.md` R15 says what a crash in each stage leaves.
 
+### Corrections from the analysis, 2026-11-12
+
+- **The unit counted while embedding is the chunk** (formerly "passages"), as the list of books and
+  today's notifications call it, so the bar and the outcome line agree: "425 of 425 chunks", then
+  "with 23 chapters and 425 chunks". The stages are "Preparing the chunks" and "Embedding the
+  chunks".
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -262,7 +269,7 @@ result line against today's.
   original, removing it, reindexing the library, resetting the index and resetting everything.
 - **FR-002**: While an operation runs, the area MUST show: the operation, and its book when it
   has one; the current stage by name, and its position among the operation's stages; for a
-  countable stage, the items done of the total, with their unit (pages, passages, books,
+  countable stage, the items done of the total, with their unit (pages, chunks, books,
   summaries); the time left in the stage where FR-006 allows one; and the time since the
   operation began. A countable stage MUST also show a bar that fills with its count, and a stage
   without a count an indicator that moves without filling, so that no bar suggests a share it
@@ -296,7 +303,7 @@ result line against today's.
   that advance MUST be within half and double the time actually left.
 - **FR-007**: The stages of adding a book MUST be: storing the file; extracting the text, counting
   pages for a PDF read for its text, and without a count for OCR, an EPUB or a Markdown file;
-  preparing the passages; embedding the passages, counting them; and saving them to the index.
+  preparing the chunks; embedding the chunks, counting them; and saving them to the index.
   Replacing a book MUST show the same stages, and processing it again the same from extraction
   on, since it has no file to store; both then show the swap to the new version. The plan may name
   the stages differently, but not merge a countable one into another.
@@ -358,7 +365,7 @@ result line against today's.
   after the checks that can refuse the operation, and every stage that changes the library runs
   while the operation's journal entry is open, as the change itself does today.
 - **FR-018**: The feature MUST be checked on the four benchmark books, real ones, for counts that
-  reach their totals, for estimates against SC-003, and for processed documents and passages
+  reach their totals, for estimates against SC-003, and for processed documents and chunks
   identical to today's (principle V).
 - **FR-019**: `README.md` MUST describe the progress area, the commands' progress lines and the
   stage lines in the log, and `docs/decisions.md` MUST record what is counted, what isn't, and
@@ -369,7 +376,7 @@ result line against today's.
 - **Progress update**: what an operation reports as it runs. The operation and its book, the
   current stage and its position among the stages, the items done and their total and unit for a
   countable stage, the time left when there is one, and the time elapsed.
-- **Stage**: a named part of an operation, such as extracting the text or embedding the passages.
+- **Stage**: a named part of an operation, such as extracting the text or embedding the chunks.
   Either countable, with a unit and a total known when it starts, or not.
 - **Outcome**: how an operation ended. What it did, or the stage it failed at and why, with the
   book and the step for a reindex.
@@ -382,15 +389,15 @@ result line against today's.
   click, as starting while its checks run (FR-003), and its first stage within 1 second of its
   progress beginning.
 - **SC-002**: On the four benchmark books, every count reaches its total (pages, the PDF's page
-  count, also for a scanned PDF before OCR takes over; passages, the book's passage count; books,
+  count, also for a scanned PDF before OCR takes over; chunks, the book's chunk count; books,
   the library's; summaries, the saved ones whose chapter remains), and none goes backwards.
 - **SC-003**: Over adding the four benchmark books, three times each, at least 90% of the times
   left are within half and double the time actually left in the stage, and none is shown before
   the stage has a pace. They are sampled every quarter of a second while a stage shows one, each
   sample counting once, so a long stage weighs more than a short one, as it does on screen.
 - **SC-004**: Adding, replacing, processing again and reindexing the four benchmark books leaves
-  processed documents and passages identical to today's: the same bytes in each book's extracted,
-  normalized and passage files, when both runs make the same operations in the same order on an
+  processed documents and chunks identical to today's: the same bytes in each book's extracted,
+  normalized and chunk files, when both runs make the same operations in the same order on an
   empty workspace, so that the books' IDs and revisions match. The journal entries are the same,
   apart from their IDs and times.
 - **SC-005**: No operation on the four benchmark books takes longer than today by more than 5% or

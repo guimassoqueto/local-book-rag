@@ -7,14 +7,14 @@
 ## Summary
 
 The Library tab gets a progress area that follows its seven operations stage by stage: a bar that
-fills with pages while a PDF's text is extracted and with passages while they are embedded, a
+fills with pages while a PDF's text is extracted and with chunks while they are embedded, a
 moving bar for the stages that can't be counted, the time left within a counted stage, the time
 elapsed, and a line saying how the operation ended. The seven buttons are disabled while one runs.
 The commands print the same stages to the error stream, and the log gets a line per stage.
 
 **How.** A tracker, `Progress` in `app/utils/progress.py`, is threaded through the operations: the
 services declare their stages and open them, the PDF loader counts pages, the embedding batches
-count passages. It computes the counts, the time left (a median pace, robust to a stalled batch)
+count chunks. It computes the counts, the time left (a median pace, robust to a stalled batch)
 and the outcome, and logs each stage's end. The tab runs the service call in a thread and renders
 the tracker's snapshot every half second; the commands give it a sink that prints. Nothing the
 display does can reach the operation, and the operations make the same calls as today.
@@ -55,7 +55,7 @@ refreshed at least once a second (FR-003); no operation more than 5% or 1 s slow
 - A failure of the display never reaches the operation (FR-012).
 - The tab and the commands compute nothing (FR-016).
 
-**Scale/Scope**: Seven operations; books of up to a few hundred pages and passages, measured at 3 to
+**Scale/Scope**: Seven operations; books of up to a few hundred pages and chunks, measured at 3 to
 39 s each; a reindex of a handful of books, plus a few saved summaries at about 104 s each.
 
 ## Constitution Check
@@ -66,7 +66,7 @@ refreshed at least once a second (FR-003); no operation more than 5% or 1 s slow
 | --------- | ----- | --------------- | ------------ |
 | I. Local-first and model-independent | No inference call is added; no model is named in code; no setting is added. | Pass | Pass: the tracker's thresholds are constants of the code, as FR-006 sets them, not a model's property. |
 | II. The library is never at risk | Every change still runs in its journaled operation, under the lock; a crash at any step leaves what it leaves today, since the same calls are made in the same order, and R15 says, stage by stage, what that is and how recovery finishes or undoes it; the progress begins inside the lock, after the checks, and every stage that changes the library runs while the journal entry is open (R9, FR-017); nothing in the progress raises into an operation (R10, FR-012). Nothing new is deleted or confirmed. No volume or mount. The measurement stays in `benchmarks/workspace/progress` and `bench_progress_v` (R14). `make up`, which recreates the app container and so deletes the library, is flagged where the quickstart uses it. | Pass | Pass: contracts/progress.md, Guarantees; quickstart § 3. |
-| III. Index integrity | No embedding, template, tokenizer or chunking change; the fingerprint is untouched (FR-013), so no reindex. | Pass | Pass: the digests of SC-004 prove the passages unchanged. |
+| III. Index integrity | No embedding, template, tokenizer or chunking change; the fingerprint is untouched (FR-013), so no reindex. | Pass | Pass: the digests of SC-004 prove the chunks unchanged. |
 | IV. One service layer | Stages, counts, times left and outcomes come from the services, through `Progress`; the tab and the commands render `snapshot()` and sink views, and compose the success line from the result as they compose today's notifications. | Pass | Pass: contracts/library-tab.md, contracts/commands.md. The throttle is the tracker's (R7). |
 | V. Verified on real models and real books | Ingestion changes (the loader and pipeline signatures, the page count) are checked on the four benchmark books, *Think Python*, *História econômica global*, *On Liberty* and *Quincas Borba*: identical digests, counts reaching their totals. No prompt, parser or judge changes. Every long call still goes through the same providers. | Pass | Pass: quickstart § 1 and § 3. |
 | VI. Measured, not assumed | No claim of quality or speed; the time left and the overhead are measured against `main` on a fresh workspace (R14), three runs each, medians compared, and the estimate's accuracy is a fixed criterion with a fixed sampling (SC-003). No judge or metric of the benchmarks changes. | Pass | Pass: the measurement records what a benchmark run records: configuration, Ollama version, models with digest and quantization, hardware, packages, commit and the books' checksums (R14). |
@@ -120,16 +120,20 @@ app/
 devtools/measure_library_progress.py   # new: the measurement of R14
 
 tests/unit/
-├── test_progress.py                # new
-├── test_book_lifecycle.py, test_library_rebuild.py, test_recovery.py   # with and without progress; failures per stage
-├── test_pdf_loader.py, test_pipeline.py                                # the page count, the stages
-└── test_interface.py               # handlers, outcome lines, button events
+├── test_progress.py                # new: the tracker
+├── test_progress_devtool.py        # new: the measurement's computations
+├── test_commands.py                # new: the commands' error stream and standard output
+├── test_book_lifecycle.py, test_library_rebuild.py   # with and without progress; failures per stage
+├── test_recovery.py                # unchanged, and must pass
+├── test_pdf_loader.py, test_pipeline.py              # the page count, the stages
+└── test_interface.py               # formatting, follow(), handlers, outcome lines, button events
 
 README.md, docs/decisions.md
 ```
 
-**Structure Decision**: The existing single application. The one new module is `app/utils/progress.py`,
-since `app/ingestion` must report to it and can't import from `app/services` (R1).
+**Structure Decision**: The existing single application. The one new module is
+`app/utils/progress.py`, since `app/ingestion` must report to it and can't import from
+`app/services` (R1).
 
 ## Complexity Tracking
 

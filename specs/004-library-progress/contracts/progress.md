@@ -91,5 +91,5 @@ lines are logged all the same (FR-015).
 - A stage's exception is the exception the operation raises today (FR-011, SC-006).
 - The progress begins inside `operation()` and inside the library lock, after the checks that
   refuse an operation (R9). A refused operation has no progress.
-- Extracted text, passages, vectors and the index's fingerprint are the same as without progress
+- Extracted text, chunks, vectors and the index's fingerprint are the same as without progress
   (FR-013).

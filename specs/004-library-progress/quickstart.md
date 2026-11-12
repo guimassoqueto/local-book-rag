@@ -32,7 +32,7 @@ the library (principle II), emptying the workspace before each run. Expected:
 `benchmarks/results/library_progress_<time>/` with `environment.json` (the fields of a benchmark
 run's environment: configuration, Ollama version, models with digest and quantization, hardware,
 packages, commit, the books' checksums), `durations.csv` (each operation, three runs) and
-`digests.json` (each book's extracted, normalized and passage files).
+`digests.json` (each book's extracted, normalized and chunk files).
 
 ## 2. Unit tests
 
@@ -53,6 +53,10 @@ Expected, among the rest:
   stages (FR-011, FR-012); a failure forced in each stage of `data-model.md`'s table raises the same
   exception, leaves the same state as without a `Progress`, and the outcome names the stage, and
   for a reindex the book and step (SC-006). `tests/unit/test_recovery.py` passes unchanged.
+- `tests/unit/test_progress_devtool.py`: the measurement's computations of SC-002, SC-003, SC-004,
+  SC-005 and SC-009, on made-up records.
+- `tests/unit/test_commands.py`: the seven commands' standard output as today, and their stages on
+  the error stream, ending with `done` or `failed while …`.
 - `tests/unit/test_interface.py`: each handler yields the area while the operation runs and the
   outcome line at the end; a refused call raises and leaves the area empty; the disable event sets
   the starting line; the disable and enable events exist for the seven buttons, and leave the
@@ -75,7 +79,7 @@ docker compose cp app:/app/benchmarks/results benchmarks/
 ```
 
 Expected in its report:
-- **SC-002**: every count reached its total (244 and 212 pages, 425, 258, 176 and 454 passages, 4
+- **SC-002**: every count reached its total (244 and 212 pages, 425, 258, 176 and 454 chunks, 4
   books, the two saved summaries) and never went backwards.
 - **SC-003**: over the snapshots of the three additions of each book, sampled every quarter
   second, at least 90% of those showing a time left within half and double the time actually left,
@@ -94,18 +98,19 @@ At `http://localhost:7860`, Library tab, on the real library. The removal and th
 what is there: run them on a library the owner agrees to lose.
 
 1. Add `think-python.pdf`. Within a second the area shows "Adding a book: starting", then its first
-   stage (SC-001); the bar fills with pages to 244, then with passages to 425; a time left appears after
-   a few seconds in each; the seven buttons stay disabled until the end (SC-007); the outcome line
-   stays.
+   stage (SC-001); the bar fills with pages to 244, then with chunks to 425; a time left appears
+   after a few seconds in each; the seven buttons stay disabled until the end (SC-007); the outcome
+   line stays.
 2. Add `on-liberty.epub`: extraction shows the moving bar, without a count.
 3. Add `think-python.pdf` again: refused as a duplicate, as today, with no stage and the buttons
    enabled again.
 4. Process *Think Python* again, then replace it with `historia-economica-global.pdf`: the same
    stages, then the swap.
 5. Save summaries of two short chapters in the Summaries tab, then reindex the library with "Also
-   write the saved summaries again": books counting to their number with each one's steps, the switch, then
-   summaries counting; the line saying questions keep working; no time left for books or summaries.
-6. During another addition, stop Ollama while the passages are embedded
+   write the saved summaries again": books counting to their number with each one's steps, the
+   switch, then summaries counting; the line saying questions keep working; no time left for books
+   or summaries.
+6. During another addition, stop Ollama while the chunks are embedded
    (`docker compose stop ollama`, which keeps its models), then start it again
    (`docker compose start ollama`): the outcome names the embedding stage, the error is today's,
    the book is listed as failed, and the buttons are enabled again. The outcome line stays
@@ -127,7 +132,9 @@ docker compose exec app book-rag reindex-all >report.txt 2>stages.txt
 
 Expected: standard output as today (for `reindex-all`, the report only); on the error stream, a
 line per stage and no more than one count line every 2 seconds per stage, plus its last (SC-008),
-ending with `done`.
+ending with `done`. Then `docker compose exec app book-rag doctor` reports the index matching the
+configuration, with no reindex needed (FR-013), and `make test-integration` passes, including
+`tests/integration/test_interface.py`, which calls the endpoints whose outputs changed.
 
 ## 6. The log
 
