@@ -9,15 +9,24 @@ from app.generation.summarization import ChapterSummarizer
 from app.ingestion.base import DocumentFormat
 from app.services.book_service import indexed_update
 from app.services.index_service import IndexService
-from app.services.ingestion_service import IngestionService
+from app.services.ingestion_service import INGEST_STEPS, IngestionService
 from app.services.library_data import LibraryData
 from app.services.recovery_service import REINDEX_ALL, LibraryGuard
 from app.storage.catalog import Book, BookStatus, BookUpdate, IndexRecord
 from app.storage.chroma import ChunkStore
 from app.storage.repositories import OriginalRecord
 from app.utils.logging import get_logger, log_event, operation
+from app.utils.progress import Progress, Stage, StageSpec
 
 logger = get_logger("services.library")
+
+# What the Library tab and the commands show of a reindex (specs/004-library-progress).
+REINDEXING = "Reindexing the library"
+MEANWHILE = "Questions keep working on the current index meanwhile."
+_ADOPT = StageSpec("adopt", "Bringing back kept originals", unit="originals")
+_BOOKS = StageSpec("books", "Indexing the books", unit="books", steps=INGEST_STEPS)
+_SWITCH = StageSpec("switch", "Switching to the new index")
+_SUMMARIES = StageSpec("summaries", "Writing the summaries again", unit="summaries")
 
 _NO_REVISION = 0
 # Books with no working revision to protect: they must not stand in the way of the rest.
@@ -67,9 +76,7 @@ class LibraryService:
         self._indexes = indexes
         self._summarizer = summarizer
 
-    def reindex_all(
-        self, regenerate_summaries: bool = False, on_progress: Callable[[str], None] | None = None
-    ) -> ReindexReport:
+    def reindex_all(self, regenerate_summaries: bool = False, progress: Progress | None = None) -> ReindexReport:
         """Rebuild the whole index from the original documents, with the current configuration.
 
         This is what changes the embedding model, its dimensions, the chunking or the metadata
@@ -81,7 +88,8 @@ class LibraryService:
 
         Args:
             regenerate_summaries: write the saved summaries again, from the new chunks.
-            on_progress: told what is happening.
+            progress: told of each book and its stages, the switch and the summaries, once the
+                checks that can refuse the reindex have passed.
 
         Raises:
             MissingOriginalError: an original is gone. Nothing has changed.
@@ -89,7 +97,7 @@ class LibraryService:
             LibraryBusyError: another operation is running.
             BookRagError: a book failed. Nothing has changed.
         """
-        report = on_progress or (lambda message: None)
+        progress = progress or Progress()
         with self._guard.exclusive(), operation(logger, REINDEX_ALL):
             adopted = self._adopt_preserved_originals()
             books = self._catalog.list_books()
@@ -97,54 +105,75 @@ class LibraryService:
                 raise NothingToReindexError("The library has no documents to rebuild from.")
             _require_originals(books)
 
-            staging = self._indexes.create_staging()
-            store = self._indexes.store(staging)
-            revisions = {book.book_id: book.revision + 1 for book in books}
-            statuses = {book.book_id: book.status.value for book in books}
-            previous = self._catalog.active_index()
-            journal = self._catalog.begin_operation(
-                REINDEX_ALL,
-                collection=staging.collection,
-                revisions=revisions,
-                statuses=statuses,
-                previous_collection=previous.collection if previous else None,
-                previous_revisions={book.book_id: book.revision for book in books},
+            stages = (
+                *((_ADOPT,) if adopted else ()),
+                _BOOKS,
+                _SWITCH,
+                *((_SUMMARIES,) if regenerate_summaries else ()),
             )
-            changes: list[BookUpdate] = []
-            failed: list[str] = []
-            try:
-                for position, book in enumerate(books, start=1):
-                    report(f"Indexing {book.title} ({position} of {len(books)})")
-                    change = self._rebuild_book(book, revisions[book.book_id], staging, store)
+            with progress.operation(REINDEXING, stages, meanwhile=MEANWHILE):
+                return self._rebuild(books, adopted, regenerate_summaries, progress)
+
+    def _rebuild(
+        self, books: list[Book], adopted: list[str], regenerate_summaries: bool, progress: Progress
+    ) -> ReindexReport:
+        """Everything reindex_all does once its checks have passed, reporting it as it goes."""
+        if adopted:
+            with progress.stage("adopt") as stage:  # done already, before the checks: report it at once
+                stage.count(len(adopted))
+                stage.advance(len(adopted))
+        staging = self._indexes.create_staging()
+        store = self._indexes.store(staging)
+        revisions = {book.book_id: book.revision + 1 for book in books}
+        statuses = {book.book_id: book.status.value for book in books}
+        previous = self._catalog.active_index()
+        journal = self._catalog.begin_operation(
+            REINDEX_ALL,
+            collection=staging.collection,
+            revisions=revisions,
+            statuses=statuses,
+            previous_collection=previous.collection if previous else None,
+            previous_revisions={book.book_id: book.revision for book in books},
+        )
+        changes: list[BookUpdate] = []
+        failed: list[str] = []
+        try:
+            with progress.stage("books") as stage:
+                stage.count(len(books))
+                for book in books:
+                    stage.item(book.book_id, book.title)
+                    change = self._rebuild_book(book, revisions[book.book_id], staging, store, progress)
                     if change is None:
                         failed.append(book.book_id)
                     else:
                         changes.append(change)
-            except Exception:
-                self._abandon(staging, revisions, statuses)
-                self._catalog.end_operation(journal)
-                raise
+                    stage.advance()
+        except Exception:
+            self._abandon(staging, revisions, statuses)
+            self._catalog.end_operation(journal)
+            raise
 
+        with progress.stage("switch"):
             self._catalog.finish_rebuild(staging.version, changes)
             for book in books:
                 self._data.record_source(book)
             self._drop_previous(previous, books, changes)
             self._catalog.end_operation(journal)
 
-            regenerated, summaries_failed = self._regenerate_summaries(report) if regenerate_summaries else (0, [])
-            result = ReindexReport(
-                index_version=staging.version,
-                collection=staging.collection,
-                embedding_model=staging.embedding_model,
-                books=len(changes),
-                chunks=sum(change.fields["chunk_count"] for change in changes),
-                adopted=tuple(adopted),
-                failed=tuple(failed),
-                summaries_regenerated=regenerated,
-                summaries_failed=tuple(summaries_failed),
-            )
-            log_event(logger, "library rebuilt", books=result.books, chunks=result.chunks)
-            return result
+        regenerated, summaries_failed = self._regenerate_summaries(progress) if regenerate_summaries else (0, [])
+        result = ReindexReport(
+            index_version=staging.version,
+            collection=staging.collection,
+            embedding_model=staging.embedding_model,
+            books=len(changes),
+            chunks=sum(change.fields["chunk_count"] for change in changes),
+            adopted=tuple(adopted),
+            failed=tuple(failed),
+            summaries_regenerated=regenerated,
+            summaries_failed=tuple(summaries_failed),
+        )
+        log_event(logger, "library rebuilt", books=result.books, chunks=result.chunks)
+        return result
 
     def recover(self) -> list[str]:
         """Clean up after an interrupted process. Call this when the application starts."""
@@ -162,7 +191,9 @@ class LibraryService:
                 adopted.append(record.book_id)
         return adopted
 
-    def _rebuild_book(self, book: Book, revision: int, staging: IndexRecord, store: ChunkStore) -> BookUpdate | None:
+    def _rebuild_book(
+        self, book: Book, revision: int, staging: IndexRecord, store: ChunkStore, progress: Progress
+    ) -> BookUpdate | None:
         """Index one book into the staging index.
 
         Returns:
@@ -179,6 +210,7 @@ class LibraryService:
                 Path(book.original_filename).stem,
                 staging,
                 store,
+                progress,
             )
         except Exception as exc:
             if book.status not in _NOTHING_TO_LOSE:
@@ -204,7 +236,7 @@ class LibraryService:
             if book.book_id in rebuilt and book.revision != _NO_REVISION:
                 self._data.processed.delete_revision(book.book_id, book.revision)
 
-    def _regenerate_summaries(self, report: Callable[[str], None]) -> tuple[int, list[str]]:
+    def _regenerate_summaries(self, progress: Progress) -> tuple[int, list[str]]:
         """Write saved summaries again, in the language they were saved in.
 
         The rebuild is live by now, so a summary that fails is reported, not raised, and a
@@ -215,17 +247,25 @@ class LibraryService:
         """
         written = 0
         failed: list[str] = []
-        for book_id, path in self._data.summaries.saved():
-            number, summary_type = _parse_summary_name(path)
-            if number not in {chapter for chapter, _ in self._catalog.chapters(book_id)}:
-                continue
-            report(f"Summarizing {book_id}, chapter {number} again")
-            language = self._data.summaries.metadata(path).get("language")
-            try:
-                self._summarizer.save(self._summarizer.summarize(book_id, number, summary_type, language))
-                written += 1
-            except BookRagError as exc:
-                failed.append(f"{book_id}, {path.stem}: {exc}")
+        with progress.stage("summaries") as stage:
+            remaining = []
+            for book_id, path in self._data.summaries.saved():
+                number, summary_type = _parse_summary_name(path)
+                if number in {chapter for chapter, _ in self._catalog.chapters(book_id)}:
+                    remaining.append((book_id, path, number, summary_type))
+            stage.count(len(remaining))
+            for book_id, path, number, summary_type in remaining:
+                stage.item(book_id, f"{book_id}, chapter {number}")
+                language = self._data.summaries.metadata(path).get("language")
+                try:
+                    summary = self._summarizer.summarize(
+                        book_id, number, summary_type, language, on_progress=_noting(stage, book_id, number)
+                    )
+                    self._summarizer.save(summary)
+                    written += 1
+                except BookRagError as exc:
+                    failed.append(f"{book_id}, {path.stem}: {exc}")
+                stage.advance()
         return written, failed
 
 
@@ -261,3 +301,8 @@ def _parse_summary_name(path: Path) -> tuple[int, str]:
     """Read back the chapter and type from a name like chapter_04_standard."""
     _, number, summary_type = path.stem.split("_", 2)
     return int(number), summary_type
+
+
+def _noting(stage: Stage, book_id: str, number: int) -> Callable[[str], None]:
+    """Show what a summary is doing beside the count of summaries."""
+    return lambda message: stage.note(f"{book_id}, chapter {number}: {message}")

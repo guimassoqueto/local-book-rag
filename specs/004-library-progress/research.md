@@ -130,10 +130,13 @@ The thresholds and the pace are tuned against SC-003 if the measurement misses i
 
 ## R7. How often a display hears of progress
 
-**Decision.** The tracker calls its sink, when it has one, at a stage's start and end, at an
-operation's end, and at most every `interval` seconds while a stage advances. The commands use a
-sink that prints to the error stream, with an `interval` of 2 seconds (FR-014). The tab passes no
-sink: it polls (R2).
+**Decision.** The tracker calls its sink, when it has one, at a stage's start, at a counted
+stage's end with its final count, at a new item (the next book of a reindex, the next summary),
+at an operation's end, and at most every `interval` seconds while a stage counts or notes. An
+uncounted stage's end, and the start of a count, add nothing to the line before them, so they
+aren't told (found while implementing: the commands printed each uncounted stage twice). The
+commands use a sink that prints to the error stream, with an `interval` of 2 seconds (FR-014). The
+tab passes no sink: it polls (R2).
 
 **Rationale.** The throttle is part of the tracker, so the commands only print what reaches them
 (FR-016). A sink that raises, such as a closed terminal, is logged once and dropped, and the

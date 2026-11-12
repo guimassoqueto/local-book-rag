@@ -9,9 +9,11 @@ from app.container import Container, build_container
 from app.errors import BookRagError
 from app.generation.base import TextDelta
 from app.generation.question_answering import Answer
+from app.interface.formatting import progress_text
 from app.retrieval.base import RetrievalFilters
 from app.services.reset_service import CONFIRM_RESET_EVERYTHING, CONFIRM_RESET_INDEX
 from app.utils.huggingface import local_snapshot
+from app.utils.progress import Progress
 from app.utils.tokenization import create_token_counter
 
 
@@ -150,29 +152,40 @@ def _pull_models(container: Container, arguments: argparse.Namespace) -> None:
         print(f"tokenizer {tokenizer.name}: ready")
 
 
+# A count line at most every 2 seconds for a stage (specs/004-library-progress, FR-014).
+_PROGRESS_INTERVAL = 2.0
+
+
+def _progress() -> Progress:
+    """A library operation's stages and counts on the error stream, so standard output stays its result."""
+    return Progress(
+        sink=lambda view: print(progress_text(view), file=sys.stderr, flush=True), interval=_PROGRESS_INTERVAL
+    )
+
+
 def _add_book(container: Container, arguments: argparse.Namespace) -> None:
-    book = container.books.add_book(arguments.path, arguments.path.name)
+    book = container.books.add_book(arguments.path, arguments.path.name, progress=_progress())
     print(f"{book.book_id}: {book.title} ({book.chapter_count} chapters, {book.chunk_count} chunks, {book.status})")
 
 
 def _replace_book(container: Container, arguments: argparse.Namespace) -> None:
-    book = container.books.replace_book(arguments.book, arguments.path, arguments.path.name)
+    book = container.books.replace_book(arguments.book, arguments.path, arguments.path.name, progress=_progress())
     print(f"{book.book_id}: {book.title} ({book.chapter_count} chapters, {book.chunk_count} chunks, {book.status})")
 
 
 def _remove_book(container: Container, arguments: argparse.Namespace) -> None:
     confirmation = arguments.confirm or input(f"Type {arguments.book} to remove it: ")
-    container.books.remove_book(arguments.book, confirmation, archive_original=arguments.archive)
+    container.books.remove_book(arguments.book, confirmation, archive_original=arguments.archive, progress=_progress())
     print(f"{arguments.book} removed.")
 
 
 def _reindex_book(container: Container, arguments: argparse.Namespace) -> None:
-    book = container.books.reindex_book(arguments.book)
+    book = container.books.reindex_book(arguments.book, progress=_progress())
     print(f"{book.book_id}: {book.title} ({book.chapter_count} chapters, {book.chunk_count} chunks, {book.status})")
 
 
 def _reindex_all(container: Container, arguments: argparse.Namespace) -> None:
-    report = container.library.reindex_all(arguments.regenerate_summaries, on_progress=print)
+    report = container.library.reindex_all(arguments.regenerate_summaries, progress=_progress())
     print(f"Index v{report.index_version} ({report.collection}) is active, built with {report.embedding_model}:")
     print(f"  {report.books} books, {report.chunks} chunks")
     if report.adopted:
@@ -187,13 +200,13 @@ def _reindex_all(container: Container, arguments: argparse.Namespace) -> None:
 
 def _reset_index(container: Container, arguments: argparse.Namespace) -> None:
     prompt = f"This deletes the index, summaries and catalog, keeping the originals. Type {CONFIRM_RESET_INDEX}: "
-    container.resets.reset_index(arguments.confirm or input(prompt))
+    container.resets.reset_index(arguments.confirm or input(prompt), progress=_progress())
     print("The index is gone and the originals are kept. reindex-all rebuilds the library from them.")
 
 
 def _reset_everything(container: Container, arguments: argparse.Namespace) -> None:
     prompt = f"This deletes the whole library, original documents included. Type {CONFIRM_RESET_EVERYTHING}: "
-    container.resets.reset_everything(arguments.confirm or input(prompt))
+    container.resets.reset_everything(arguments.confirm or input(prompt), progress=_progress())
     print("The library is empty.")
 
 

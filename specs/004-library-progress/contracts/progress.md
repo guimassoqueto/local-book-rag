@@ -56,8 +56,9 @@ class Stage:
   marks the item the stage's steps are about, for the steps' log lines, with its note.
   **`uncount(note)`** drops the count for the rest of the stage, keeping it for the log line, and
   sets the note.
-- **The sink** is called with a fresh `ProgressView` at each stage's start and end, at the
-  outcome, and while a stage advances at most once per `interval`. An exception from the sink is
+- **The sink** is called with a fresh `ProgressView` at each stage's start, at a counted stage's
+  end, at each `item()`, at the outcome, and, while a stage counts or notes, at most once per
+  `interval` (research.md R7). An exception from the sink is
   logged once, at warning level, and the sink is dropped for the rest of the operation. Nothing a
   sink does reaches the operation.
 - **`snapshot()`** returns None before the operation begins, then the current view, with `elapsed`

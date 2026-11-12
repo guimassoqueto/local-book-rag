@@ -20,8 +20,9 @@ The app container must still run `main`'s code: check that the branch has no cha
 yet (`git diff main --stat -- app` is empty) and that the image was built from it.
 
 ```bash
-docker compose exec app mkdir -p /app/benchmarks/books /app/benchmarks/results /tmp/devtools
-docker compose cp benchmarks/books/. app:/app/benchmarks/books/
+stage=$(mktemp -d) && mkdir -p "$stage/benchmarks/results" && cp -r benchmarks/books "$stage/benchmarks/"
+docker compose cp -a "$stage/benchmarks" app:/app/   # /app is root's: -a keeps the files the app user's
+docker compose exec app mkdir -p /tmp/devtools
 docker compose cp devtools/measure_library_progress.py app:/tmp/devtools/
 docker compose exec -w /app app python -I /tmp/devtools/measure_library_progress.py --baseline --runs 3
 docker compose cp app:/app/benchmarks/results benchmarks/
@@ -70,8 +71,9 @@ go ahead only if it is empty or the owner agrees.
 
 ```bash
 make up
-docker compose exec app mkdir -p /app/benchmarks/books /app/benchmarks/results /tmp/devtools
-docker compose cp benchmarks/books/. app:/app/benchmarks/books/
+stage=$(mktemp -d) && mkdir -p "$stage/benchmarks/results" && cp -r benchmarks/books "$stage/benchmarks/"
+docker compose cp -a "$stage/benchmarks" app:/app/   # /app is root's: -a keeps the files the app user's
+docker compose exec app mkdir -p /tmp/devtools
 docker compose cp devtools/measure_library_progress.py app:/tmp/devtools/
 docker compose exec -w /app app python -I /tmp/devtools/measure_library_progress.py --runs 3 \
     --baseline-results benchmarks/results/library_progress_<baseline time>
@@ -104,8 +106,9 @@ what is there: run them on a library the owner agrees to lose.
 2. Add `on-liberty.epub`: extraction shows the moving bar, without a count.
 3. Add `think-python.pdf` again: refused as a duplicate, as today, with no stage and the buttons
    enabled again.
-4. Process *Think Python* again, then replace it with `historia-economica-global.pdf`: the same
-   stages, then the swap.
+4. Process *Think Python* again, then replace it with `quincas-borba.epub`: the same stages, then
+   the swap. (*História econômica global* is in the library already, after every rebuild, so it
+   would be refused as a duplicate.)
 5. Save summaries of two short chapters in the Summaries tab, then reindex the library with "Also
    write the saved summaries again": books counting to their number with each one's steps, the
    switch, then summaries counting; the line saying questions keep working; no time left for books

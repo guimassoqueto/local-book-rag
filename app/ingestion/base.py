@@ -6,6 +6,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
+from app.utils.progress import Stage
+
 
 class DocumentFormat(StrEnum):
     PDF = "pdf"
@@ -68,8 +70,12 @@ def comparable_text(text: str) -> str:
 
 
 class DocumentLoader(Protocol):
-    def load(self, path: Path) -> ExtractedDocument:
+    def load(self, path: Path, stage: Stage | None = None) -> ExtractedDocument:
         """Extract a document.
+
+        Args:
+            path: the document.
+            stage: the extraction's progress, which a loader that knows its pages counts on.
 
         Raises:
             InvalidDocumentError: the file is corrupted.

@@ -26,6 +26,7 @@ from app.ingestion.base import (
     comparable_text,
 )
 from app.utils.logging import get_logger, log_event
+from app.utils.progress import Stage
 
 logger = get_logger("ingestion.pdf")
 
@@ -86,7 +87,7 @@ class PdfLoader:
         self._config = config
         self._ocr_loader = ocr_loader
 
-    def load(self, path: Path) -> ExtractedDocument:
+    def load(self, path: Path, stage: Stage | None = None) -> ExtractedDocument:
         try:
             document = pymupdf.open(path, filetype="pdf")
         except Exception as exc:  # PyMuPDF has no common base for its open errors
@@ -95,7 +96,7 @@ class PdfLoader:
         with document:
             if document.needs_pass:
                 raise InvalidDocumentError(f"{path.name} is password-protected.")
-            pages = [self._read_page(page, index + 1) for index, page in enumerate(document)]
+            pages = self._read_pages(document, stage)
             if self._is_scanned(pages, path):
                 if self._ocr_loader is None:
                     raise ScannedDocumentError(
@@ -103,6 +104,8 @@ class PdfLoader:
                         "pdf.ocr.enabled in config/ingestion.yaml to read it."
                     )
                 log_event(logger, "scanned pdf sent to ocr", file=path.name)
+                if stage is not None:
+                    stage.uncount("with OCR")  # Docling reports no pages as it goes
                 return self._ocr_loader.load(path)
 
             _mark_headings(pages)
@@ -116,6 +119,17 @@ class PdfLoader:
                 title=(metadata.get("title") or "").strip() or None,
                 author=(metadata.get("author") or "").strip() or None,
             )
+
+    def _read_pages(self, document: pymupdf.Document, stage: Stage | None) -> list[_Page]:
+        """Read every page, counting them for the extraction's progress."""
+        if stage is not None:
+            stage.count(len(document))
+        pages = []
+        for index, page in enumerate(document):
+            pages.append(self._read_page(page, index + 1))
+            if stage is not None:
+                stage.advance()
+        return pages
 
     def _read_page(self, page: pymupdf.Page, number: int) -> _Page:
         height = page.rect.height

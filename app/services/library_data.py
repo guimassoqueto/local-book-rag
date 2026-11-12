@@ -10,6 +10,35 @@ from app.services.index_service import COLLECTION_PREFIX
 from app.storage.catalog import Book, BookCatalog
 from app.storage.chroma import ChromaServer, ChunkStore
 from app.storage.repositories import OriginalDocuments, OriginalRecord, ProcessedDocuments, SummaryDocuments
+from app.utils.progress import Progress, StageSpec
+
+
+def removal_steps(archive: bool) -> tuple[StageSpec, ...]:
+    """The steps of delete_book, which removing a book declares (specs/004-library-progress)."""
+    original = "Moving its original to the archive" if archive else "Deleting its original"
+    return (
+        StageSpec("vectors", "Deleting its chunks from the index"),
+        StageSpec("processed", "Deleting its processed documents"),
+        StageSpec("summaries", "Deleting its summaries"),
+        StageSpec("original", original),
+        StageSpec("catalog", "Removing it from the catalog"),
+    )
+
+
+def reset_steps(keep_originals: bool) -> tuple[StageSpec, ...]:
+    """The steps of clear, which the resets declare."""
+    originals = (
+        StageSpec("sources", "Keeping a record of the originals")
+        if keep_originals
+        else StageSpec("originals", "Deleting the originals")
+    )
+    return (
+        StageSpec("collections", "Deleting the index"),
+        StageSpec("processed", "Deleting the processed documents"),
+        StageSpec("summaries", "Deleting the summaries"),
+        originals,
+        StageSpec("catalog", "Clearing the catalog"),
+    )
 
 
 class LibraryData:
@@ -61,27 +90,48 @@ class LibraryData:
         stale_original = replaced_original if replaced_original != current else None
         self.discard_revision(book_id, revision, stale_original)
 
-    def delete_book(self, book_id: str, archive: bool) -> None:
-        """Remove a book completely. Only its own vectors go: the collection stays."""
-        store = self._active_store()
-        if store is not None:
-            store.delete_book(book_id)
-        self.processed.delete(book_id)
-        self.summaries.delete(book_id)
-        if archive:
-            self.originals.archive(book_id)
-        else:
-            self.originals.delete(book_id)
-        self.catalog.delete(book_id)
+    def delete_book(self, book_id: str, archive: bool, progress: Progress | None = None) -> None:
+        """Remove a book completely. Only its own vectors go: the collection stays.
 
-    def clear(self, keep_originals: bool) -> None:
-        """Return the library to empty. ChromaDB goes first: if it is down, nothing has changed."""
-        self.server.delete_collections(self._collection_prefix)
-        self.processed.delete_all()
-        self.summaries.delete_all()
+        Args:
+            progress: told of each of removal_steps. Recovery, which repeats this, passes none.
+        """
+        progress = progress or Progress()
+        store = self._active_store()
+        with progress.stage("vectors"):
+            if store is not None:
+                store.delete_book(book_id)
+        with progress.stage("processed"):
+            self.processed.delete(book_id)
+        with progress.stage("summaries"):
+            self.summaries.delete(book_id)
+        with progress.stage("original"):
+            if archive:
+                self.originals.archive(book_id)
+            else:
+                self.originals.delete(book_id)
+        with progress.stage("catalog"):
+            self.catalog.delete(book_id)
+
+    def clear(self, keep_originals: bool, progress: Progress | None = None) -> None:
+        """Return the library to empty. ChromaDB goes first: if it is down, nothing has changed.
+
+        Args:
+            progress: told of each of reset_steps. Recovery, which repeats this, passes none.
+        """
+        progress = progress or Progress()
+        with progress.stage("collections"):
+            self.server.delete_collections(self._collection_prefix)
+        with progress.stage("processed"):
+            self.processed.delete_all()
+        with progress.stage("summaries"):
+            self.summaries.delete_all()
         if keep_originals:
-            for book in self.catalog.list_books():  # the catalog is about to go, and a rebuild needs this
-                self.record_source(book)
+            with progress.stage("sources"):
+                for book in self.catalog.list_books():  # the catalog is about to go, and a rebuild needs this
+                    self.record_source(book)
         else:
-            self.originals.delete_all()
-        self.catalog.clear(keep_counters=keep_originals)
+            with progress.stage("originals"):
+                self.originals.delete_all()
+        with progress.stage("catalog"):
+            self.catalog.clear(keep_counters=keep_originals)
