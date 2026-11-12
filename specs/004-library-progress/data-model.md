@@ -25,7 +25,7 @@ another).
 
 | Operation                         | Stages, in order                                                                                                                                                          |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Adding a book                     | `remove_failed` "Removing the earlier failed attempt" (only when retrying one), `store` "Storing the file", `extract`, `prepare`, `embed`, `save`                          |
+| Adding a book                     | `store` "Storing the file", `extract`, `prepare`, `embed`, `save`                                                                                                         |
 | Replacing a book                  | `store` "Storing the replacement", `extract`, `prepare`, `embed`, `save`, `swap` "Swapping in the new version"                                                            |
 | Processing a book again           | `extract`, `prepare`, `embed`, `save`, `swap`                                                                                                                             |
 | Removing a book                   | `vectors` "Deleting its passages from the index", `processed` "Deleting its processed documents", `summaries` "Deleting its summaries", `original` "Deleting its original" or "Moving its original to the archive", `catalog` "Removing it from the catalog" |
@@ -73,6 +73,8 @@ What `Progress.snapshot()` returns, and what a sink receives: the spec's "progre
 | ----------- | ------------- | ------------------------------------------------------------ |
 | `succeeded` | `bool`        |                                                              |
 | `stage`     | `str \| None` | The label of the stage it failed in, when it failed in one.  |
+| `step`      | `str \| None` | The label of the step it failed in, for a reindex's book.    |
+| `item`      | `str \| None` | The book's ID and title, for a reindex's book.               |
 | `error`     | `str \| None` | The error's message, when it failed.                         |
 
 What a successful operation did is told by its result, as today: the tab composes the outcome
@@ -80,14 +82,24 @@ line from the returned book or report, the same way it composes today's notifica
 
 ## Rules
 
-- **Counts.** `done` starts at 0 when a count starts, only grows, and never exceeds `total`. A
-  stage that ends normally with a count reports `done == total` (FR-010). Extraction may drop its
-  count once, when OCR takes over (R11); its log line then keeps the pages it read.
+- **Counts.** `done` starts at 0 when a count starts, only grows, and never exceeds `total`: an
+  advance past it is held at `total` and logged as a warning. A stage that ends normally with a
+  count reports `done == total` (FR-010); a total of zero reads "0 of 0". Extraction may drop its
+  count once, when OCR takes over, after counting every page (R11); its log line then keeps the
+  pages it read.
+- **Declarations.** A stage key that wasn't declared where it is opened is logged as a warning and
+  shown without a position; it never raises (FR-012).
 - **Time left.** Only for a stage whose spec says `estimate`, once it has run 3 seconds and done
-  10% of its items, as R6 computes it. None otherwise.
+  10% of its items, as R6 computes it: it counts down between advances and stops at zero. None
+  otherwise.
 - **Positions.** A stage's position is its index in the operation's list; a step's, its index in
-  its stage's `steps`. A conditional stage (`remove_failed`, `adopt`, `summaries`) is left out of the
-  list when it won't run, so the positions stay consecutive.
+  its stage's `steps`. A conditional stage (`adopt`, `summaries`) is left out of the list when it
+  won't run, so the positions stay consecutive.
+- **Between stages.** Some work runs outside any stage, and takes moments: the catalog update
+  after `save` in an addition, undoing a failed stage, marking a book REINDEXING or REMOVING, and,
+  in a reindex, creating the staging collection and opening the journal entry before the books
+  stage. The view keeps showing the last stage meanwhile, and SC-009's second of tolerance covers
+  their time.
 - **Lifecycle.** `snapshot()` returns None until the operation begins, then views with a stage, and
   finally a view with an `outcome`. A refused operation never begins, so its snapshot stays None
   (R9).

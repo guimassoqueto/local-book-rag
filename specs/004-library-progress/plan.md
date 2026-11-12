@@ -19,7 +19,7 @@ and the outcome, and logs each stage's end. The tab runs the service call in a t
 the tracker's snapshot every half second; the commands give it a sink that prints. Nothing the
 display does can reach the operation, and the operations make the same calls as today.
 
-`research.md` holds the 14 decisions behind this.
+`research.md` holds the 15 decisions behind this.
 
 ## Technical Context
 
@@ -65,11 +65,11 @@ refreshed at least once a second (FR-003); no operation more than 5% or 1 s slow
 | Principle | Check | Before research | After design |
 | --------- | ----- | --------------- | ------------ |
 | I. Local-first and model-independent | No inference call is added; no model is named in code; no setting is added. | Pass | Pass: the tracker's thresholds are constants of the code, as FR-006 sets them, not a model's property. |
-| II. The library is never at risk | Every change still runs in its journaled operation, under the lock; a crash at any step leaves what it leaves today, since the same calls are made in the same order; the progress begins inside the lock (R9). Nothing new is deleted or confirmed. No volume or mount. The measurement stays in `benchmarks/workspace/progress` and `bench_progress_v` (R14). `make up`, which recreates the app container and so deletes the library, is flagged where the quickstart uses it. | Pass | Pass: contracts/progress.md, Guarantees; quickstart § 3. |
+| II. The library is never at risk | Every change still runs in its journaled operation, under the lock; a crash at any step leaves what it leaves today, since the same calls are made in the same order, and R15 says, stage by stage, what that is and how recovery finishes or undoes it; the progress begins inside the lock, after the checks, and every stage that changes the library runs while the journal entry is open (R9, FR-017); nothing in the progress raises into an operation (R10, FR-012). Nothing new is deleted or confirmed. No volume or mount. The measurement stays in `benchmarks/workspace/progress` and `bench_progress_v` (R14). `make up`, which recreates the app container and so deletes the library, is flagged where the quickstart uses it. | Pass | Pass: contracts/progress.md, Guarantees; quickstart § 3. |
 | III. Index integrity | No embedding, template, tokenizer or chunking change; the fingerprint is untouched (FR-013), so no reindex. | Pass | Pass: the digests of SC-004 prove the passages unchanged. |
 | IV. One service layer | Stages, counts, times left and outcomes come from the services, through `Progress`; the tab and the commands render `snapshot()` and sink views, and compose the success line from the result as they compose today's notifications. | Pass | Pass: contracts/library-tab.md, contracts/commands.md. The throttle is the tracker's (R7). |
 | V. Verified on real models and real books | Ingestion changes (the loader and pipeline signatures, the page count) are checked on the four benchmark books, *Think Python*, *História econômica global*, *On Liberty* and *Quincas Borba*: identical digests, counts reaching their totals. No prompt, parser or judge changes. Every long call still goes through the same providers. | Pass | Pass: quickstart § 1 and § 3. |
-| VI. Measured, not assumed | No claim of quality or speed; the time left and the overhead are measured against `main` on a fresh workspace (R14), three runs each, and the estimate's accuracy is a fixed criterion (SC-003). No judge or metric of the benchmarks changes. | Pass | Pass: the measurement records commit, GPU, configuration and the books' checksums. |
+| VI. Measured, not assumed | No claim of quality or speed; the time left and the overhead are measured against `main` on a fresh workspace (R14), three runs each, medians compared, and the estimate's accuracy is a fixed criterion with a fixed sampling (SC-003). No judge or metric of the benchmarks changes. | Pass | Pass: the measurement records what a benchmark run records: configuration, Ollama version, models with digest and quantization, hardware, packages, commit and the books' checksums (R14). |
 | VII. Every answer traceable | Answers and summaries aren't touched; the reindex's summaries are written by the same calls. | Pass | Pass |
 | VIII. Decisions are recorded | Tasks update `README.md` (the area, the commands' lines, the stage lines in the log) and `docs/decisions.md` (what is counted, what isn't, why, the median pace, the polling thread), with the spec's and the measurement's numbers. | Pass | Pass |
 
@@ -83,7 +83,7 @@ No violation: Complexity Tracking stays empty.
 specs/004-library-progress/
 ├── spec.md
 ├── plan.md              # this file
-├── research.md          # R1–R14
+├── research.md          # R1–R15
 ├── data-model.md        # StageSpec, the stages of each operation, ProgressView, Outcome, the log line
 ├── quickstart.md        # baseline, unit tests, real books, browser, commands, log
 ├── contracts/

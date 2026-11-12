@@ -39,17 +39,20 @@ class Stage:
 
 - **`operation()`** begins the operation's progress, with its stages declared up front. On a normal
   exit it records a successful outcome. On an exception it records a failed one, with the label of
-  the stage the exception came through, if any, and its message, and lets the exception through
-  unchanged.
+  the stage the exception came through, if any, the step and item for a reindex's book, and its
+  message, and lets the exception through unchanged.
 - **`stage(key)`** opens the declared stage of that key: a top-level one, or, while a stage with
   `steps` is open, one of its steps. It logs the stage line of `data-model.md` when it exits, as
   "stage finished" or, on an exception, "stage failed", which it lets through unchanged. A key not
-  declared for where it is opened is a programming error, and raises `ValueError`.
+  declared for where it is opened is logged as a warning, and the stage is shown without a
+  position: nothing here raises into the operation (FR-012). A unit test runs every operation with
+  a `Progress` that fails the test on such a warning.
 - **Outside `operation()`**, `stage()` and every `Stage` method do nothing and log nothing, so code
   that runs without an operation, such as the benchmark's direct calls to `pipeline.process`, needs
   no special case.
-- **`Stage.count(total)`** starts the stage's count at 0. **`advance(items)`** adds to it, capped
-  at the total. **`note(text)`** sets the line shown beside the stage. **`item(item_id, note)`**
+- **`Stage.count(total)`** starts the stage's count at 0; a total of 0 is allowed, and reads "0 of
+  0". **`advance(items)`** adds to it; an advance past the total is held at the total and logged as
+  a warning. **`note(text)`** sets the line shown beside the stage. **`item(item_id, note)`**
   marks the item the stage's steps are about, for the steps' log lines, with its note.
   **`uncount(note)`** drops the count for the rest of the stage, keeping it for the log line, and
   sets the note.

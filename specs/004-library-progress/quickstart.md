@@ -28,9 +28,11 @@ docker compose cp app:/app/benchmarks/results benchmarks/
 ```
 
 It works in `benchmarks/workspace/progress` and the `bench_progress_v` collections only, never on
-the library (principle II). Expected: `benchmarks/results/library_progress_<time>/` with
-`environment.json`, `durations.csv` (each operation, three runs) and `digests.json` (each book's
-processed document and passages).
+the library (principle II), emptying the workspace before each run. Expected:
+`benchmarks/results/library_progress_<time>/` with `environment.json` (the fields of a benchmark
+run's environment: configuration, Ollama version, models with digest and quantization, hardware,
+packages, commit, the books' checksums), `durations.csv` (each operation, three runs) and
+`digests.json` (each book's extracted, normalized and passage files).
 
 ## 2. Unit tests
 
@@ -40,15 +42,21 @@ make test
 ```
 
 Expected, among the rest:
-- `tests/unit/test_progress.py`: counts that only grow and reach their totals, no time left before
-  3 s and 10% or for books and summaries, the median's resistance to one stalled advance, a sink
-  that raises without reaching the operation, nothing logged or tracked outside an operation.
-- The lifecycle tests: each operation with a `Progress` and without leaves the same catalog, files,
-  vectors and journal entries; a failure forced at each stage raises today's exception, leaves
-  today's state, and the outcome names the stage (SC-004, SC-006).
+- `tests/unit/test_progress.py`, on a fake clock: counts that only grow and reach their totals, an
+  advance past the total held and warned about, "0 of 0"; no time left before 3 s and 10% or for
+  books and summaries; after one advance ten times slower than the rest, every time left within
+  half and double the truth (FR-006); the countdown between advances, stopping at zero; a sink that
+  raises without reaching the operation; an undeclared stage warned about, not raised; nothing
+  logged or tracked outside an operation; the forms of FR-002.
+- The lifecycle tests: each operation with a `Progress` and without makes the same changes to the
+  catalog, the journal, the stores and the files, in the same order, and opens only declared
+  stages (FR-011, FR-012); a failure forced in each stage of `data-model.md`'s table raises the same
+  exception, leaves the same state as without a `Progress`, and the outcome names the stage, and
+  for a reindex the book and step (SC-006). `tests/unit/test_recovery.py` passes unchanged.
 - `tests/unit/test_interface.py`: each handler yields the area while the operation runs and the
-  outcome line at the end; a refused call raises and leaves the area empty; the disable and enable
-  events exist for the seven buttons.
+  outcome line at the end; a refused call raises and leaves the area empty; the disable event sets
+  the starting line; the disable and enable events exist for the seven buttons, and leave the
+  inputs alone.
 
 ## 3. The feature on the real books
 
@@ -68,12 +76,15 @@ docker compose cp app:/app/benchmarks/results benchmarks/
 
 Expected in its report:
 - **SC-002**: every count reached its total (244 and 212 pages, 425, 258, 176 and 454 passages, 4
-  books, the saved summary) and never went backwards.
-- **SC-003**: at least 90% of the times left shown within half and double the time actually left,
+  books, the two saved summaries) and never went backwards.
+- **SC-003**: over the snapshots of the three additions of each book, sampled every quarter
+  second, at least 90% of those showing a time left within half and double the time actually left,
   none before 3 s and 10%.
-- **SC-004**: the digests equal the baseline's.
-- **SC-005**: no operation's median more than 5% or 1 s above the baseline's.
-- **SC-009**: one stage line per stage reached, their durations within 1 s of the operation's.
+- **SC-004**: the digests equal the baseline's, byte for byte.
+- **SC-005**: no operation's median of three runs more than 5% or 1 s above the baseline's median,
+  the reindex with summaries left out.
+- **SC-009**: one stage line per stage reached, steps included, the top-level stages' durations
+  within 1 s of the operation's.
 
 A miss on SC-003 tunes R6's thresholds or pace, and the run is repeated.
 
@@ -82,8 +93,8 @@ A miss on SC-003 tunes R6's thresholds or pace, and the run is repeated.
 At `http://localhost:7860`, Library tab, on the real library. The removal and the resets delete
 what is there: run them on a library the owner agrees to lose.
 
-1. Add `think-python.pdf`. Within a second the area shows "Adding a book" and its first stage
-   (SC-001); the bar fills with pages to 244, then with passages to 425; a time left appears after
+1. Add `think-python.pdf`. Within a second the area shows "Adding a book: starting", then its first
+   stage (SC-001); the bar fills with pages to 244, then with passages to 425; a time left appears after
    a few seconds in each; the seven buttons stay disabled until the end (SC-007); the outcome line
    stays.
 2. Add `on-liberty.epub`: extraction shows the moving bar, without a count.
@@ -91,17 +102,21 @@ what is there: run them on a library the owner agrees to lose.
    enabled again.
 4. Process *Think Python* again, then replace it with `historia-economica-global.pdf`: the same
    stages, then the swap.
-5. Save a summary of a chapter in the Summaries tab, then reindex the library with "Also write the
-   saved summaries again": books counting to their number with each one's steps, the switch, then
+5. Save summaries of two short chapters in the Summaries tab, then reindex the library with "Also
+   write the saved summaries again": books counting to their number with each one's steps, the switch, then
    summaries counting; the line saying questions keep working; no time left for books or summaries.
 6. During another addition, stop Ollama while the passages are embedded
    (`docker compose stop ollama`, which keeps its models), then start it again
    (`docker compose start ollama`): the outcome names the embedding stage, the error is today's,
-   the book is listed as failed, and the buttons are enabled again.
+   the book is listed as failed, and the buttons are enabled again. The outcome line stays
+   visible, not covered by an error state (research.md R5); if it is covered, the fallback of
+   contracts/library-tab.md goes in, and this step is repeated.
 7. Remove a book, then reset the index, then reset everything: their steps by name, with the moving
    bar, and their outcome lines.
 8. Reload the page during a reindex: the reindex goes on (the log shows it finishing), the new page
-   shows nothing of it, and an operation started from it is refused as busy.
+   shows nothing of it, its area empty, and an operation started from it is refused as busy.
+9. During a reindex, stop Ollama while a book is embedded, then start it again: the outcome names
+   the book and its step (FR-004).
 
 ## 5. The commands
 

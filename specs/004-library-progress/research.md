@@ -69,10 +69,11 @@ take minutes, with summaries, and `docker stop` kills the process after 10 s any
 
 ## R4. Disabling the buttons
 
-**Decision.** Each of the seven buttons runs three events in a chain: one that disables all seven,
-without the queue; the operation's handler, which keeps today's `api_name`; and, on its success
-and on its failure, one that enables them again. The refresh of the book list stays where it is,
-on the handler's success and failure (`app/interface/gradio_app.py`).
+**Decision.** Each of the seven buttons runs three events in a chain: one that disables all seven
+and shows the operation as starting in the area, without the queue (FR-003); the operation's
+handler, which keeps today's `api_name`; and, on its success and on its failure, one that enables
+them again. The refresh of the book list stays where it is, on the handler's success and failure
+(`app/interface/gradio_app.py`).
 
 **Rationale.** Gradio's `then` doesn't run after an error, as `gradio_app.py` already notes, so the
 enabling event is attached with `success` and `failure`, like the refresh. The handler stays the
@@ -94,6 +95,12 @@ the area.
 **Rationale.** It is what the owner chose (Clarifications) with no JavaScript and no image: the
 indeterminate state of `<progress>` is the browser's own. `gr.HTML` in Gradio 6.31 takes a
 `css_template` for its styling.
+
+**An assumption to check.** When the handler raises, Gradio may draw an error state over its
+output components, which would cover the outcome line of a failure. With `show_progress="hidden"`
+it shouldn't; the walkthrough checks it (quickstart § 4). If it does, the enabling event that runs
+on the failure also takes the area as input and sets it again, which clears the error state and
+keeps the line (contracts/library-tab.md).
 
 **Alternatives considered.** *A `gr.Slider` or `gr.Markdown` with a text bar*: neither has an
 indeterminate state, and a slider invites dragging.
@@ -138,7 +145,6 @@ operation goes on (FR-012).
 
 | Stage                               | Opened by                                          | Counted by                                   |
 | ----------------------------------- | -------------------------------------------------- | -------------------------------------------- |
-| Removing the earlier failed attempt | `BookService.add_book`, when retrying a failed one | –                                            |
 | Storing the file                    | `BookService.add_book` and `replace_book`          | –                                            |
 | Extracting the text                 | `IngestionPipeline.process`                        | `PdfLoader.load`, a page at a time           |
 | Preparing the passages              | `IngestionPipeline.process`                        | –                                            |
@@ -161,11 +167,16 @@ argument, so the benchmark's direct calls to `pipeline.process` keep working unc
 lock, a confirmation, a duplicate checksum, an index that needs a reindex, a missing original, an
 empty library. `reindex_all` brings back kept originals before its checks, today; that order stays
 (FR-011), and when it brought any back, its first stage is reported already done, with their count.
+`add_book` removes an earlier failed attempt of the same file before its own operation and journal
+entry begin, in a journal entry of its own; that stays before the progress too, without a stage
+(CHK003). Every stage that changes the library runs while the operation's journal entry is open,
+as the change does today (FR-017): for `reindex_all`, the books stage opens after
+`begin_operation`.
 
 **Rationale.** A refused operation then shows no stage (US1 scenario 7, US3 scenario 3, the
 edge cases), and the stages cover the operation's logged duration, so their durations add up to it
-(SC-009). The checks take milliseconds, so the first stage still shows within a second of the click
-(SC-001).
+(SC-009). The checks take milliseconds, but reading a 512 MB upload's checksum takes about a
+second, so the tab shows the operation as starting from the click (FR-003, SC-001).
 
 **Alternatives considered.** *Moving `reindex_all`'s adoption after its checks*, to report it as a
 running stage. That changes what a refused reindex leaves in the catalog, which this feature
@@ -174,8 +185,12 @@ mustn't (FR-011).
 ## R10. Failures
 
 **Decision.** A stage's context logs "stage failed" and lets the exception through unchanged; the
-tracker keeps the stage it happened in, for the outcome. Nothing the tracker does raises into the
-operation: a sink's exception is caught there (R7).
+tracker keeps the stage it happened in, and for a reindex the book and step, for the outcome.
+Nothing the tracker does raises into the operation: a sink's exception is caught there (R7); a
+stage key that wasn't declared is logged as a warning and shown without a position; an advance
+past the total is held at the total and logged as a warning. A unit test opens every operation
+with a `Progress` that fails the test on any such warning, so the declarations can't drift from the
+code (FR-012).
 
 **Rationale.** `BookService.add_book` turns any exception from ingestion into a FAILED book, with a
 catch-all `except Exception`. An exception from the display would therefore fail the book: the
@@ -204,8 +219,8 @@ progress.
 
 **Decision.** At a stage's end, `log_event(logger, "stage finished" or "stage failed", ...)` with
 `stage` (its key), `done`, `total` and `unit` when it has a count, `duration_seconds`, and, for a
-stage inside a book or a summary of a reindex, `within` (the outer stage's key) and `item` (the book's ID).
-They are logged inside `operation()`, so they carry its execution ID.
+stage inside a book or a summary of a reindex, `within` (the outer stage's key) and `item` (the
+book's ID). They are logged inside `operation()`, so they carry its execution ID.
 
 **Rationale.** FR-015, with no text from the book: titles and file names stay out, the book's ID
 identifies it.
@@ -215,16 +230,23 @@ identifies it.
 **Decision.** A script, `devtools/measure_library_progress.py`, run in the app container, builds an
 isolated library in `benchmarks/workspace/progress`, with `bench_progress_v` collections, as the
 benchmarks do (principle II). On the four benchmark books, it adds each one, processes it again,
-replaces one, reindexes the library with a saved summary, removes a book, and resets the index and
-everything. It records each operation's duration, a digest of each book's processed document and
-passages, and, with the feature's code, a snapshot every quarter second. It writes them, with the
-environment (commit, GPU, configuration, the books' checksums), to
-`benchmarks/results/library_progress_<time>/`, and computes SC-002, SC-003, SC-005 and SC-009.
+replaces one, reindexes the library with two saved summaries, removes a book, and resets the index
+and everything. It records each operation's duration, a digest of each book's extracted, normalized
+and passage files, and, with the feature's code, a snapshot every quarter second. It writes them,
+with the environment, to `benchmarks/results/library_progress_<time>/`, and computes SC-002,
+SC-003, SC-005 and SC-009. The environment has the fields a benchmark run records
+(`Benchmark._describe_environment`): the date, the configuration and its digest, the Ollama
+version, each model used with its digest and quantization (the embedding model, and the LLM that
+writes the summaries), the CPU, GPU and driver, Python and the tracked packages, the commit, and
+the books' checksums (principle VI).
 
 It runs first on `main`'s code, as the baseline, before any change, then on the feature's, three
-times each. The digests answer SC-004, and the durations SC-005. The reindex that writes a saved
-summary again runs once, in the feature's run, for its counts: a summary's time varies with what
-the model writes, so SC-005 compares the reindexes without summaries.
+times each, each run on an emptied workspace with the operations in the same order, so the books'
+IDs and revisions match. The digests answer SC-004, and the medians of the durations SC-005. The
+reindex that writes two saved summaries again, of two short chapters, runs once, in the feature's
+run, for its counts: a summary's time varies with what the model writes, so SC-005 compares the
+reindexes without summaries. SC-003 is computed over the snapshots of the three additions of each
+book, every snapshot that shows a time left counting once.
 
 **Rationale.** Principle V asks for real books, and SC-003 and SC-005 can only be measured on them:
 the fakes of the unit tests take no time. The workspace is reset at each run, so a change to the
@@ -235,3 +257,28 @@ ingestion code can't leave a stale index behind (principle VI).
   versions of the code, once.
 - *The real library.* The measurement adds and removes books at will, which principle II keeps away
   from it.
+
+## R15. What a crash in each stage leaves
+
+**Decision.** The progress adds no change to the library and moves none, so a crash in a stage
+leaves what a crash at that point leaves today, and recovery, which runs whenever the lock is next
+taken, finishes or undoes it as today (`app/services/recovery_service.py`):
+
+| Operation (journal kind)              | A crash during                                  | Leaves                                                                         | Recovery                                                                      |
+| ------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Adding (`add_book`)                   | storing the file, before the book is cataloged  | an original with no book                                                       | deletes the original                                                          |
+| Adding (`add_book`)                   | extracting, preparing, embedding, saving        | a PROCESSING book, a partial revision                                          | discards the revision, marks the book FAILED                                  |
+| Adding (`add_book`)                   | after saving, before the journal closes         | an INDEXED book                                                                | nothing                                                                       |
+| Replacing (`replace_book`)            | storing, extracting, preparing, embedding, saving | the book as it was, a staged original, a partial new revision                | discards the new revision and the staged original, restores the status       |
+| Replacing (`replace_book`)            | the swap                                        | the new revision live or not, as the catalog says                              | finishes the swap (drops the old revision, the summaries) or undoes it        |
+| Processing again (`replace_book`)     | extracting to saving, the swap                  | as for a replacement, without a staged original                                | as for a replacement                                                          |
+| Removing (`remove_book`)              | any of its steps                                | a book partly deleted                                                          | deletes it again: every step is safe to repeat                                |
+| Reindexing (none yet)                 | bringing back kept originals, before the journal | PENDING books for the originals brought back                                  | none needed: the next reindex indexes them                                    |
+| Reindexing (`reindex_all`)            | indexing the books                              | a staging collection and new revisions; the live index untouched                | drops the staging collection and revisions, restores the statuses             |
+| Reindexing (`reindex_all`)            | the switch                                      | the new index live or not, as the catalog says                                 | finishes the switch (drops the previous collection and revisions) or drops it |
+| Reindexing (journal closed)           | writing the summaries again                     | the new index live; each summary not yet written still the old one             | none: the summary can be written again                                        |
+| Resetting (`reset_index`, `reset_everything`) | any of its steps                        | a library partly cleared                                                       | clears it again                                                               |
+
+**Rationale.** Principle II asks the plan to say what a crash at each step leaves. FR-011 holds
+the progress to the same changes in the same order, which the unit tests compare, and the recovery
+tests in `tests/unit/test_recovery.py`, which cover each of these rows, must pass unchanged.

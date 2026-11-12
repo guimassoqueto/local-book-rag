@@ -25,8 +25,10 @@ One line per call of the sink, prefixed with the elapsed time:
   a line when it ends with its final count (SC-008).
 - For a reindex, the book's step follows its stage: `stage 2 of 3, Indexing the books, 2 of 5
   books, Quincas Borba: step 3 of 4, Embedding the passages, 120 of 454 passages`.
-- The last line says `done`, or `failed while <stage>`. The error itself is printed after it, as
-  today (`error: <message>`, exit status 1).
+- The last line says `done`, or `failed while <stage>`, and for a reindex's book `failed while
+  indexing the books, at book_002, Quincas Borba, while embedding the passages`. The error itself is
+  printed after it, as today (`error: <message>`, exit status 1).
+- Times and counts read as in the tab (FR-002): `[0:38]`, `about 10 s left`, `0 of 0`.
 
 ## Standard output
 

@@ -7,7 +7,11 @@ call, and renders what `Progress.snapshot()` returns; it computes no stage, coun
 ## The progress area
 
 A `gr.HTML` under the index status, above the list of books, outside every accordion (FR-001).
-Empty until the first operation.
+Empty until the first operation, and again after the page is reloaded.
+
+From the click until the operation's progress begins, while it runs its checks, the area shows
+the operation as starting, with the moving bar: "Adding a book: starting" (FR-003). The labels are
+the services' own constants, so the starting line and the stages name the operation alike.
 
 While an operation runs, `progress_html(view)` from `app/interface/formatting.py` renders:
 
@@ -39,24 +43,33 @@ When the operation ends, the area keeps one line until the next operation starts
 | Index reset             | "Reset in 0:01. The index is gone and the originals are kept. Reindex the library to rebuild it." |
 | Everything reset        | "Reset in 0:01. The library is empty."                                                   |
 | Failed                  | "Failed after 0:15, while embedding the passages: Ollama is down."                       |
+| Reindex failed          | "Failed after 0:40, while indexing the books, at book_002, *Quincas Borba*, while embedding the passages: Ollama is down." (FR-004) |
 
 The notifications of today stay, with the same text (FR-004).
 
 A refused operation (no file, no book, a wrong confirmation, a duplicate, a busy library) leaves the
-area empty and shows its error as today: it never began (R9).
+area empty, the starting line and any earlier outcome line included, and shows its error as today:
+it never began (R9).
+
+Times read as FR-002 sets them: the elapsed time as 0:38, or 1:02:05 past an hour; the time left as
+"about 10 s left", rounded up to a multiple of 5 under a minute, or "about 3 min left"; "almost
+done" once it has counted down to zero. An empty count reads "0 of 0" with a full bar.
 
 ## The events of each button
 
 For each of the seven buttons, in order:
 
-1. **disable**, `queue=False`, `api_visibility="private"`: the seven buttons, `interactive=False`.
+1. **disable**, `queue=False`, `api_visibility="private"`: the seven buttons, `interactive=False`,
+   and the area, set to the operation's starting line. The tab's inputs stay editable (FR-005).
 2. **the operation**, chained with `then`: the handler, a generator, with today's `api_name`
    (`add_book`, `replace_book`, `reindex_book`, `remove_book`, `reindex_all`, `reset_index`,
    `reset_everything`), today's inputs, `show_progress="hidden"`, and as outputs the area plus
    today's outputs (the confirmation box of the removal and the resets, which it empties on
    success).
 3. **enable**, on the operation's `success` and on its `failure`, `api_visibility="private"`: the
-   seven buttons, `interactive=True` (FR-005).
+   seven buttons, `interactive=True` (FR-005). If the walkthrough shows Gradio covering the area
+   with an error state after a failure (research.md R5), the enabling event on `failure` also takes
+   the area as input and sets it again, which keeps the outcome line visible.
 
 The operation's event stays in `LibraryTab.changes`, so the list of books, the index status and
 the dropdowns refresh after it, on success and on failure, as today, and not during it
@@ -74,8 +87,11 @@ anything starts), then:
 4. if the call raised, raises it again, so `reports_errors` turns a `BookRagError` into today's
    `gr.Error`; otherwise shows today's notifications.
 
-A `gradio_client` caller gets the same endpoints, with the same inputs, and the final values of
-the outputs; a refused call raises, as `tests/integration/test_interface.py` expects.
+A `gradio_client` caller gets the same endpoints, with the same inputs. Their outputs gain the
+area's final HTML, first: `add_book`, `replace_book`, `reindex_book` and `reindex_all` now return it
+where they returned nothing, and `remove_book`, `reset_index` and `reset_everything` a pair, the area
+and the emptied confirmation box. No caller in the repository reads them. A refused call raises, as
+`tests/integration/test_interface.py` expects.
 
 ## What the tab doesn't do
 
