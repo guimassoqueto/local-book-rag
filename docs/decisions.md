@@ -66,7 +66,7 @@ and a model without a profile fails at startup instead of embedding without its 
 
 ## Ingestion
 
-**Books are Markdown, converted outside the application** (specs/005-markdown-only, v1.0.0).
+**Books are Markdown, converted outside the application** (specs/005-markdown-only, v0.5.0).
 Departs from the first version's spec, which read PDF, EPUB and Markdown. The owner converts every
 book with Microsoft MarkItDown, with their own plugins and open-source ones, so converting inside
 the application did the same work again, with readers they no longer used. PDF and EPUB also
@@ -426,7 +426,7 @@ catalog is what tells them apart.
 **What an operation counts follows how long its stages take** (specs/004-library-progress). Timed on
 the four benchmark books: chunks are embedded at 0.2 to 0.3 s a batch of 16, so they are counted.
 A Markdown book's text is extracted in a tenth of a second or less, so extraction shows no count: a
-count would be gone before it could be read. Until v1.0.0 a PDF's pages were counted, at 0.07 to
+count would be gone before it could be read. Until v0.5.0 a PDF's pages were counted, at 0.07 to
 0.09 s a page. A removal and the resets took 0.05 to 0.10 s, so they show their steps by name,
 without a count. Books took 3.1 to 39 s each, and a saved summary about 104 s with gpt-oss, varying
 with its chapter's length, so a reindex counts them without a time left: the pace of those done
@@ -489,7 +489,7 @@ nothing they do can reach the real library.
 
 **The benchmark's files left the repository.** The owner removed `benchmarks/` with the volumes, as
 the folder was mounted into the app with them, and its result files went too. The experiments are
-still in commit `c7bb785`. The dataset's last version, whose books became Markdown in v1.0.0, is in
+still in commit `c7bb785`. The dataset's last version, whose books became Markdown in v0.5.0, is in
 `specs/005-markdown-only/benchmarks/`, with the experiment that compared it with the originals:
 recorded where it was made, as the quiz's experiments are in `specs/003`, so that its corrected
 quotes and the checksum its results carry point at files. The README's Benchmarks section restores
@@ -673,9 +673,9 @@ changed the version of none, and the image installs no dev dependencies.
 Fixed, they would no longer match the hashes Spec Kit recorded, and `specify integration upgrade`
 refuses to replace files it takes for local edits.
 
-## Removed with PDF and EPUB (v1.0.0)
+## Removed with PDF and EPUB (v0.5.0)
 
-The library reads Markdown only since v1.0.0 (Ingestion). These decisions explained the readers
+The library reads Markdown only since v0.5.0 (Ingestion). These decisions explained the readers
 that went, each with the failure that taught it.
 
 - **Running heads were recognized by their page numbers**: "10.13. Debugging 99" is unique to its

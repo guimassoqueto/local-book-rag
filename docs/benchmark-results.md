@@ -3,7 +3,7 @@
 What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 11, and on 2026-11-19
 for the Markdown books. The result files are no longer kept, and `benchmarks/` isn't in the
 repository: the experiments' last versions are in commit `c7bb785`, and the dataset's, whose books
-became Markdown in v1.0.0, in `specs/005-markdown-only/benchmarks/`. So this page is the record of
+became Markdown in v0.5.0, in `specs/005-markdown-only/benchmarks/`. So this page is the record of
 the runs. Until "The Markdown books", every run read the original PDF and EPUBs. Every number in
 it comes from those files, and `book-rag benchmark-report` showed each run with the paired
 comparisons quoted below.
@@ -39,7 +39,7 @@ on 2026-11-09, and the default LLM's confirmation on `f6f53a8`, the same day.
 
 ## Extraction
 
-Measured on the original PDF and EPUBs, before v1.0.0. The library reads Markdown only since then,
+Measured on the original PDF and EPUBs, before v0.5.0. The library reads Markdown only since then,
 and the `extraction` kind went with the readers it compared (specs/005-markdown-only).
 
 | Extractor | Book | TOC entries | TOC coverage | Chapters | Chunks | Pages covered |
@@ -463,7 +463,7 @@ Development cases choose a wording and decide nothing. The owner left the proof 
 
 ## The Markdown books
 
-On 2026-11-19 the library became Markdown-only (`specs/005-markdown-only`, v1.0.0). The dataset's
+On 2026-11-19 the library became Markdown-only (`specs/005-markdown-only`, v0.5.0). The dataset's
 three books became the owner's conversions, made with MarkItDown and their PDF plugin, as
 `books.yaml` records. Its questions carried over almost whole:
 - **Two evidence quotes** were corrected to the Markdown text: `lexi-con`, which the PDF breaks
