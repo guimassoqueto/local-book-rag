@@ -178,7 +178,7 @@ records everything a result needs to be reproduced.
 ### VII. Every answer traceable to its passages
 
 - Answers come from the retrieved passages, with numbered citations that resolve to the book,
-  chapter, section and pages of each one.
+  chapter and section of each one.
 - When the passages don't hold the answer, the model says so, with the no-evidence marker,
   instead of answering from general knowledge, and the application shows that as an abstention,
   not as an answer.
@@ -188,7 +188,9 @@ records everything a result needs to be reproduced.
 **Why.** The first version's spec made traceability a design principle, and answers with source
 references part of its definition of done. A research platform has to show where each claim
 came from, because a citation can look right and be false: asked of the whole library, `gpt-oss`
-once named a character's daughter with a citation of a chapter that doesn't say so.
+once named a character's daughter with a citation of a chapter that doesn't say so. Books are
+Markdown files, which have no pages, so a citation goes down to the section and no further
+(`docs/decisions.md`).
 
 **Check.** A plan that changes how answers or summaries are made keeps every claim traceable to a
 passage the model was given, and keeps the no-evidence path working. It says how the generation
@@ -237,10 +239,11 @@ first finds out from `docs/decisions.md` why it is that way.
   conventional commit too (`pr-title` workflow). The `release` workflow picks the bump from it:
   `fix` and `perf` patch, `feat` minor, `feat!` or a `BREAKING CHANGE` footer major, anything
   else no release.
-- **The benchmark dataset and experiments** aren't in the repository: their last versions are at
-  `c7bb785`, and they run once copied into the app container (`README.md`, Benchmarks). After
-  editing the dataset's `questions.jsonl`, run `book-rag validate-benchmark`: every evidence quote
-  has to be in its book exactly as written.
+- **The benchmark dataset and experiments** aren't kept in `benchmarks/`, which git ignores. The
+  dataset's last version is in `specs/005-markdown-only/benchmarks/`, with the experiment that
+  feature added. The other experiments' last versions are at `c7bb785`. They run once copied into
+  the app container (`README.md`, Benchmarks). After editing the dataset's `questions.jsonl`, run
+  `book-rag validate-benchmark`: every evidence quote has to be in its book exactly as written.
 - **Spec Kit** takes every change that isn't trivial, and `AGENTS.md` says which flow fits which
   change.
 
@@ -269,4 +272,4 @@ first finds out from `docs/decisions.md` why it is that way.
   rewords without changing what is required. The ratification date stays, and the amendment date
   is the date of the latest version.
 
-**Version**: 2.0.0 | **Ratified**: 2026-11-08 | **Last Amended**: 2026-11-10
+**Version**: 2.0.2 | **Ratified**: 2026-11-08 | **Last Amended**: 2026-11-19

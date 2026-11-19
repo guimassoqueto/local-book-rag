@@ -10,11 +10,7 @@ from app.ingestion.base import DocumentFormat
 from app.ingestion.chunker import Chunk
 from app.ingestion.pipeline import ProcessedDocument
 
-_ORIGINAL_EXTENSIONS = {
-    DocumentFormat.PDF: ".pdf",
-    DocumentFormat.EPUB: ".epub",
-    DocumentFormat.MARKDOWN: ".md",
-}
+_ORIGINAL_EXTENSIONS = {DocumentFormat.MARKDOWN: ".md"}
 _SOURCE_RECORD = "source.json"
 _FIRST_REVISION = 1
 

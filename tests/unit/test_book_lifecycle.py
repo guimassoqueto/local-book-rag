@@ -6,6 +6,7 @@ from app.errors import (
     BookNotFoundError,
     ConfirmationRequiredError,
     DuplicateBookError,
+    EmptyDocumentError,
     InvalidDocumentError,
     LibraryBusyError,
     MissingOriginalError,
@@ -18,10 +19,9 @@ from app.storage.catalog import BookCatalog, BookStatus
 from app.storage.chroma import ChunkStore
 from app.storage.repositories import OriginalDocuments, ProcessedDocuments, SummaryDocuments
 from app.utils.progress import Progress
-from tests.documents import write_pdf
 from tests.fakes import FakeEmbedder
 from tests.library import MARKDOWN as MARKDOWN_TEXT
-from tests.library import Library, library_state, other_text, progress_log, trace_journal, upload
+from tests.library import TEXT, Library, library_state, other_text, progress_log, trace_journal, upload
 
 
 @pytest.fixture
@@ -70,15 +70,15 @@ def test_the_old_revision_leaves_no_files_behind(library, tmp_path):
     assert (library.root / "original_books" / book.book_id / "original_r2.md").exists()
 
 
-def test_a_replacement_can_change_format(library, tmp_path):
+def test_a_replacement_under_another_name_retitles_the_book(library, tmp_path):
     book = library.add(tmp_path)
-    text = "The quick brown fox jumps over the lazy dog, and goes back to the forest to rest for the day."
-    path = write_pdf(tmp_path / "new.pdf", [[("Chapter One", 11), (text, 11)]], toc=[[1, "Chapter One", 1]])
+    path = upload(tmp_path, "other.markdown", other_text("another name"))
 
-    updated = library.books.replace_book(book.book_id, path, "new.pdf")
+    updated = library.books.replace_book(book.book_id, path, "other.markdown")
 
-    assert updated.format == "pdf"
-    assert updated.original_path.endswith("original_r2.pdf")
+    assert updated.title == "other"
+    assert updated.format == "markdown"
+    assert updated.original_path.endswith("original_r2.md")
 
 
 def test_replacing_leaves_other_books_alone(library, tmp_path):
@@ -117,13 +117,15 @@ def test_a_failed_replacement_leaves_the_book_exactly_as_it_was(library, tmp_pat
     assert (library.root / "original_books" / book.book_id / "original.md").exists()
 
 
-def test_a_rejected_replacement_changes_nothing(library, tmp_path):
+def test_a_replacement_that_fails_inside_the_operation_changes_nothing(library, tmp_path):
     book = library.add(tmp_path)
+    before = library_state(library)
 
-    with pytest.raises(InvalidDocumentError):
-        library.books.replace_book(book.book_id, upload(tmp_path, "bad.pdf", "not a pdf"), "bad.pdf")
+    with pytest.raises(EmptyDocumentError):
+        library.books.replace_book(book.book_id, upload(tmp_path, "bad.md", "# Only\n\n## Headings\n"), "bad.md")
 
     assert library.books.get_book(book.book_id) == book
+    assert library_state(library) == before
 
 
 def test_a_book_stays_searchable_while_its_replacement_is_indexed(library, tmp_path):
@@ -581,3 +583,91 @@ def test_a_removal_with_the_wrong_confirmation_shows_no_progress(library, tmp_pa
         library.books.remove_book(book.book_id, "yes", progress=progress)
 
     assert progress.snapshot() is None
+
+
+# Markdown only (specs/005-markdown-only): PDF and EPUB refused before anything changes, and a
+# book's title taken from its file's name on every path that indexes it.
+
+NAMED = "01_historia_economica_global"
+SAYS_OTHERWISE = (
+    f"---\ntitle: Front Title\nauthor: Someone\n---\n\n# The Book\n\n## One\n\n{TEXT}\n\n## Two\n\n{TEXT}\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("attempt", "message"),
+    [
+        (
+            lambda library, tmp_path, book: library.books.add_book(upload(tmp_path, "b.pdf", "x"), "b.pdf"),
+            "This is a PDF.",
+        ),
+        (
+            lambda library, tmp_path, book: library.books.replace_book(
+                book.book_id, upload(tmp_path, "b.epub", "x"), "b.epub"
+            ),
+            "This is an EPUB.",
+        ),
+    ],
+    ids=["add a pdf", "replace with an epub"],
+)
+def test_a_pdf_or_an_epub_is_refused_before_anything_changes(library, tmp_path, attempt, message):
+    book = library.add(tmp_path)
+    before = library_state(library)
+    calls = trace_journal(library)
+
+    with pytest.raises(InvalidDocumentError) as refused:
+        attempt(library, tmp_path, book)
+
+    assert str(refused.value).startswith(message)
+    assert "convert it to Markdown first" in str(refused.value)
+    assert calls == []
+    assert library_state(library) == before
+    assert library.books.get_book(book.book_id).revision == book.revision
+
+
+def test_a_busy_library_is_reported_before_the_files_type(library, tmp_path):
+    with library.guard.exclusive(), pytest.raises(LibraryBusyError):
+        Library(library.settings, library.root).books.add_book(upload(tmp_path, "b.pdf", "x"), "b.pdf")
+
+
+def test_an_added_book_is_titled_by_its_file_and_has_no_author(library, tmp_path):
+    book = library.books.add_book(upload(tmp_path, f"{NAMED}.md", SAYS_OTHERWISE), f"{NAMED}.md")
+
+    assert (book.title, book.author) == (NAMED, None)
+    assert {chunk.book_title for chunk in library.books.chunks(book.book_id)} == {NAMED}
+
+
+def test_a_replacement_takes_its_files_name_and_no_author(library, tmp_path):
+    book = library.add(tmp_path)
+
+    updated = library.books.replace_book(
+        book.book_id, upload(tmp_path, "Another.markdown", SAYS_OTHERWISE), "Another.markdown"
+    )
+
+    assert (updated.title, updated.author) == ("Another", None)
+
+
+def test_processing_again_keeps_the_files_name(library, tmp_path):
+    book = library.books.add_book(upload(tmp_path, f"{NAMED}.md", SAYS_OTHERWISE), f"{NAMED}.md")
+
+    again = library.books.reindex_book(book.book_id)
+
+    assert (again.title, again.author) == (NAMED, None)
+
+
+def test_a_rebuild_keeps_the_files_name(library, tmp_path):
+    book = library.books.add_book(upload(tmp_path, f"{NAMED}.md", SAYS_OTHERWISE), f"{NAMED}.md")
+
+    library.library.reindex_all()
+
+    assert (library.books.get_book(book.book_id).title, library.books.get_book(book.book_id).author) == (NAMED, None)
+
+
+def test_originals_brought_back_after_an_index_reset_keep_the_files_name(library, tmp_path):
+    library.books.add_book(upload(tmp_path, f"{NAMED}.md", SAYS_OTHERWISE), f"{NAMED}.md")
+
+    library.resets.reset_index("RESET INDEX")
+    library.library.reindex_all()
+
+    [book] = library.books.list_books()
+    assert (book.title, book.author) == (NAMED, None)

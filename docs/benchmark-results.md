@@ -1,10 +1,12 @@
 # Benchmark results
 
-What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 11. The result files are
-no longer kept, and the experiments and their dataset are no longer in the repository: their last
-versions are in commit `c7bb785`. So this page is the record of the runs. Every number in it comes
-from those files, and `book-rag benchmark-report` showed each run with the paired comparisons
-quoted below.
+What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 11, and on 2026-11-19
+for the Markdown books. The result files are no longer kept, and `benchmarks/` isn't in the
+repository: the experiments' last versions are in commit `c7bb785`, and the dataset's, whose books
+became Markdown in v1.0.0, in `specs/005-markdown-only/benchmarks/`. So this page is the record of
+the runs. Until "The Markdown books", every run read the original PDF and EPUBs. Every number in
+it comes from those files, and `book-rag benchmark-report` showed each run with the paired
+comparisons quoted below.
 
 The setup was an RTX 5060 Ti with 16 GB, a Ryzen 9 9950X3D, 60 GB of RAM and Ollama 0.40.15.
 Models ran at the quantizations Ollama serves: MXFP4 for gpt-oss:20b, Q4_K_M for the others. The
@@ -36,6 +38,9 @@ on 2026-11-09, and the default LLM's confirmation on `f6f53a8`, the same day.
   and summaries.
 
 ## Extraction
+
+Measured on the original PDF and EPUBs, before v1.0.0. The library reads Markdown only since then,
+and the `extraction` kind went with the readers it compared (specs/005-markdown-only).
 
 | Extractor | Book | TOC entries | TOC coverage | Chapters | Chunks | Pages covered |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -456,6 +461,61 @@ which the reader now refuses.
 Development cases choose a wording and decide nothing. The owner left the proof on test cases
 (FR-026, FR-027) to a later feature, so the check ships switched off, and SC-003 stands at 0.739.
 
+## The Markdown books
+
+On 2026-11-19 the library became Markdown-only (`specs/005-markdown-only`, v1.0.0). The dataset's
+three books became the owner's conversions, made with MarkItDown and their PDF plugin, as
+`books.yaml` records. Its questions carried over almost whole:
+- **Two evidence quotes** were corrected to the Markdown text: `lexi-con`, which the PDF breaks
+  and which appears nowhere else, and `n − 1`.
+- **No chapter name changed**, and all 90 questions were kept.
+- **The plugin was fixed first.** Its first conversion of *Think Python* turned Python comments
+  into headings, and kept running heads and syllable hyphens (`docs/decisions.md`, Ingestion).
+
+The retrieval experiment's default configuration (hybrid search, RRF, the Qwen3 reranker on the
+CPU) ran twice, each in a fresh workspace:
+- **On `main`'s code**, `6b187f0`, with the original PDF and EPUBs.
+- **On the branch**, `f37a5bb`, with the Markdown books.
+
+`devtools/compare_runs.py` paired the two by question, 75 pairs, none left out: every question's
+evidence resolved to chunks in both runs. This is information, not a verdict, since the owner had
+already decided the format. The books changed between the two runs along with the code that read
+them, so a difference belongs to both.
+
+| Metric | Originals | Markdown | Difference (95% interval) |
+| --- | --- | --- | --- |
+| Recall@5 | 0.891 | 0.899 | +0.008 (−0.011 to +0.032) |
+| Recall@10 | 0.943 | 0.953 | +0.010 (+0.000 to +0.026) |
+| MRR | 0.961 | 0.948 | −0.013 (−0.033 to +0.000) |
+| nDCG@10 | 0.878 | 0.882 | +0.004 (−0.006 to +0.013) |
+| Context precision | 0.914 | 0.911 | −0.004 (−0.023 to +0.013) |
+| Context recall | 0.891 | 0.899 | +0.008 (−0.011 to +0.032) |
+
+No interval leaves zero out, so there is no difference to name. Recall@10's and MRR's intervals
+only touch it.
+
+By book:
+- ***Quincas Borba*** gave the same numbers on every question, from 454 chunks to 455.
+- ***Think Python***, whose conversion changed most, went from 425 chunks to 369. Recall@5 went
+  from 0.935 to 0.977, while MRR went from 0.980 to 0.940.
+- ***On Liberty*** went from 176 chunks to 177, and its Recall@5 from 0.861 to 0.844.
+
+Nine questions moved, seven of them *Think Python*'s:
+- **Recall.** Two of its multi-section questions found all their evidence in the first five,
+  from 0.400 and 0.571 to 1.000.
+- **MRR.** Two questions found their first evidence second instead of first, so their MRR went
+  from 1.0 to 0.5.
+- **On Liberty.** `on_liberty_conceptual_01` lost Recall@5, from 1.000 to 0.571: its evidence
+  moved from chunks 12–14 to 13–15, one chunk later, as a boundary shifted.
+
+The branch's run was made twice, on `864a446` and `f37a5bb`, which differ only in the conversion
+record's plugin commit. Both gave identical rows: retrieval is deterministic.
+
+The results are `benchmarks/results/markdown_books_20261119T191912080372Z` (originals) and
+`markdown_books_20261119T200845175135Z` (Markdown), outside the repository. The originals' run
+records dataset `767e4cceb315…`, the Markdown run `cd57a42a6369…`, which is the dataset in
+`specs/005-markdown-only/benchmarks/`.
+
 ## Recommendations
 
 The defaults stay as they are. These are what the results suggest changing, and what each change
@@ -506,7 +566,12 @@ would cost.
   leia") came in as part of its last chapter, "Lista de tabelas". gpt-oss wrote quiz questions from
   3 of the 5 advertisements, and one reached a 20-question whole-book quiz (SC-006 of
   `specs/003-chapter-quiz`). Chat can retrieve them as well. Ingestion is to set them apart, in a
-  fix of its own, which will need a reindex.
+  fix of its own, which will need a reindex. The owner's Markdown conversion keeps them too, after
+  a "Table of Contents" heading at the end of the book.
+- **The quiz experiments still name the PDF.** Their local book, in
+  `specs/003-chapter-quiz/benchmarks/`, is the PDF of *História econômica global*, which the library
+  no longer reads, and their known cases quote that PDF's text. They weren't run on the Markdown
+  books.
 
 ## Changes these benchmarks led to
 
@@ -541,17 +606,22 @@ application as well as in the benchmarks. `docs/decisions.md` has the detail of 
 
 ## Reproducing
 
-The dataset and the experiments come from commit `c7bb785`, and the app container has to be given
-them: no folder of the host is mounted in it. The results stay in the container until copied out.
+The experiments come from commit `c7bb785`, and the dataset from
+`specs/005-markdown-only/benchmarks/`. Its three books are Markdown conversions, rebuilt from their
+originals with the conversion `books.yaml` records, and checked against their checksums before
+anything runs (README, Benchmarks). The app container has to be given them: no folder of the host
+is mounted in it. The results stay in the container until copied out.
 
 ```bash
-git archive c7bb785 benchmarks | tar -x
+git archive c7bb785 benchmarks/experiments | tar -x
+rm benchmarks/experiments/extraction.yaml
+cp -r specs/005-markdown-only/benchmarks/. benchmarks/
+# the three Markdown books into benchmarks/books, as books.yaml names them
 docker compose cp -a benchmarks app:/app/
 docker compose exec app book-rag pull-models --all          # every candidate model
-docker compose exec app book-rag fetch-benchmark-books      # checked against their checksums
-docker compose exec app book-rag validate-benchmark
+docker compose exec app book-rag validate-benchmark         # checks the books' checksums first
 
-make benchmark EXPERIMENT=extraction       # about a minute
+make benchmark EXPERIMENT=markdown_books   # about 6 minutes, the default configuration
 make benchmark EXPERIMENT=retrieval        # about 7 minutes, indexing four workspaces
 make benchmark EXPERIMENT=historical_spelling  # about 2 minutes
 make benchmark EXPERIMENT=performance      # about 3 minutes

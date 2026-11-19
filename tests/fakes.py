@@ -14,8 +14,6 @@ def make_chunk(
     index=0,
     chapter=1,
     section="Section",
-    page_start=None,
-    page_end=None,
     language="en",
 ):
     return Chunk(
@@ -25,8 +23,6 @@ def make_chunk(
         chapter_number=chapter,
         chapter_title=f"Chapter {chapter}",
         section_title=section,
-        page_start=page_start,
-        page_end=page_end if page_end is not None else page_start,
         chunk_index=index,
         language=language,
         text=text,

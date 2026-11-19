@@ -8,7 +8,6 @@ dependencies = [
     "beautifulsoup4",
     "bm25s",
     "chromadb",
-    "ebooklib",
     "filelock",
     "gradio",
     "httpx",
@@ -23,7 +22,6 @@ dependencies = [
     "py3langid",
     "pydantic",
     "pydantic-settings",
-    "pymupdf",
     "pystemmer",
     "pyyaml",
     "sqlalchemy",
@@ -37,11 +35,6 @@ book-rag = "app.main:main"
 
 # Optional model-specific stacks. The image installs all of them (--all-extras).
 [project.optional-dependencies]
-docling = [
-    "docling",
-    "torch",
-    "torchvision",
-]
 reranking = [
     "sentence-transformers",
     "torch",

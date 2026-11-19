@@ -320,8 +320,6 @@ def test_an_answer_outside_its_object_or_not_a_letter_is_unreadable(text):
 CHUNK = make_chunk(
     text="Wages were high in Britain and energy was cheap.",
     section="Salários reais",
-    page_start=12,
-    page_end=13,
     index=7,
 )
 SOURCE = QuizSource(

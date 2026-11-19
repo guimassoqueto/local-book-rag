@@ -25,7 +25,6 @@ READING_FIELDS = (
     "question",
     "book",
     "chapter",
-    "pages",
     "passage",
     "text",
     "A",

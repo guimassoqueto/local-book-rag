@@ -18,7 +18,7 @@ PORTUGUESE = "O rato roeu a roupa do rei de Roma, e depois voltou para casa porq
 def pipeline(settings):
     return IngestionPipeline(
         loaders={DocumentFormat.MARKDOWN: MarkdownLoader()},
-        normalizer=Normalizer(settings.normalization),
+        normalizer=Normalizer(),
         chunker=Chunker(settings.chunking, WordCounter()),
         supported_languages=("en", "pt"),
     )
@@ -27,7 +27,7 @@ def pipeline(settings):
 def process(pipeline, tmp_path, text):
     path = tmp_path / "book.md"
     path.write_text(text, encoding="utf-8")
-    return pipeline.process(path, DocumentFormat.MARKDOWN, "book_001", "fallback title")
+    return pipeline.process(path, DocumentFormat.MARKDOWN, "book_001", "01_file_name")
 
 
 def test_a_book_goes_through_every_stage(pipeline, tmp_path):
@@ -37,19 +37,44 @@ def test_a_book_goes_through_every_stage(pipeline, tmp_path):
         f"---\ntitle: My Book\nauthor: Me\n---\n\n# One\n\n{ENGLISH}\n\n## Sub\n\n{ENGLISH}\n\n# Two\n\n{ENGLISH}\n",
     )
 
-    assert result.title == "My Book"
-    assert result.author == "Me"
+    assert result.title == "01_file_name"
+    assert not hasattr(result, "author")
     assert result.language == "en"
     assert [chapter.title for chapter in result.structure.chapters] == ["One", "Two"]
-    assert {chunk.book_title for chunk in result.chunks} == {"My Book"}
+    assert {chunk.book_title for chunk in result.chunks} == {"01_file_name"}
     assert [chunk.section_title for chunk in result.chunks] == [None, "Sub", None]
     assert result.extracted.blocks and result.normalized.blocks
 
 
-def test_a_book_without_a_title_uses_the_fallback(pipeline, tmp_path):
-    result = process(pipeline, tmp_path, f"# One\n\n{ENGLISH}\n\n# Two\n\n{ENGLISH}\n")
+@pytest.mark.parametrize(
+    "text",
+    [
+        f"# One\n\n{ENGLISH}\n\n# Two\n\n{ENGLISH}\n",
+        f"---\ntitle: Front Title\n---\n\n# One\n\n{ENGLISH}\n\n# Two\n\n{ENGLISH}\n",
+        f"# The Book\n\n## One\n\n{ENGLISH}\n\n## Two\n\n{ENGLISH}\n",
+    ],
+    ids=["no title", "front matter title", "single top heading"],
+)
+def test_the_title_is_the_one_given_whatever_the_book_says(pipeline, tmp_path, text):
+    assert process(pipeline, tmp_path, text).title == "01_file_name"
 
-    assert result.title == "fallback title"
+
+def test_a_single_top_heading_is_still_not_a_chapter(pipeline, tmp_path):
+    result = process(pipeline, tmp_path, f"# The Book\n\n## One\n\n{ENGLISH}\n\n## Two\n\n{ENGLISH}\n")
+
+    assert [chapter.title for chapter in result.structure.chapters] == ["One", "Two"]
+
+
+def test_a_book_without_headings_is_one_chapter_named_after_the_book(pipeline, tmp_path):
+    result = process(pipeline, tmp_path, f"{ENGLISH}\n\n{ENGLISH}\n")
+
+    assert [(chapter.number, chapter.title) for chapter in result.structure.chapters] == [(1, "01_file_name")]
+
+
+def test_lang_sets_the_language(pipeline, tmp_path):
+    text = f"---\nlang: pt\n---\n\n# Um\n\n{ENGLISH}\n\n# Dois\n\n{ENGLISH}\n"
+
+    assert process(pipeline, tmp_path, text).language == "pt"
 
 
 def test_the_language_is_detected(pipeline, tmp_path):

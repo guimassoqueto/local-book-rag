@@ -37,8 +37,4 @@ def metadata_filters(scope: BookScope) -> MetadataFilters:
         )
     if filters.languages:
         conditions.append(MetadataFilter(key="language", value=list(filters.languages), operator=FilterOperator.IN))
-    if filters.page_start is not None:
-        conditions.append(MetadataFilter(key="page_end", value=filters.page_start, operator=FilterOperator.GTE))
-    if filters.page_end is not None:
-        conditions.append(MetadataFilter(key="page_start", value=filters.page_end, operator=FilterOperator.LTE))
     return MetadataFilters(filters=conditions)

@@ -83,10 +83,10 @@ def book(status=BookStatus.INDEXED, language="pt", book_id="book_001"):
         book_id=book_id,
         title="História econômica global",
         author="Robert C. Allen",
-        original_filename="b.pdf",
+        original_filename="b.md",
         original_path="x",
         checksum="c",
-        format="pdf",
+        format="markdown",
         language=language,
         chapter_count=3,
         chunk_count=1,
@@ -108,7 +108,6 @@ def chapter(number, count, words=100, start=0, title=None):
             f"m{index:03d} " + " ".join(["palavra"] * (words - 1)),
             index=index,
             chapter=number,
-            page_start=10 + index,
             language="pt",
         )
         title_of_chapter = title or f"Capítulo {number}"
@@ -876,8 +875,7 @@ def test_passages_appear_as_references_not_text(lab):
     for question in result.quiz.questions:
         passage = question.passage
         assert passage.text not in document
-        pages = f"p. {passage.page_start}"
-        assert f"*Source*: Capítulo 1, Section, {pages}" in document
+        assert "*Source*: Capítulo 1, Section\n" in document
 
 
 def test_export_writes_the_document_into_the_download_directory(lab):

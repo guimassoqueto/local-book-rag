@@ -15,7 +15,7 @@ from app.utils.ollama_runtime import OllamaRuntime
 COLLECTION_PREFIX = "book_chunks_v"
 
 # Bump when the fields stored with each chunk change: old records can't serve new code.
-METADATA_SCHEMA_VERSION = 1
+METADATA_SCHEMA_VERSION = 2  # 2: chunks lost page_start and page_end (specs/005-markdown-only)
 
 
 @dataclass(frozen=True)

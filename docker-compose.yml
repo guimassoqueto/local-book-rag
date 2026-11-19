@@ -93,7 +93,7 @@ services:
       CHROMA_PORT: 8000
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
-    # The reranker and Docling run inside this container, on the GPU when configured to.
+    # The reranker runs inside this container, on the GPU when configured to.
     deploy:
       resources:
         reservations:

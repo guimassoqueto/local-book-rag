@@ -55,6 +55,16 @@ class LibraryTab:
     changes: list[Any]
 
 
+# The browser's dialog offers only these. A file forced past it is refused by Gradio's own type
+# check before any handler runs, and the service refuses whatever reaches it (specs/005, R3).
+MARKDOWN_TYPES = [".md", ".markdown"]
+MARKDOWN_PICKER = "Markdown book (.md, .markdown)"
+BOOKS_ARE_MARKDOWN = (
+    "Books are Markdown files. Convert a PDF or an EPUB to Markdown first, with MarkItDown for example. "
+    "The file's name becomes the book's title."
+)
+
+
 def build_library_tab(container: Container) -> LibraryTab:
     books = container.books
 
@@ -66,13 +76,14 @@ def build_library_tab(container: Container) -> LibraryTab:
         with gr.Row():
             with gr.Column():
                 gr.Markdown("### Add a book")
-                upload = gr.File(label="PDF, EPUB or Markdown", file_types=[".pdf", ".epub", ".md", ".markdown"])
+                gr.Markdown(BOOKS_ARE_MARKDOWN)
+                upload = gr.File(label=MARKDOWN_PICKER, file_types=MARKDOWN_TYPES)
                 add = gr.Button("Add to the library", variant="primary")
 
             with gr.Column():
                 gr.Markdown("### Change a book")
                 book = gr.Dropdown(label="Book", choices=[])
-                replacement = gr.File(label="Replacement document", file_types=[".pdf", ".epub", ".md", ".markdown"])
+                replacement = gr.File(label=MARKDOWN_PICKER, file_types=MARKDOWN_TYPES)
                 replace = gr.Button("Replace the book")
                 reindex_book = gr.Button("Process again from its original")
 

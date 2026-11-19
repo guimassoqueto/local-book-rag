@@ -28,21 +28,12 @@ class Citation:
     chapter_number: int
     chapter_title: str
     section_title: str | None
-    page_start: int | None
-    page_end: int | None
     excerpt: str
 
     @property
-    def pages(self) -> str | None:
-        if self.page_start is None:
-            return None
-        if self.page_start == self.page_end:
-            return f"p. {self.page_start}"
-        return f"pp. {self.page_start}-{self.page_end}"
-
-    @property
     def reference(self) -> str:
-        parts = [self.book_title, self.chapter_title, self.section_title, self.pages]
+        """Where the passage is: the book, the chapter and, when it has one, the section."""
+        parts = [self.book_title, self.chapter_title, self.section_title]
         return ", ".join(part for part in parts if part)
 
 
@@ -55,8 +46,6 @@ def citation_for(number: int, chunk: Chunk) -> Citation:
         chapter_number=chunk.chapter_number,
         chapter_title=chunk.chapter_title,
         section_title=chunk.section_title,
-        page_start=chunk.page_start,
-        page_end=chunk.page_end,
         excerpt=_excerpt(chunk.text),
     )
 

@@ -19,7 +19,8 @@ logger = get_logger("services.ingestion")
 # The stages of indexing one book, which every operation that indexes a book declares
 # (specs/004-library-progress, data-model.md).
 INGEST_STEPS = (
-    StageSpec(EXTRACT, "Extracting the text", unit="pages", estimate=True),
+    # Not counted: a Markdown book's text is read in a tenth of a second or less (specs/005-markdown-only, R8).
+    StageSpec(EXTRACT, "Extracting the text"),
     StageSpec(PREPARE, "Preparing the chunks"),
     StageSpec("embed", "Embedding the chunks", unit="chunks", estimate=True),
     StageSpec("save", "Saving to the index"),
@@ -47,7 +48,7 @@ class IngestionService:
         document_format: DocumentFormat,
         book_id: str,
         revision: int,
-        fallback_title: str,
+        title: str,
         index: IndexRecord,
         store: ChunkStore,
         progress: Progress | None = None,
@@ -59,7 +60,7 @@ class IngestionService:
             document_format: its validated format.
             book_id: the book it belongs to.
             revision: the revision to store it as.
-            fallback_title: the title to use when the document doesn't state one.
+            title: the book's title, the stem of the name its original arrived as.
             index: the index it goes into.
             store: that index's chunks.
             progress: told of each of INGEST_STEPS.
@@ -69,7 +70,7 @@ class IngestionService:
                 behind for the caller to remove.
         """
         progress = progress or Progress()
-        processed = self._pipeline.process(path, document_format, book_id, fallback_title, progress)
+        processed = self._pipeline.process(path, document_format, book_id, title, progress)
         self._processed.save(book_id, revision, processed)
 
         self._release_gpu()

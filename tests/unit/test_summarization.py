@@ -26,10 +26,10 @@ def book():
         book_id="book_001",
         title="The Book",
         author=None,
-        original_filename="b.pdf",
+        original_filename="b.md",
         original_path="x",
         checksum="c",
-        format="pdf",
+        format="markdown",
         language="en",
         chapter_count=1,
         chunk_count=1,
@@ -43,13 +43,13 @@ def book():
     )
 
 
-def chapter(count, words=500, chapter=4, pages=True):
+def chapter(count, words=500, chapter=4, section="Section"):
     return [
         make_chunk(
             f"passage{index} " + " ".join(["word"] * words),
             index=index + 10,
             chapter=chapter,
-            page_start=100 + index if pages else None,
+            section=section,
         )
         for index in range(count)
     ]
@@ -440,18 +440,18 @@ def test_references_are_built_from_what_is_cited(settings, catalog, tmp_path):
     )
 
     references = summary.text.split("## References")[1]
-    assert "[1] Section, p. 100:" in references
-    assert "[2] Section, p. 101:" in references
+    assert "[1] Section: “passage0" in references
+    assert "[2] Section: “passage1" in references
+    assert "p." not in references.replace("passage", "")
     assert "“passage0" in references
 
 
-def test_references_work_without_pages(settings, catalog, tmp_path):
-    chunks = chapter(2, words=100, pages=False)
+def test_references_work_without_a_section(settings, catalog, tmp_path):
+    chunks = chapter(2, words=100, section=None)
 
     summary = summarizer(settings, FakeLLM([FINAL]), catalog, chunks, tmp_path).summarize("book_001", 4, "standard")
 
-    assert "p." not in summary.text.split("## References")[1].split("“")[0]
-    assert "“passage0" in summary.text
+    assert "- [1] “passage0" in summary.text.split("## References")[1]
 
 
 def test_the_language_can_be_chosen(settings, catalog, tmp_path):

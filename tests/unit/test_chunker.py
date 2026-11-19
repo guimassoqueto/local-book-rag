@@ -11,19 +11,19 @@ class WordCounter:
         return len(text.split())
 
 
-def config(target_size=20, overlap=0, strategy="structural", sections=True, paragraphs=True, page_numbers=True):
+def config(target_size=20, overlap=0, strategy="structural", sections=True, paragraphs=True):
     return ChunkingConfig(
         strategy=strategy,
         target_size=target_size,
         overlap=overlap,
         unit="tokens",
-        preserve=ChunkPreservation(chapters=True, sections=sections, paragraphs=paragraphs, page_numbers=page_numbers),
+        preserve=ChunkPreservation(chapters=True, sections=sections, paragraphs=paragraphs),
     )
 
 
-def paragraph(words, page=None):
+def paragraph(words):
     text = " ".join(f"w{index}" for index in range(words)) + "."
-    return Block(BlockKind.PARAGRAPH, text, page_start=page, page_end=page)
+    return Block(BlockKind.PARAGRAPH, text)
 
 
 def sentences(count, words=5):
@@ -31,7 +31,7 @@ def sentences(count, words=5):
 
 
 def book(*chapters, language="en"):
-    return BookStructure("T", "A", language, tuple(chapters))
+    return BookStructure("T", language, tuple(chapters))
 
 
 def chapter(*sections, number=1, title="One"):
@@ -47,7 +47,7 @@ def chunk(structure, **options):
 
 
 def test_metadata_is_complete_and_uniform():
-    structure = book(chapter(section(paragraph(5, page=7), title="Sec"), number=4, title="Opportunity Cost"))
+    structure = book(chapter(section(paragraph(5), title="Sec"), number=4, title="Opportunity Cost"))
 
     [only] = chunk(structure)
 
@@ -57,30 +57,15 @@ def test_metadata_is_complete_and_uniform():
     assert only.chapter_number == 4
     assert only.chapter_title == "Opportunity Cost"
     assert only.section_title == "Sec"
-    assert (only.page_start, only.page_end) == (7, 7)
     assert only.chunk_index == 0
     assert only.language == "en"
 
 
-def test_formats_without_pages_get_null_pages():
-    [only] = chunk(book(chapter(section(paragraph(5)))))
-
-    assert (only.page_start, only.page_end) == (None, None)
-
-
-def test_page_numbers_can_be_left_out():
-    [only] = chunk(book(chapter(section(paragraph(5, page=7)))), page_numbers=False)
-
-    assert (only.page_start, only.page_end) == (None, None)
-
-
 def test_small_blocks_fill_a_chunk():
-    chunks = chunk(book(chapter(section(paragraph(8, 1), paragraph(8, 2), paragraph(8, 3)))))
+    chunks = chunk(book(chapter(section(paragraph(8), paragraph(8), paragraph(8)))))
 
     assert len(chunks) == 2
     assert chunks[0].text.count("\n\n") == 1
-    assert (chunks[0].page_start, chunks[0].page_end) == (1, 2)
-    assert (chunks[1].page_start, chunks[1].page_end) == (3, 3)
 
 
 def test_paragraphs_that_fit_are_not_split():
@@ -108,14 +93,14 @@ def test_sections_can_be_flowed_together():
 
 
 def test_a_long_paragraph_splits_between_sentences():
-    long = Block(BlockKind.PARAGRAPH, sentences(8), page_start=3, page_end=3)
+    long = Block(BlockKind.PARAGRAPH, sentences(8))
 
     chunks = chunk(book(chapter(section(long, title="Sec"))))
 
     assert len(chunks) > 1
     assert all(item.text.endswith(".") for item in chunks)
     assert all(len(item.text.split()) <= 20 for item in chunks)
-    assert all(item.section_title == "Sec" and item.page_start == 3 for item in chunks)
+    assert all(item.section_title == "Sec" for item in chunks)
     assert "\n" not in chunks[0].text
 
 

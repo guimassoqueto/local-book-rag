@@ -10,8 +10,8 @@ def text(content="Some text."):
     return Block(BlockKind.PARAGRAPH, content)
 
 
-def structure_of(*blocks, title=None):
-    return build_structure(ExtractedDocument(DocumentFormat.MARKDOWN, tuple(blocks), title=title))
+def structure_of(*blocks, title="T"):
+    return build_structure(ExtractedDocument(DocumentFormat.MARKDOWN, tuple(blocks)), title)
 
 
 def outline(structure):
@@ -169,9 +169,10 @@ def test_headings_without_text_are_dropped():
     assert outline(structure) == [(1, "Full")]
 
 
-def test_metadata_is_carried_over():
-    document = ExtractedDocument(DocumentFormat.EPUB, (heading("One", 1), text()), title="T", author="A", language="pt")
+def test_the_title_given_and_the_language_are_carried_over():
+    document = ExtractedDocument(DocumentFormat.MARKDOWN, (heading("One", 1), text()), language="pt")
 
-    structure = build_structure(document)
+    structure = build_structure(document, "01_file_name")
 
-    assert (structure.title, structure.author, structure.language) == ("T", "A", "pt")
+    assert (structure.title, structure.language) == ("01_file_name", "pt")
+    assert not hasattr(structure, "author")

@@ -9,13 +9,10 @@ from app.generation.factory import create_llm_provider
 from app.generation.question_answering import QuestionAnsweringService
 from app.generation.quiz import QuizWriter
 from app.generation.summarization import ChapterSummarizer
-from app.ingestion.base import DocumentFormat, DocumentLoader
+from app.ingestion.base import DocumentFormat
 from app.ingestion.chunker import Chunker
-from app.ingestion.docling_loader import DoclingLoader
-from app.ingestion.epub_loader import EpubLoader
 from app.ingestion.markdown_loader import MarkdownLoader
 from app.ingestion.normalizer import Normalizer
-from app.ingestion.pdf_loader import PdfLoader
 from app.ingestion.pipeline import IngestionPipeline
 from app.retrieval.reranker import CrossEncoderReranker
 from app.services.book_service import BookService
@@ -134,21 +131,8 @@ def build_pipeline(settings: Settings) -> IngestionPipeline:
     """Build the ingestion pipeline the configuration describes."""
     counter = create_token_counter(settings.embedding_profile.tokenizer)
     return IngestionPipeline(
-        loaders=_build_loaders(settings),
-        normalizer=Normalizer(settings.normalization),
+        loaders={DocumentFormat.MARKDOWN: MarkdownLoader()},
+        normalizer=Normalizer(),
         chunker=Chunker(settings.chunking, counter),
         supported_languages=settings.languages.supported,
     )
-
-
-def _build_loaders(settings: Settings) -> dict[DocumentFormat, DocumentLoader]:
-    pdf = settings.pdf
-    if pdf.extractor == "docling":
-        pdf_loader: DocumentLoader = DoclingLoader(ocr=pdf.ocr.enabled)
-    else:
-        pdf_loader = PdfLoader(pdf, ocr_loader=DoclingLoader(ocr=True) if pdf.ocr.enabled else None)
-    return {
-        DocumentFormat.PDF: pdf_loader,
-        DocumentFormat.EPUB: EpubLoader(),
-        DocumentFormat.MARKDOWN: MarkdownLoader(),
-    }

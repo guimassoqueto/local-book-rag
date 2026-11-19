@@ -20,12 +20,10 @@ def scope(language="en", **filters):
 
 def corpus():
     return [
-        make_chunk("Opportunity cost is the value of the next best alternative.", index=0, chapter=1, page_start=1),
-        make_chunk("Supply and demand set the price in a free market.", index=1, chapter=1, page_start=2),
-        make_chunk("Comparative advantage explains why nations trade.", index=2, chapter=2, page_start=3),
-        make_chunk(
-            "Inflation erodes the purchasing power of money.", index=3, chapter=2, section="Money", page_start=4
-        ),
+        make_chunk("Opportunity cost is the value of the next best alternative.", index=0, chapter=1),
+        make_chunk("Supply and demand set the price in a free market.", index=1, chapter=1),
+        make_chunk("Comparative advantage explains why nations trade.", index=2, chapter=2),
+        make_chunk("Inflation erodes the purchasing power of money.", index=3, chapter=2, section="Money"),
     ]
 
 

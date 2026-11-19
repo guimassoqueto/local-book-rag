@@ -18,15 +18,11 @@ class ModelNotFoundError(BookRagError):
 
 
 class InvalidDocumentError(BookRagError):
-    """An upload is not a readable PDF, EPUB or Markdown file."""
+    """An upload is not a readable Markdown file."""
 
 
 class EmptyDocumentError(BookRagError):
     """A document was read successfully, but it holds no text."""
-
-
-class ScannedDocumentError(BookRagError):
-    """A PDF has page images instead of text, and OCR is not enabled."""
 
 
 class UnsupportedLanguageError(BookRagError):

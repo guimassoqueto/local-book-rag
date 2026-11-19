@@ -66,6 +66,39 @@ and a model without a profile fails at startup instead of embedding without its 
 
 ## Ingestion
 
+**Books are Markdown, converted outside the application** (specs/005-markdown-only, v1.0.0).
+Departs from the first version's spec, which read PDF, EPUB and Markdown. The owner converts every
+book with Microsoft MarkItDown, with their own plugins and open-source ones, so converting inside
+the application did the same work again, with readers they no longer used. PDF and EPUB also
+carried most of the ingestion code: PyMuPDF and Docling's layout models and OCR, EbookLib, and the
+cleaning of running heads and page breaks. A PDF or an EPUB is now refused with a message to convert
+it first. Removing them took 45 packages out of the lock, Docling's dependencies and `torchvision`
+among them, and the app image went from 10,997,762,162 to 10,372,670,123 bytes, 5.7% smaller.
+
+**A book's title is its file's name, and it has no author.** The owner's conversions have no front
+matter, and their top-level headings name no title, so they were already titled after their file
+names. The name is what the owner controls when converting. The catalog keeps the author field, empty,
+for a later feature that may read one. A single top-level heading is still the book's own title line
+for the structure rules, so its text shows nowhere.
+
+**Pages were dropped, not read from markers in the Markdown.** Only PDFs ever gave pages, and the
+conversions have none. Citations, the passages shown, the quiz's pointers and the prompt's passage
+header locate a passage by book, chapter and section; the excerpt a summary's references quote is how
+to find it in the text. Constitution VII was amended for it (2.0.1). The chunk metadata lost its two
+page fields, so its schema version, which the index fingerprint holds, went to 2.
+
+**The benchmark's books are pinned to their conversion.** They are the owner's Markdown conversions,
+named by their sha256, with their originals and the conversion recorded: MarkItDown's version and
+commit, each plugin's version and commit, Python's version, and the command. The questions hold only
+for those files, so a newer conversion makes a new dataset version, validated again. The first
+conversion showed the owner's PDF plugin writing code without fences, so that 22 of *Think Python*'s
+46 top-level headings were Python comments and one split a chapter, and keeping running heads and
+syllable hyphens. It was fixed in the plugin, since the application adds no rule for a conversion's
+quirks. Then two of the 280 evidence quotes needed correcting, to `lexi-con` and `n − 1`.
+
+**Normalization keeps the cleaning that applies to any text**: Unicode composition, ligatures,
+invisible characters and whitespace. Its configuration section went with its only key.
+
 **Chapter numbers are positions, not printed numbers.** A preface has no printed number and two
 parts can both have a "Chapter 1", while a filter needs a unique key. The title keeps what is
 printed.
@@ -74,19 +107,6 @@ printed.
 of contents with a single entry left the 200 chapters of a novel as subsections. The rule only
 fires when numbered headings far outnumber what depth found, because many books print "Chapter 3"
 above a title that the table of contents already has.
-
-**Running heads are recognized by their page numbers.** "10.13. Debugging 99" is unique to its
-section, so it never repeats, but its number follows the page at a fixed distance.
-
-**Each table of contents entry claims one heading, exact matches first.** Otherwise "Tuples are
-immutable" overwrites the heading "Tuples", the chapter disappears, and all its text is attributed
-to the chapter before it.
-
-**A heading the outline names on its page is never a running head.** At the top of a page, a
-heading sits where running heads do, and *Think Python*'s "Glossary", "Exercises" and "Debugging"
-repeat like them. 20 of them were dropped, and each glossary went to the section before it. The
-extraction benchmark had reported full coverage, because it checked each title against the set of
-headings left, and every one of those titles survived somewhere else. It counts them now.
 
 **Tokens are counted with the embedding model's tokenizer**, since that is the model whose limit
 matters. `cl100k_base` was 15% off on Portuguese.
@@ -404,14 +424,13 @@ cleanup has to finish the job, while one before the swap has to undo it, and the
 catalog is what tells them apart.
 
 **What an operation counts follows how long its stages take** (specs/004-library-progress). Timed on
-the four benchmark books: a PDF's extraction is the longest stage of an addition, at 0.07 to
-0.09 s a page and a steady pace (*Think Python* 22 s, *História econômica global* 15 s), so its
-pages are counted. Chunks are embedded at 0.2 to 0.3 s a batch of 16, so they are counted too. An
-EPUB's extraction took a tenth of a second or less, so it shows no count: a count of its files
-would be gone before it could be read. A removal and the resets took 0.05 to 0.10 s, so they
-show their steps by name, without a count. Books took 3.1 to 39 s each, and a saved summary about
-104 s with gpt-oss, varying with its chapter's length, so a reindex counts them without a time
-left: the pace of those done says little about those left.
+the four benchmark books: chunks are embedded at 0.2 to 0.3 s a batch of 16, so they are counted.
+A Markdown book's text is extracted in a tenth of a second or less, so extraction shows no count: a
+count would be gone before it could be read. Until v1.0.0 a PDF's pages were counted, at 0.07 to
+0.09 s a page. A removal and the resets took 0.05 to 0.10 s, so they show their steps by name,
+without a count. Books took 3.1 to 39 s each, and a saved summary about 104 s with gpt-oss, varying
+with its chapter's length, so a reindex counts them without a time left: the pace of those done
+says little about those left.
 
 **The time left is the weighted median of a stage's pace,** shown once the stage has run 3 s and
 done a tenth of its items, and counting down between advances. In one run, one of *Think Python*'s
@@ -469,9 +488,12 @@ support a claim, so a share of "correct" citations would punish correct answers.
 nothing they do can reach the real library.
 
 **The benchmark's files left the repository.** The owner removed `benchmarks/` with the volumes, as
-the folder was mounted into the app with them, and its result files went too. The dataset and the
-experiments are still in commit `c7bb785`, from which the README's Benchmarks section restores
-them, and `docs/benchmark-results.md` remains the record of what the runs found. The runner, the
+the folder was mounted into the app with them, and its result files went too. The experiments are
+still in commit `c7bb785`. The dataset's last version, whose books became Markdown in v1.0.0, is in
+`specs/005-markdown-only/benchmarks/`, with the experiment that compared it with the originals:
+recorded where it was made, as the quiz's experiments are in `specs/003`, so that its corrected
+quotes and the checksum its results carry point at files. The README's Benchmarks section restores
+both, and `docs/benchmark-results.md` remains the record of what the runs found. The runner, the
 metrics and the report stay, with the unit tests of how they work, which now write their own
 datasets. The tests of the removed files went with them: that the experiments covered every
 comparison of the spec, that each variant was a valid configuration, that the dataset held its 90
@@ -486,7 +508,7 @@ experiment that compares chunk sizes.
 for `validate-benchmark` to pass, while resolving evidence under another chunking tolerates a
 boundary cutting through it. Accepting half a quote at validation hid quotes that were simply wrong.
 
-**A judge has to prove itself before its scores mean anything.** Three bugs in this project gave
+**A judge has to prove itself before its scores mean anything.** Four bugs in this project gave
 believable numbers, and none of them raised an error:
 
 - RAGAS went through Ollama's OpenAI-compatible endpoint, which can't set `num_ctx`. It ran at 4096
@@ -498,6 +520,9 @@ believable numbers, and none of them raised an error:
   Prompts no longer show sample values.
 - Exact comparison made Docling look as if it had lost 82% of a book's structure, because it keeps
   the `1.1` that the book's outline leaves out.
+- The extraction benchmark reported full coverage of *Think Python*'s headings while 20 of its
+  "Glossary", "Exercises" and "Debugging" headings had been dropped as running heads: it checked each
+  title against the set of headings left, and every one of them survived somewhere else.
 
 So before trusting a judge, check that it can separate cases whose answer is known: the correct
 answer from an invented one, and a real summary from a distorted one and from another chapter's.
@@ -647,3 +672,17 @@ changed the version of none, and the image installs no dev dependencies.
 **The whitespace fixers skip Spec Kit's files.** It writes some of them without a final newline.
 Fixed, they would no longer match the hashes Spec Kit recorded, and `specify integration upgrade`
 refuses to replace files it takes for local edits.
+
+## Removed with PDF and EPUB (v1.0.0)
+
+The library reads Markdown only since v1.0.0 (Ingestion). These decisions explained the readers
+that went, each with the failure that taught it.
+
+- **Running heads were recognized by their page numbers**: "10.13. Debugging 99" is unique to its
+  section and never repeats, but its number follows the page at a fixed distance.
+- **Each table-of-contents entry claimed one heading, exact matches first**: otherwise "Tuples are
+  immutable" overwrote the heading "Tuples", and the chapter's text went to the one before.
+- **A heading the outline named on its page was never a running head**: 20 of *Think Python*'s
+  "Glossary", "Exercises" and "Debugging" headings had been dropped as running heads.
+- **Docling, with OCR for scanned PDFs, was the alternative PDF reader**: its layout models were
+  slower than PyMuPDF and suited complex layouts.

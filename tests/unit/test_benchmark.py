@@ -4,6 +4,7 @@ from collections import Counter
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from app.config.settings import EnvironmentSettings, JudgeConfig
 from app.container import Container
@@ -25,13 +26,12 @@ from app.evaluation.quiz_metrics import load_known_cases, read_reading
 from app.generation.base import GenerationParameters
 from app.generation.question_answering import QuestionAnsweringService
 from app.generation.quiz import QuizWriter
-from app.ingestion.chunker import Chunker
 from app.services.health_service import HealthService
 from app.services.quiz_service import QuizService
 from app.services.reset_service import CONFIRM_RESET_EVERYTHING, ResetService
 from app.storage.catalog import BookStatus
 from app.utils.hashing import file_checksum
-from tests.fakes import FakeEmbedder, FakeLLM, FakeRuntime, WordCounter
+from tests.fakes import FakeEmbedder, FakeLLM, FakeRuntime
 from tests.library import MARKDOWN, Library
 
 
@@ -177,8 +177,9 @@ def lab(settings, tmp_path, monkeypatch):
         "author": "Someone",
         "language": "en",
         "filename": "a.md",
-        "url": "https://example.test/a.md",
         "sha256": file_checksum(root / "books" / "a.md"),
+        "original": {"url": "https://example.test/a.pdf", "sha256": "1" * 64},
+        "conversion": "MarkItDown 0.1.9 (ed17895)",
         "license": "Public domain",
     }
     question = {
@@ -257,6 +258,7 @@ def test_a_run_writes_machine_readable_results(lab):
     assert report["complete"] is True
     assert report["summary"][0]["recall_at_5"] == 1.0
     assert report["rows"][0]["relevant_chapters"]
+    assert "relevant_pages" not in report["rows"][0]
     assert report["environment"]["dataset_sha256"]
     assert report["environment"]["configuration"]["chunking"]
 
@@ -489,23 +491,14 @@ def test_the_performance_summary_holds_its_metrics(lab, models, monkeypatch):
     assert "peak_vram_mb" in (directory / "summary.csv").read_text(encoding="utf-8").splitlines()[0]
 
 
-def test_the_extraction_summary_holds_its_metrics(lab, monkeypatch):
-    runner, *_ = lab
-    real_build = benchmark.build_pipeline
+def test_an_extraction_experiment_is_refused_naming_the_kinds_left():
+    """The extraction kind went with the readers it compared (specs/005-markdown-only, FR-017)."""
+    with pytest.raises(ValidationError) as refused:
+        experiment_of("extraction")
 
-    def build(settings):
-        pipeline = real_build(settings)
-        pipeline._chunker = Chunker(settings.chunking, WordCounter())
-        return pipeline
-
-    monkeypatch.setattr(benchmark, "build_pipeline", build)
-
-    directory = runner.run(experiment_of("extraction"))
-
-    [entry] = report_of(directory)["summary"]
-    assert entry["chapters"] == 2
-    assert entry["chunks"] >= 2
-    assert entry["toc_coverage_samples"] == 0
+    allowed = str(refused.value).split("Input should be ")[1].split(" [type=")[0]
+    assert "'retrieval'" in allowed and "'quiz_check'" in allowed
+    assert "'extraction'" not in allowed
 
 
 # The quiz measurement (specs/003-chapter-quiz, contracts/quiz-experiments.md)
@@ -540,7 +533,7 @@ def local_book(root, text=None, **fields):
 
 def test_a_quiz_experiment_takes_targets_local_books_and_a_seed():
     experiment = quiz_experiment(
-        local_books=({"key": "mine", "title": "Mine", "language": "pt", "filename": "m.pdf", "sha256": "abc"},),
+        local_books=({"key": "mine", "title": "Mine", "language": "pt", "filename": "m.md", "sha256": "abc"},),
         targets=({"book": "mine", "chapter": None, "questions": None},),
         seed=7,
     )
@@ -588,6 +581,34 @@ def test_a_local_book_that_isnt_the_owners_copy_stops_the_run_before_any_work(la
 
     assert libraries == {}
     assert not (root / "results").exists()
+
+
+# The dataset's books, checked where the work starts (specs/005-markdown-only, FR-018, contracts/benchmark.md)
+
+
+@pytest.mark.parametrize("step", ["run", "validate"])
+def test_a_missing_dataset_book_stops_before_any_work(lab, step):
+    runner, _, libraries, _ = lab
+    (runner._root / "books" / "a.md").unlink()
+
+    with pytest.raises(ConfigurationError, match=r"a_book: .*a\.md is missing\. The benchmark's books are Markdown"):
+        runner.run(retrieval_experiment()) if step == "run" else runner.validate()
+
+    assert libraries == {}
+    assert not (runner._root / "results").exists()
+
+
+@pytest.mark.parametrize("step", ["run", "validate"])
+def test_a_dataset_book_that_isnt_the_one_named_stops_before_any_work(lab, step):
+    runner, _, libraries, _ = lab
+    (runner._root / "books" / "a.md").write_text(MARKDOWN + "\nA reconversion changed this.\n", encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="isn't the file the dataset names") as stopped:
+        runner.run(retrieval_experiment()) if step == "run" else runner.validate()
+
+    assert "Its evidence quotes may not be found in it." in str(stopped.value)
+    assert libraries == {}
+    assert not (runner._root / "results").exists()
 
 
 def test_local_books_are_indexed_in_the_workspace_beside_the_datasets(lab, answers):
@@ -681,6 +702,7 @@ def test_a_quiz_run_writes_its_reading(lab, answers):
     assert row["question"] == "a_book:One:1"
     assert row["text"].startswith("Why does the fox")
     assert row["passage"]
+    assert "pages" not in row
     assert row[row["key"]] == "To rest there for the rest of the day."
     assert (row["mark"], row["reasons"], row["note"]) == ("", "", "")
 

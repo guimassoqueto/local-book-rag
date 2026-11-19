@@ -48,27 +48,40 @@ x = 1
     assert "# a comment, not a heading" in document.blocks[-1].text
 
 
-def test_pages_are_unavailable(tmp_path):
+def test_blocks_carry_no_pages(tmp_path):
     document = load(tmp_path, "# Title\n\nText.")
 
-    assert all(block.page_start is None and block.page_end is None for block in document.blocks)
+    assert not any(hasattr(block, "page_start") or hasattr(block, "margin") for block in document.blocks)
 
 
-def test_a_single_top_heading_is_the_title(tmp_path):
-    assert load(tmp_path, "# The Book\n\n## One\n\nText.").title == "The Book"
-
-
-def test_several_top_headings_are_not_a_title(tmp_path):
-    assert load(tmp_path, "# One\n\nText.\n\n# Two\n\nText.").title is None
-
-
-def test_front_matter_gives_the_metadata(tmp_path):
+def test_front_matter_is_removed_and_gives_only_the_language(tmp_path):
     document = load(tmp_path, "---\ntitle: Front Title\nauthor: Someone\nlanguage: pt-BR\n---\n\n# Heading\n\nText.")
 
-    assert document.title == "Front Title"
-    assert document.author == "Someone"
     assert document.language == "pt-BR"
-    assert document.blocks[0].text == "Heading"
+    assert [block.text for block in document.blocks] == ["Heading", "Text."]
+    # The book's title is its file's name, and it has no author (specs/005-markdown-only, FR-005).
+    assert getattr(document, "title", None) is None
+    assert getattr(document, "author", None) is None
+
+
+def test_lang_sets_the_language_when_language_is_missing(tmp_path):
+    assert load(tmp_path, "---\nlang: pt\n---\n\n# Heading\n\nText.").language == "pt"
+
+
+def test_a_single_top_heading_is_never_the_title(tmp_path):
+    assert getattr(load(tmp_path, "# The Book\n\n## One\n\nText."), "title", None) is None
+
+
+@pytest.mark.parametrize(
+    "front",
+    ["---\ntitle: [unclosed\n---\n", "---\ntitle: never closed\n"],
+    ids=["not yaml", "not closed"],
+)
+def test_front_matter_that_does_not_parse_or_close_stays_in_the_text(tmp_path, front):
+    document = load(tmp_path, f"{front}\n# Heading\n\nText.")
+
+    assert any("title:" in block.text for block in document.blocks)
+    assert document.language is None
 
 
 def test_a_leading_rule_is_not_front_matter(tmp_path):

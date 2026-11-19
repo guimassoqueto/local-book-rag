@@ -123,37 +123,45 @@ with its reason, and uploading it again retries it.
 
 ## Library
 
+The library reads Markdown books, `.md` or `.markdown`. Books are converted to Markdown outside
+the application, with Microsoft MarkItDown and whatever plugins suit them, and added as files:
+
 ```bash
-docker compose cp book.pdf app:/tmp/book.pdf      # the container sees no folder of the host
-docker compose exec app book-rag add-book /tmp/book.pdf
+docker compose cp "01_historia_economica_global.md" app:/tmp/   # the container sees no folder of the host
+docker compose exec app book-rag add-book "/tmp/01_historia_economica_global.md"
 docker compose exec app book-rag list-books
 ```
 
-An upload in the interface needs no copy. Books go through extraction, normalization, structure
-detection and chunking. The library lives in the app container, under `/app/data`. Each stage's
+A book's title is its file's name without the extension, as it is, so a book copied into the
+container keeps its name on the way: copied to `/tmp/book.md`, it would be titled `book`. A
+book has no author. An upload in the interface needs no copy. Books go through extraction,
+normalization, structure detection and chunking. The library lives in the app container, under `/app/data`. Each stage's
 output stays in `data/processed/<book_id>/r<revision>/` for debugging, and the original file
 in `data/original_books/<book_id>/`, from which everything else can be rebuilt. The catalog
 in `data/metadata/catalog.db` is the source of truth for what the library holds. A file is
 identified by its checksum, so uploading it twice under different names is detected.
 
-How each format is read:
+Preparing a book:
 
-- **PDF**: PyMuPDF. The book's table of contents decides what a chapter is, and font sizes
-  find the headings below it, or all of them when there is no table of contents. Running
-  headers are recognized by repeating, or by carrying a number that follows the page. Page
-  numbers are physical: 1 is the first page of the file, which is what a viewer jumps to.
-  `pdf.extractor: docling` in `config/ingestion.yaml` runs layout models instead, for
-  complex layouts.
-- **Scanned PDFs** have no text to extract. They are rejected unless `pdf.ocr.enabled` is
-  on, which sends them through Docling's OCR.
-- **EPUB**: EbookLib, in spine order, with chapters taken from the table of contents.
-  EPUBs have no pages, so `page_start` and `page_end` are null.
-- **Markdown**: headings mark chapters and sections. Front matter can set `title`, `author`
-  and `language`.
+- **Headings mark chapters and sections.** The outermost level used more than once holds the
+  chapters, and the levels below it their sections. A single outermost heading is taken for the
+  book's own title line, so its children are the chapters, and its text shows nowhere. A
+  heading that says "Chapter N" or "Capítulo N" outranks its depth when depth clearly got it
+  wrong, and "Part" headings are seen through. A book without headings is one chapter, titled
+  with the book's title.
+- **Front matter is optional**, a YAML block between `---` lines at the top. It is removed from
+  the text, and only its `language` (or `lang`) is read: the language is detected from the text
+  otherwise. Front matter that doesn't parse, or isn't closed, stays in the text.
+- **The file is checked** before anything is stored: it must be UTF-8, hold no binary data, and
+  be at most 512 MB.
+- **A PDF or an EPUB is refused**, with a message to convert it to Markdown first. In the
+  Library tab, the file pickers offer only Markdown, and a PDF or EPUB dropped on them anyway is
+  refused by Gradio before the application sees it.
 
 A chapter's `number` is its position in the book, which is unique where printed numbers are
 not (a preface has none). The printed number stays in its title. Text before the first
-chapter goes to chapter 0, "Front matter".
+chapter goes to chapter 0, "Front matter". The cleaning that follows extraction applies to any
+text: Unicode composition, ligatures, invisible characters and whitespace.
 
 Chunk sizes are measured with the embedding model's own tokenizer, set in
 `embedding_profiles` in `config/models.yaml`. Tokenizers are downloaded on first use and
@@ -162,7 +170,7 @@ never reach the network again.
 ### Changing the library
 
 ```bash
-docker compose exec app book-rag replace-book book_001 /path/to/new.pdf
+docker compose exec app book-rag replace-book book_001 /tmp/new_name.md
 docker compose exec app book-rag remove-book book_001 [--archive]
 docker compose exec app book-rag reindex-book book_001
 docker compose exec app book-rag reindex-all [--regenerate-summaries]
@@ -209,12 +217,12 @@ The catalog keeps the count, so a new app container starts it over (see Running)
 The Library tab shows the progress of its seven operations in an area under the index status:
 
 - **The operation**, its book, and the time since it began, as 0:38.
-- **The stage it is in**, with its position: "Extracting the text — stage 2 of 5". A bar fills where
-  the stage is counted: a PDF's pages as its text is read, the chunks as they are embedded, and,
-  in a reindex, the books and the saved summaries. Where it isn't counted, the bar moves without
-  filling: the extraction of an EPUB or a Markdown file, OCR, preparing the chunks, saving them,
-  the steps of a removal and of the resets.
-- **The time left** in a stage of pages or chunks, once it has run 3 seconds and done a tenth of its
+- **The stage it is in**, with its position: "Embedding the chunks — stage 4 of 5". A bar fills where
+  the stage is counted: the chunks as they are embedded, and, in a reindex, the books and the saved
+  summaries. Where it isn't counted, the bar moves without filling: extracting the text, which
+  takes a tenth of a second or less, preparing the chunks, saving them, the steps of a removal and
+  of the resets.
+- **The time left** in a stage of chunks, once it has run 3 seconds and done a tenth of its
   items: "about 15 s left", or "about 2 min left". Books and summaries are counted without one,
   since they differ too much in size for those done to say much about those left.
 - **For a reindex**, the book being indexed, with its own step, and a line saying that questions
@@ -234,14 +242,14 @@ result, so `reindex-all` prints only its report there.
 
 Each stage also leaves a line in the app's log, `logs/app.jsonl`, when it ends: `stage finished`
 or `stage failed`, with `stage`, `done`, `total` and `unit` when it was counted,
-`duration_seconds`, `ocr` when extraction went to OCR, and `within` and `item` (the book's ID)
+`duration_seconds`, and `within` and `item` (the book's ID)
 for a step of a reindex. Every line carries the operation's execution ID, and none carries a
 title, a file name or text from a book.
 
 ## Index
 
 Chunks go into one ChromaDB collection per index version, `book_chunks_v1` to begin with,
-where every record carries its book, chapter, section, pages, language, embedding model and
+where every record carries its book, chapter, section, language, embedding model and
 index version. Which index is active is recorded in the catalog, along with everything that
 shaped it: the embedding model and the digest of its weights, its dimensions, as read from
 the model, and the chunking settings.
@@ -278,7 +286,7 @@ docker compose exec app book-rag search "What is opportunity cost?" --book book_
 ```
 
 `search` shows what the system retrieves, with each stage's score. It accepts filters by
-book, chapter, section, language and page range. `config/retrieval.yaml` picks the strategy:
+book, chapter, section and language. `config/retrieval.yaml` picks the strategy:
 
 | `strategy` | Finds passages through                                                            |
 | ---------- | --------------------------------------------------------------------------------- |
@@ -319,8 +327,8 @@ docker compose exec app book-rag ask "Compare how they treat trade." --book book
 docker compose exec app book-rag ask "What is the harm principle?" --language Portuguese
 ```
 
-Answers come from the retrieved passages, with numbered citations that resolve to chapter,
-section and pages. When the passages don't hold the answer, the model is told to say so
+Answers come from the retrieved passages, with numbered citations that resolve to the book,
+chapter and section. When the passages don't hold the answer, the model is told to say so
 instead of answering from general knowledge. It opens such a reply with a marker, and the
 application shows the reply as an abstention: "The model found no answer in the selected books".
 
@@ -381,8 +389,8 @@ whatever they pointed at. So the model writes no citations, and each finished st
 looked up among the chapter's chunks through the vector index, citing the passage it
 resembles. It costs milliseconds per statement, and works the same for every model.
 Statements close to no passage stay uncited and are counted, as the first place to look
-for something the model added. The references quote each passage's opening words, because
-that is how to find it in a book without pages.
+for something the model added. The references give each passage's section and quote its
+opening words, because that is how to find it: books have no pages.
 
 ## Quizzes
 
@@ -391,7 +399,7 @@ The Quiz tab quizzes you on one chapter or a whole book, for study. Choose the b
 words of the text, between 1 and 20, and can go up to one per passage, at most 50. Questions appear
 one by one as they are ready, about 3 s each, and can be answered while the rest arrive; Stop ends
 a preparation. Submit grades the quiz: each question missed shows your answer, the right one, why,
-and the passage it came from, with its chapter, section and pages. A whole-book quiz also ranks the
+and the passage it came from, with its chapter and section. A whole-book quiz also ranks the
 chapters by questions missed. The result downloads as Markdown.
 
 The model writes one question from one passage at a time, and never sees a letter: the application
@@ -408,7 +416,7 @@ owns what the model was seen doing badly when asked for a whole quiz at once
   fields, anything but four wrong answers, repeated options, an option that refers to the others
   ("all of the above"), a question or option that points to where its answer is ("segundo o
   trecho", a page, a section, or the chapter in a whole-book quiz), and another language than the
-  one asked for. The passage reaches the model without a number, section or pages, so the
+  one asked for. The passage reaches the model without a number or a section, so the
   question has nothing to point at.
 - **Nothing to ask.** The model skips a passage that says nothing about the book's subject, such as
   references, lists of illustrations or acknowledgements, and another passage is used. A chapter
@@ -431,17 +439,21 @@ on by hand, each question takes a second reading, at `medium` reasoning.
 
 Comparing configurations under controlled conditions is the point of this project, so the
 benchmarks are a first-class part of it. The runner, the metrics and the report are in
-`app/evaluation`, but the repository no longer holds the dataset and the experiments they ran on:
-their last versions are in commit `c7bb785`, and `docs/benchmark-results.md` records what the runs
-found. Neither the image nor a mount brings `benchmarks/` into the app container, so a run starts by
-copying it in, and ends by copying the results out before the container goes:
+`app/evaluation`. `benchmarks/` itself is ignored by git: the dataset's last version is in
+`specs/005-markdown-only/benchmarks/`, with the experiment that feature added, the other
+experiments' last versions are in commit `c7bb785`, and `docs/benchmark-results.md` records what
+the runs found. The books are never in the repository (see the dataset, below). Neither the image
+nor a mount brings `benchmarks/` into the app container, so a run starts by copying it in, and ends
+by copying the results out before the container goes:
 
 ```bash
-git archive c7bb785 benchmarks | tar -x                     # the dataset and the experiments
-docker compose cp -a benchmarks app:/app/                   # into the app container
-docker compose exec app book-rag pull-models --all          # every candidate model, about 40 GB
-docker compose exec app book-rag fetch-benchmark-books      # verified against their checksums
-docker compose exec app book-rag validate-benchmark         # every question, against the real text
+git archive c7bb785 benchmarks/experiments | tar -x           # the experiments
+rm benchmarks/experiments/extraction.yaml                     # a kind that no longer exists
+cp -r specs/005-markdown-only/benchmarks/. benchmarks/        # the dataset, and markdown_books.yaml
+# the three Markdown books go into benchmarks/books (see the dataset, below)
+docker compose cp -a benchmarks app:/app/                     # into the app container
+docker compose exec app book-rag pull-models --all            # every candidate model, about 40 GB
+docker compose exec app book-rag validate-benchmark           # the books' checksums, then every question
 
 make benchmark EXPERIMENT=retrieval                         # the whole dataset
 make benchmark EXPERIMENT=generation LIMIT=2                # a sample, per book and category
@@ -453,11 +465,15 @@ The experiments in that commit:
 
 | Experiment      | Compares                                                               | Measures                                                                                  |
 | --------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `extraction`    | PDF extractors                                                         | How much of each book's own structure survives                                            |
 | `retrieval`     | Embedding models, strategies, fusion, rerankers, chunk sizes           | Recall@5, Recall@10, MRR, nDCG@10, context precision and recall                           |
 | `generation`    | The four LLMs, on identical retrieved contexts                         | Faithfulness, correctness, relevance, citation accuracy, language, abstention             |
 | `summarization` | The four LLMs, on chapters with known key points                       | Argument coverage, concepts, consistency, coherence, completeness, citation traceability  |
 | `performance`   | The four LLMs, at 8K and 16K of context                                | Load time, time to first token, speeds, peak memory: the median of 3 runs after a warm-up |
+
+`markdown_books`, in `specs/005-markdown-only/benchmarks/experiments/`, is a `retrieval`
+experiment with one variant, the default configuration. It ran on two versions of the code and of
+the books, and `devtools/compare_runs.py` pairs two such runs question by question, which
+`benchmark-report --baseline` can't do across runs.
 
 Two more kinds measure the Quiz tab. Their experiment files are in `specs/003-chapter-quiz/benchmarks/`:
 
@@ -467,14 +483,14 @@ Two more kinds measure the Quiz tab. Their experiment files are in `specs/003-ch
 | `quiz_check` | Key-check wordings and models, on known cases                  | Flawed cases caught and sound ones rejected, against the writer answering with the passage, and the rule that decides the check's default |
 
 A `quiz` experiment can list `local_books`: the owner's copy of a book that isn't public, copied by
-hand into `benchmarks/books` and checked against its checksum before anything runs. It is never
-fetched. Pass the code's commit with `--commit`, since the container holds no `.git`:
+hand into `benchmarks/books` and checked against its checksum before anything runs. The ones in
+`specs/003-chapter-quiz/benchmarks/` still name the PDF of *História econômica global*, which the
+library no longer reads: point them at its Markdown conversion, with its checksum, before a run.
+Pass the code's commit with `--commit`, since the container holds no `.git`:
 
 ```bash
-cp specs/003-chapter-quiz/benchmarks/*.yaml benchmarks/experiments/
+cp specs/003-chapter-quiz/benchmarks/*.yaml benchmarks/experiments/   # then edit their local_books
 docker compose cp -a benchmarks app:/app/
-docker compose exec app book-rag fetch-benchmark-books
-docker compose cp ~/Documents/livros/01_historia_economica_global.pdf app:/app/benchmarks/books/historia-economica-global.pdf
 docker compose exec app book-rag benchmark benchmarks/experiments/quiz.yaml --commit "$(git describe --always --dirty)"
 ```
 
@@ -511,15 +527,28 @@ by the same validation as `config/`. It runs in `benchmarks/workspace`, on separ
 share a workspace. A workspace whose index no longer matches the configuration is rebuilt, but a
 change to the ingestion code can't be seen: delete `benchmarks/workspace` after one.
 
-Its dataset is three books: *Quincas Borba* in Portuguese, *Think Python* in English from a PDF,
-and *On Liberty* for its complex arguments. Each has 30 questions: 10 factual, 5 conceptual, 5
-across sections, 5 about one chapter, and 5 that the book can't answer, some of them traps that
-name a detail the text leaves out. All three books can be redistributed, so anyone can reproduce
-the results, and their checksums guarantee the same files.
+Its dataset is three books: *Quincas Borba* in Portuguese, *Think Python* in English, and *On
+Liberty* for its complex arguments. Each has 30 questions: 10 factual, 5 conceptual, 5 across
+sections, 5 about one chapter, and 5 that the book can't answer, some of them traps that name a
+detail the text leaves out.
+
+The books are Markdown files, converted the way the owner converts their own books. For each,
+`books.yaml` records the Markdown file's name and sha256, the original it came from (*Think
+Python*'s PDF, and the two EPUBs from Project Gutenberg, with their URLs and checksums), and the
+conversion: MarkItDown's version and commit, each plugin's version and commit, Python's version,
+and the command. A run and `validate-benchmark` check each file's sha256 first, and stop on a
+missing or different file. All three books can be redistributed, so anyone can rebuild them: the
+same conversion of the same originals gives the same files.
+
+A newer MarkItDown, or another plugin, gives other files, and makes a new version of the dataset:
+convert the three books again, record their new checksums and the conversion in `books.yaml`, run
+`validate-benchmark`, and correct each quote it lists to the new text, holding the same evidence,
+without dropping a question. A result records the dataset's checksum, so results on two versions
+are never mixed up. Compare them as two runs, with `devtools/compare_runs.py`.
 
 Relevance is stored as verbatim evidence quotes, not chunk IDs. IDs change with every chunk size,
 and comparing chunk sizes is one of the experiments, while a quote finds its chunks under any
-configuration. Each result row lists the chapters, pages and chunks the evidence resolved to.
+configuration. Each result row lists the chapters and chunks the evidence resolved to.
 
 Automated scores are a first signal, not a verdict. RAGAS and the summary rubric rely on a model
 as judge, the same one for every candidate, so they compare candidates with each other rather
@@ -547,7 +576,7 @@ first look.
 - The `chromadb/chroma` image runs the Rust server, which has no Python and ignores the
   `IS_PERSISTENT` family of settings. Its `/config.yaml` already persists to `/data`, and
   the healthcheck talks to the heartbeat endpoint through bash.
-- The app container gets the GPU too, for the reranker and Docling when they are configured
+- The app container gets the GPU too, for the reranker when it is configured
   to use it. torch comes from the CUDA 13.4 index: the RTX 5060 Ti is a Blackwell GPU, which
   builds for older CUDA versions cannot drive.
 - `config/` is copied into the image, and nothing mounts it. `make up` applies a change by
@@ -561,7 +590,7 @@ first look.
 | ------------------------- | ------------------------------------------------------- |
 | `config/application.yaml` | Server, upload limits, timeouts and logging             |
 | `config/models.yaml`      | The LLM, embedding model and reranker                   |
-| `config/ingestion.yaml`   | PDF extraction, normalization, languages and chunking   |
+| `config/ingestion.yaml`   | Languages and chunking                                  |
 | `config/retrieval.yaml`   | Retrieval strategy and its parameters                   |
 | `config/generation.yaml`  | Temperature and token limits per task, and the quiz     |
 

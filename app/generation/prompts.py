@@ -180,8 +180,6 @@ def _describe(chunk: Chunk) -> str:
     parts = [f"Book: {chunk.book_title}", f"Chapter: {chunk.chapter_title}"]
     if chunk.section_title:
         parts.append(f"Section: {chunk.section_title}")
-    if chunk.page_start is not None:
-        parts.append(f"Pages: {chunk.page_start}-{chunk.page_end}")
     return " | ".join(parts)
 
 

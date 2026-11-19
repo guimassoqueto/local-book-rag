@@ -40,16 +40,16 @@ def _build_parser() -> argparse.ArgumentParser:
     pull.add_argument("--all", action="store_true", help="also every model with a profile, for benchmarks")
     pull.set_defaults(handler=_pull_models)
 
-    add_book = commands.add_parser("add-book", help="add a PDF, EPUB or Markdown file to the library")
+    add_book = commands.add_parser("add-book", help="add a Markdown book (.md, .markdown) to the library")
     add_book.add_argument("path", type=Path, help="the file to add")
     add_book.set_defaults(handler=_add_book)
 
     list_books = commands.add_parser("list-books", help="list the books in the library")
     list_books.set_defaults(handler=_list_books)
 
-    replace_book = commands.add_parser("replace-book", help="swap a book for a new document, keeping its ID")
+    replace_book = commands.add_parser("replace-book", help="swap a book for a new Markdown file, keeping its ID")
     replace_book.add_argument("book", help="a book ID")
-    replace_book.add_argument("path", type=Path, help="the new document")
+    replace_book.add_argument("path", type=Path, help="the new Markdown file")
     replace_book.set_defaults(handler=_replace_book)
 
     remove_book = commands.add_parser("remove-book", help="remove a book and everything derived from it")
@@ -80,8 +80,6 @@ def _build_parser() -> argparse.ArgumentParser:
     search.add_argument("--chapter", action="append", type=int, default=[], help="a chapter number; repeat for several")
     search.add_argument("--section", action="append", default=[], help="a section title; repeat for several")
     search.add_argument("--language", action="append", default=[], help="an ISO 639-1 code; repeat for several")
-    search.add_argument("--page-start", type=int, help="first page of a range")
-    search.add_argument("--page-end", type=int, help="last page of a range")
     search.set_defaults(handler=_search)
 
     ask = commands.add_parser("ask", help="answer a question from the library")
@@ -98,9 +96,6 @@ def _build_parser() -> argparse.ArgumentParser:
     summarize.add_argument("--language", help="the language to write in, such as Portuguese")
     summarize.add_argument("--save", action="store_true", help="keep the summary in data/summaries")
     summarize.set_defaults(handler=_summarize)
-
-    fetch = commands.add_parser("fetch-benchmark-books", help="download the benchmark's books")
-    fetch.set_defaults(handler=_fetch_benchmark_books)
 
     validate = commands.add_parser("validate-benchmark", help="check the benchmark's questions against its books")
     validate.set_defaults(handler=_validate_benchmark)
@@ -260,14 +255,6 @@ def _summarize(container: Container, arguments: argparse.Namespace) -> None:
         print(f"Saved to {summaries.save(summary)}", file=sys.stderr)
 
 
-def _fetch_benchmark_books(container: Container, _: argparse.Namespace) -> None:
-    from app.evaluation.dataset import fetch_books, load_dataset  # needs nothing the other commands load
-
-    root = container.environment.benchmarks_dir
-    for line in fetch_books(load_dataset(root / "datasets"), root / "books"):
-        print(line)
-
-
 def _validate_benchmark(container: Container, _: argparse.Namespace) -> None:
     from app.evaluation.benchmark import BenchmarkRunner  # loads the evaluation stack
 
@@ -304,18 +291,16 @@ def _search(container: Container, arguments: argparse.Namespace) -> None:
         chapter_numbers=tuple(arguments.chapter),
         section_titles=tuple(arguments.section),
         languages=tuple(arguments.language),
-        page_start=arguments.page_start,
-        page_end=arguments.page_end,
     )
     result = container.retrieval.search(arguments.question, filters)
     print(f"{len(result.candidates)} candidates in {result.retrieval_seconds:.2f}s, ", end="")
     print(f"reranked in {result.rerank_seconds:.2f}s")
     for passage in result.passages:
         chunk = passage.chunk
-        pages = f"p. {chunk.page_start}-{chunk.page_end}" if chunk.page_start else "no pages"
+        place = ", ".join(part for part in (chunk.chapter_title, chunk.section_title) if part)
         scores = {"dense": passage.dense_score, "bm25": passage.bm25_score, "rerank": passage.rerank_score}
         shown = " ".join(f"{name}={value:.3f}" for name, value in scores.items() if value is not None)
-        print(f"\n{chunk.chunk_id} ({chunk.chapter_title}, {pages}) {shown}")
+        print(f"\n{chunk.chunk_id} ({place}) {shown}")
         print(f"  {chunk.text[:200]!r}")
 
 

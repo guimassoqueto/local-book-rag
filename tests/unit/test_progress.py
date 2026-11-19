@@ -7,7 +7,7 @@ import pytest
 
 from app.utils.progress import Outcome, Progress, ProgressView, StageSpec
 
-EXTRACT = StageSpec("extract", "Extracting the text", unit="pages", estimate=True)
+EXTRACT = StageSpec("extract", "Extracting the text", unit="chunks", estimate=True)  # a counted stage, for the tests
 PREPARE = StageSpec("prepare", "Preparing the chunks")
 EMBED = StageSpec("embed", "Embedding the chunks", unit="chunks", estimate=True)
 SAVE = StageSpec("save", "Saving to the index")
@@ -164,20 +164,6 @@ def test_a_total_of_zero_is_allowed(clock):
     assert (view.stage.done, view.stage.total) == (0, 0)
 
 
-def test_dropping_the_count_keeps_it_for_the_log_and_says_ocr(clock, caplog):
-    progress = Progress(clock=clock)
-
-    with progress.operation("Adding a book", STEPS), progress.stage("extract") as stage:
-        stage.count(4)
-        stage.advance(4)
-        stage.uncount("with OCR")
-        view = progress.snapshot()
-
-    assert (view.stage.done, view.stage.total, view.stage.note) == (None, None, "with OCR")
-    [line] = stage_lines(caplog)
-    assert fields(line)["done"] == 4 and fields(line)["total"] == 4 and fields(line)["ocr"] is True
-
-
 # The time left
 
 
@@ -309,9 +295,8 @@ def test_outside_an_operation_nothing_is_tracked_or_logged(clock, caplog):
     with progress.stage("extract") as stage:
         stage.count(3)
         stage.advance()
-        stage.note("with OCR")
+        stage.note("a note")
         stage.item("book_001", "A title")
-        stage.uncount("with OCR")
 
     assert progress.snapshot() is None and caplog.records == []
 

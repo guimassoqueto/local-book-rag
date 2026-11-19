@@ -194,3 +194,28 @@ def test_the_checker_reasoning_can_be_left_to_the_profile(config_dir, edit_confi
     edit_config("generation.yaml", lambda c: c["generation"]["quiz"]["check"].update(reasoning=None))
 
     assert load_settings(config_dir).generation.quiz.check.reasoning is None
+
+
+# Settings removed when books became Markdown only (specs/005-markdown-only, FR-008, FR-014): any left in a
+# configuration stops the app, naming it, as any unknown key does.
+
+
+@pytest.mark.parametrize(
+    ("change", "key"),
+    [
+        (lambda c: c.update(pdf={"extractor": "pymupdf"}), "pdf"),
+        (lambda c: c.update(normalization={"remove_repeated_margins": True}), "normalization"),
+        (lambda c: c["chunking"]["preserve"].update(page_numbers=True), "page_numbers"),
+    ],
+    ids=["pdf", "normalization", "page_numbers"],
+)
+def test_a_removed_setting_stops_the_app_naming_it(config_dir, edit_config, change, key):
+    edit_config("ingestion.yaml", change)
+
+    with pytest.raises(ConfigurationError, match=key):
+        load_settings(config_dir)
+
+
+def test_the_shipped_ingestion_settings_hold_only_languages_and_chunking(settings):
+    assert not hasattr(settings, "pdf") and not hasattr(settings, "normalization")
+    assert set(settings.chunking.preserve.model_dump()) == {"chapters", "sections", "paragraphs"}

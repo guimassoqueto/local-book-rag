@@ -148,3 +148,4 @@ def test_a_missing_gpu_is_reported(settings):
     results = run_checks(settings, gpu=None)
 
     assert not results["gpu"].ok
+    assert results["gpu"].detail == "no GPU visible to the application: the reranker stays on the CPU"

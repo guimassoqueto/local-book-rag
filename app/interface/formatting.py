@@ -35,7 +35,7 @@ BOOK_COLUMNS = [
     "Details",
 ]
 BOOK_COLUMN_WIDTHS = [90, 260, 170, 90, 60, 90, 80, 110, 190, 70, 150, 150, 300]
-SCORE_COLUMNS = ["In context", "Chunk", "Chapter", "Pages", "Dense", "BM25", "Fusion", "Reranker"]
+SCORE_COLUMNS = ["In context", "Chunk", "Chapter", "Dense", "BM25", "Fusion", "Reranker"]
 
 
 def book_rows(books: Sequence[Book]) -> list[list[object]]:
@@ -84,13 +84,6 @@ def index_status(active: IndexRecord | None, needs_reindex: bool) -> str:
     return description
 
 
-def pages_of(passage: Passage) -> str:
-    chunk = passage.chunk
-    if chunk.page_start is None:
-        return ""
-    return str(chunk.page_start) if chunk.page_start == chunk.page_end else f"{chunk.page_start}-{chunk.page_end}"
-
-
 def sources_markdown(answer: Answer) -> str:
     """List the sources an answer cites, and what the reader should distrust about it."""
     lines = [f"- **[{citation.number}]** {citation.reference}" for citation in answer.citations]
@@ -112,9 +105,6 @@ def passages_markdown(passages: Sequence[Passage], citations: Sequence[Citation]
     for number, passage in enumerate(passages, start=1):
         chunk = passage.chunk
         place = [chunk.book_title, chunk.chapter_title, chunk.section_title]
-        pages = pages_of(passage)
-        if pages:
-            place.append(f"p. {pages}")
         mark = " · cited" if number in cited else ""
         quoted = "\n".join(f"> {line}" if line else ">" for line in chunk.text.splitlines())
         title = ", ".join(part for part in place if part)
@@ -138,7 +128,6 @@ def score_rows(answer: Answer) -> list[list[object]]:
             f"[{in_context[passage.chunk.chunk_id]}]" if passage.chunk.chunk_id in in_context else "",
             passage.chunk.chunk_id,
             passage.chunk.chapter_title,
-            pages_of(passage),
             _score(passage.dense_score),
             _score(passage.bm25_score),
             _score(passage.fusion_score),
@@ -262,17 +251,9 @@ def quiz_outcome(event: QuizReady) -> str:
     )
 
 
-def quiz_pages(chunk: Chunk) -> str:
-    if chunk.page_start is None:
-        return ""
-    if chunk.page_end is None or chunk.page_end == chunk.page_start:
-        return f"p. {chunk.page_start}"
-    return f"pp. {chunk.page_start}–{chunk.page_end}"
-
-
 def quiz_reference(chunk: Chunk, with_book: bool = True) -> str:
-    """Where a passage is: book, chapter, section and pages."""
-    parts = [chunk.book_title if with_book else None, chunk.chapter_title, chunk.section_title, quiz_pages(chunk)]
+    """Where a passage is: book, chapter and section."""
+    parts = [chunk.book_title if with_book else None, chunk.chapter_title, chunk.section_title]
     return ", ".join(part for part in parts if part)
 
 

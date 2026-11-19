@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from app.ingestion.base import ORDINAL, Block, BlockKind, ExtractedDocument
 
 FRONT_MATTER_TITLE = "Front matter"
-_WHOLE_BOOK_TITLE = "Full text"
 _PART = re.compile(rf"^(part|parte|book|livro|volume|vol\.)\s+{ORDINAL}", re.IGNORECASE)
 _CHAPTER = re.compile(rf"^(chapter|chap\.|cap[ií]tulo|cap\.)\s+{ORDINAL}", re.IGNORECASE)
 _MIN_NUMBERED_CHAPTERS = 2
@@ -41,30 +40,34 @@ class Chapter:
 
 @dataclass(frozen=True)
 class BookStructure:
-    title: str | None
-    author: str | None
+    title: str
     language: str | None
     chapters: tuple[Chapter, ...]
 
 
-def build_structure(document: ExtractedDocument) -> BookStructure:
-    """Group a document's blocks into chapters and sections."""
+def build_structure(document: ExtractedDocument, title: str) -> BookStructure:
+    """Group a document's blocks into chapters and sections.
+
+    Args:
+        document: the normalized document.
+        title: the book's title, which names the one chapter of a book without headings.
+    """
     groups = _split_chapters(document.blocks)
     chapters: list[Chapter] = []
     number = 0
-    for title, blocks in groups:
+    for heading, blocks in groups:
         sections = _sections(blocks)
         if not sections:
             continue  # a part divider or an empty front page: a heading without any text
-        if title is not None:
+        if heading is not None:
             number += 1
-        chapters.append(Chapter(number if title else 0, title or FRONT_MATTER_TITLE, sections))
+        chapters.append(Chapter(number if heading else 0, heading or FRONT_MATTER_TITLE, sections))
 
     if len(chapters) == 1 and chapters[0].number == 0:  # no headings at all
         only = chapters[0]
-        chapters = [Chapter(1, document.title or _WHOLE_BOOK_TITLE, only.sections)]
+        chapters = [Chapter(1, title, only.sections)]
 
-    return BookStructure(document.title, document.author, document.language, tuple(chapters))
+    return BookStructure(title, document.language, tuple(chapters))
 
 
 def _split_chapters(blocks: tuple[Block, ...]) -> list[tuple[str | None, list[Block]]]:
