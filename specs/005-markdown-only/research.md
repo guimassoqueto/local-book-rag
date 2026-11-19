@@ -306,42 +306,59 @@ reason.
 
 **The conversion, 2026-11-19.** At the owner's request, the agent converted the three books with
 the owner's setup, the one their `mkd` alias runs (`~/.bash_aliases`). The originals are the
-dataset's own files, whose checksums match `books.yaml`.
+dataset's own files, whose checksums match `books.yaml`. That first conversion showed problems in
+the owner's PDF plugin (below). The owner had them fixed in the plugin, in another session, and
+Think Python and *História econômica global* were converted again with the fixed plugin. The
+agent then reproduced all four files and measured them again.
 - **The setup.**
   - MarkItDown 0.1.9, installed from source: `microsoft/markitdown` at `ed17895`.
   - Python 3.14.7, with pdfminer.six 20260107.
-  - One plugin, `markitdown-pdf-headings` 0.1.0, the owner's:
-    `guimassoqueto/markitdown-pdf-headings` at `7e90266`. It handles PDFs only, so the EPUBs go
-    through MarkItDown's built-in EPUB converter.
+  - One plugin, `markitdown-pdf-headings` 0.2.0, the owner's:
+    `guimassoqueto/markitdown-pdf-headings` at `f10b81b`. That commit is on the local branch
+    `think-python-fixes`, neither merged nor pushed as of 2026-11-19, so it has to stay reachable
+    for the record to hold (merged as it is, or the record updated to the commit that replaces
+    it). The plugin handles PDFs only, so the EPUBs go through MarkItDown's built-in EPUB
+    converter.
 - **The command.** `markitdown --use-plugins BOOK > BOOK.md`: standard output, which ends the
-  file with a newline that `-o` doesn't write. The owner's
-  `01_historia_economica_global.md` was made this way, and converting its PDF again gives it byte
-  for byte.
-- **Deterministic.** Converting each book twice gave identical files.
+  file with a newline that `-o` doesn't write. That is how the owner converts.
+- **Deterministic.** Converting each book again gave identical files.
 
 | Book | Markdown sha256 | Headings (H1/H2/H3/H4+) | Today's reader finds |
 | ---- | --------------- | ----------------------- | -------------------- |
-| `think-python.md` | `3ad77653…` | 46/217/21/10 | 46 chapters, about 20 of them Python comments (Finding) |
+| `think-python.md` | `380a8ec6…` | 41/217/21/13, 568 fenced code blocks | 25 chapters: front matter, Preface, Contents, the 21 chapters with both appendices, Index |
 | `quincas-borba.md` | `ae3e75a1…` | 1/3/1/206 | 206 chapters: the "CAPITULO" ones, plus Gutenberg's header and license |
 | `on-liberty.md` | `5588535e…` | 1/10/4/0 | 11 chapters: Courtney's introduction in three parts, Mill's five, Gutenberg's header and license |
-| `01_historia_economica_global.md` | `8f15a169…` | 15/30/1/0 | 15 chapters, as the spec's Context says |
+| `01_historia_economica_global.md` | `7d79a99e…` | 15/34/1/0 | 15 chapters, 50 sections |
+
+Think Python's H1 count includes 17 Python comments inside code fences, which the Markdown reader
+reads as code, not headings.
 
 **What the dataset needs.** Measured with today's reader, before any correction:
-- **Quotes.** 275 of the 280 evidence quotes are found exactly. The 5 that aren't are all in Think
-  Python.
-- **Chapter names.** Every chapter name in the questions and the key points exists.
-- **Chapter-specific questions.** Their quotes all sit in their chapter in Quincas Borba and On
-  Liberty. In Think Python, `think_python_chapter_specific_05` ("Debugging") has none of its 3
-  there.
+- **Quotes.** 278 of the 280 evidence quotes are found exactly. The two that aren't are Think
+  Python's, and both are corrected under FR-019:
+  - `think_python_factual_05`: the PDF breaks "lexicon" as `lexi-con`, and the word appears nowhere
+    else in the book, so the plugin keeps the hyphen.
+  - `think_python_chapter_specific_01`: its quote has `n −1`, and the conversion writes `n − 1`.
+- **Chapter names.** Every chapter name in the questions and the key points exists, and no two
+  chapters share a title.
+- **Chapter-specific questions.** Their quotes all sit in their chapter, except the one quote of
+  `think_python_chapter_specific_01` above. No chapter was merged, split or lost, so FR-019's rule
+  for those has nothing to replace.
 
-**Finding: Think Python's code becomes headings.** The plugin writes code as plain paragraphs, and
-`think-python.md` has no fenced block. So a Python comment at the start of a line, such as
-`# inside class Time:`, is a level-1 Markdown heading, and splits the chapter it is in. About 20 of
-the 46 chapters are such comments, and one splits "Debugging", which is why that question's quotes
-left it. The code's indentation is lost too. The app adds no rule for a conversion's quirks (spec,
-Assumptions). The fix belongs in the plugin: fence code blocks, or escape a leading `#` in them,
-and then convert Think Python again. Until the owner decides, the dataset's Think Python book is
-this conversion, and FR-019's rule for split chapters would apply.
+**Finding, and its fix.** The first conversion, with plugin 0.1.0 at `7e90266`, gave Think Python
+`3ad77653…`, which had four problems. They are written up, with examples, in a `todo.md` outside
+this repository:
+1. **Code wasn't fenced**, so Python comments such as `# inside class Time:` became level-1
+   headings. 22 of 46 chapters were comments, and one split "Debugging".
+2. **221 running heads**, with their page numbers, stayed in the text as bold lines.
+3. **Syllable hyphens were kept** at line ends (`exam-ple`), which caused 4 of the 5 unmatched
+   quotes.
+4. **Bold run-in subsection titles** weren't headings.
+
+Plugin 0.2.0 fixes all four, which no rule in the app had to do (spec, Assumptions). It also puts
+monospace words in prose in backticks, rejoins URLs and paragraphs cut by a line or a page break,
+and gives *História econômica global* four more section headings in "Leituras complementares",
+with one item per paragraph in its lists of figures and tables.
 
 **Rationale.** Checking the books where the work starts keeps the guarantee that
 `fetch-benchmark-books` gave: no question is measured against a text it wasn't validated on.
