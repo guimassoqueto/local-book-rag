@@ -13,10 +13,8 @@ from app.config.settings import Settings
 from app.generation.summarization import ChapterSummarizer
 from app.ingestion.base import DocumentFormat
 from app.ingestion.chunker import Chunker
-from app.ingestion.epub_loader import EpubLoader
 from app.ingestion.markdown_loader import MarkdownLoader
 from app.ingestion.normalizer import Normalizer
-from app.ingestion.pdf_loader import PdfLoader
 from app.ingestion.pipeline import IngestionPipeline
 from app.services.book_service import BookService
 from app.services.index_service import IndexService
@@ -53,12 +51,8 @@ class Library:
         self.indexes = IndexService(settings, self.catalog, self.server, self.runtime)
         self.indexes.query_embedder = lambda record: self.embedder
         pipeline = IngestionPipeline(
-            loaders={
-                DocumentFormat.PDF: PdfLoader(settings.pdf),
-                DocumentFormat.EPUB: EpubLoader(),
-                DocumentFormat.MARKDOWN: MarkdownLoader(),
-            },
-            normalizer=Normalizer(settings.normalization),
+            loaders={DocumentFormat.MARKDOWN: MarkdownLoader()},
+            normalizer=Normalizer(),
             chunker=Chunker(settings.chunking, WordCounter()),
             supported_languages=("en", "pt"),
         )

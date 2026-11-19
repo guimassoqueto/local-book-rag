@@ -26,7 +26,6 @@ class ProcessedDocument:
     structure: BookStructure
     chunks: tuple[Chunk, ...]
     title: str
-    author: str | None
     language: str
 
 
@@ -48,7 +47,7 @@ class IngestionPipeline:
         path: Path,
         document_format: DocumentFormat,
         book_id: str,
-        fallback_title: str,
+        title: str,
         progress: Progress | None = None,
     ) -> ProcessedDocument:
         """Extract, normalize, structure and chunk a document.
@@ -57,7 +56,8 @@ class IngestionPipeline:
             path: the document.
             document_format: its validated format.
             book_id: the ID its chunks are stamped with.
-            fallback_title: the title to use when the document doesn't state one.
+            title: the book's title, which is the name of the file it arrived as, without its
+                extension. Nothing in the document changes it (specs/005-markdown-only, FR-005).
             progress: told of extraction and preparation. Without one, or outside an operation,
                 nothing is reported.
 
@@ -65,18 +65,17 @@ class IngestionPipeline:
             BookRagError: the document cannot be processed. The subclass says why.
         """
         progress = progress or Progress()
-        with progress.stage(EXTRACT) as stage:
-            extracted = self._loaders[document_format].load(path, stage)
+        with progress.stage(EXTRACT):
+            extracted = self._loaders[document_format].load(path)
         with progress.stage(PREPARE):
             normalized = self._normalizer.normalize(extracted)
             if not any(block.kind is not BlockKind.HEADING for block in normalized.blocks):
                 raise EmptyDocumentError(f"{path.name} holds no text after cleaning.")
 
             language = self._language_of(normalized, path)
-            title = normalized.title or fallback_title
-            structure = build_structure(replace(normalized, title=title, language=language))
+            structure = build_structure(replace(normalized, language=language), title)
             chunks = self._chunker.chunk(book_id, title, structure)
-        return ProcessedDocument(extracted, normalized, structure, tuple(chunks), title, normalized.author, language)
+        return ProcessedDocument(extracted, normalized, structure, tuple(chunks), title, language)
 
     def _language_of(self, document: ExtractedDocument, path: Path) -> str:
         if document.language:

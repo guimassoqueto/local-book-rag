@@ -1,6 +1,5 @@
 import json
 
-import httpx
 import pytest
 import yaml
 
@@ -9,7 +8,6 @@ from app.evaluation.dataset import (
     BenchmarkDataset,
     BenchmarkQuestion,
     dataset_checksum,
-    fetch_books,
     load_dataset,
     relevant_chunks,
     validate_against_book,
@@ -23,8 +21,9 @@ BOOK = {
     "author": "Someone",
     "language": "en",
     "filename": "a.md",
-    "url": "https://example.test/a.md",
     "sha256": "0" * 64,
+    "original": {"url": "https://example.test/a.pdf", "sha256": "1" * 64},
+    "conversion": "MarkItDown 0.1.9 (ed17895), plugin markitdown-pdf-headings 0.2.0 (f10b81b)",
     "license": "Public domain",
 }
 
@@ -48,8 +47,8 @@ def unanswerable(identifier="u1"):
     return question(identifier, "unanswerable", evidence=(), expected_answer=None, answerable=False)
 
 
-def write_dataset(directory, questions, key_points=()):
-    (directory / "books.yaml").write_text(yaml.safe_dump({"books": [BOOK]}), encoding="utf-8")
+def write_dataset(directory, questions, key_points=(), book=BOOK):
+    (directory / "books.yaml").write_text(yaml.safe_dump({"books": [book]}), encoding="utf-8")
     (directory / "questions.jsonl").write_text("".join(json.dumps(item) + "\n" for item in questions), encoding="utf-8")
     (directory / "chapter_key_points.jsonl").write_text(
         "".join(json.dumps(item) + "\n" for item in key_points), encoding="utf-8"
@@ -202,7 +201,11 @@ def test_the_dataset_loads_from_its_files(tmp_path):
 
     dataset = load_dataset(tmp_path)
 
-    assert dataset.book("a_book").title == "A Book"
+    book = dataset.book("a_book")
+    assert book.title == "A Book"
+    assert (book.filename, book.sha256) == ("a.md", "0" * 64)
+    assert (book.original.url, book.original.sha256) == ("https://example.test/a.pdf", "1" * 64)
+    assert book.conversion.startswith("MarkItDown 0.1.9")
     assert len(dataset.questions) == 1
     assert dataset.key_points[0].key_points == ("x",)
 
@@ -223,18 +226,18 @@ def test_the_checksum_identifies_the_exact_content(tmp_path):
     assert dataset_checksum(tmp_path) != before
 
 
-def test_a_book_that_changed_is_refused(tmp_path):
-    (tmp_path / "a.md").write_text("Different content", encoding="utf-8")
+def test_the_checksum_covers_the_markdown_books_through_their_sha256(tmp_path):
+    write_dataset(tmp_path, [question().model_dump(mode="json")])
+    before = dataset_checksum(tmp_path)
 
-    with pytest.raises(BenchmarkDatasetError, match="differs"):
-        fetch_books(dataset_of([question()]), tmp_path)
+    write_dataset(tmp_path, [question().model_dump(mode="json")], book=BOOK | {"sha256": "2" * 64})
+
+    assert dataset_checksum(tmp_path) != before
 
 
-def test_a_download_that_differs_is_not_kept(tmp_path, monkeypatch):
-    response = httpx.Response(200, content=b"Different content", request=httpx.Request("GET", BOOK["url"]))
-    monkeypatch.setattr(httpx, "get", lambda *args, **kwargs: response)
+def test_a_books_file_from_before_markdown_is_refused_naming_the_key(tmp_path):
+    old = {key: value for key, value in BOOK.items() if key not in ("original", "conversion")}
+    write_dataset(tmp_path, [question().model_dump(mode="json")], book=old | {"url": "https://example.test/a.epub"})
 
-    with pytest.raises(BenchmarkDatasetError, match="differs"):
-        fetch_books(dataset_of([question()]), tmp_path)
-
-    assert not (tmp_path / "a.md").exists()
+    with pytest.raises(BenchmarkDatasetError, match="url"):
+        load_dataset(tmp_path)

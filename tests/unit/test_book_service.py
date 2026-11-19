@@ -12,7 +12,6 @@ from app.errors import (
 from app.storage.catalog import BookStatus
 from app.storage.chroma import revision_filter, revision_key
 from app.storage.repositories import ProcessedDocuments
-from tests.documents import write_epub, write_pdf
 from tests.fakes import FakeEmbedder
 from tests.library import MARKDOWN, TEXT, Library, upload
 
@@ -212,30 +211,11 @@ def test_a_failed_book_is_marked_and_says_why(service, tmp_path):
     assert "'de'" in book.status_detail
 
 
-def test_pdf_books_keep_their_pages(library, tmp_path):
-    pages = [
-        [("Chapter One", 11), (TEXT, 11)],
-        [(TEXT, 11)],
-        [("Chapter Two", 11), (TEXT, 11)],
-    ]
-    path = write_pdf(tmp_path / "b.pdf", pages, toc=[[1, "Chapter One", 1], [1, "Chapter Two", 3]])
+def test_markdown_books_keep_their_chapters_in_order(library, tmp_path):
+    path = upload(tmp_path, "b.md", f"# One\n\n{TEXT}\n\n# Two\n\n{TEXT}\n")
 
-    book = library.books.add_book(path, "b.pdf")
+    book = library.books.add_book(path, "b.md")
 
     chunks = library.processed.load_chunks(book.book_id, book.revision)
-    assert book.format == "pdf"
-    assert {chunk.chapter_title for chunk in chunks} == {"Chapter One", "Chapter Two"}
-    assert chunks[0].page_start == 1
-    assert chunks[-1].page_end == 3
-
-
-def test_epub_books_have_no_pages_but_keep_their_chapters(library, tmp_path):
-    path = write_epub(tmp_path / "b.epub", [("a.xhtml", "One", f"<p>{TEXT}</p>"), ("b.xhtml", "Two", f"<p>{TEXT}</p>")])
-
-    book = library.books.add_book(path, "b.epub")
-
-    chunks = library.processed.load_chunks(book.book_id, book.revision)
-    assert book.title == "An EPUB Book"
-    assert book.author == "An Author"
+    assert book.format == "markdown"
     assert [chunk.chapter_title for chunk in chunks] == ["One", "Two"]
-    assert all(chunk.page_start is None for chunk in chunks)

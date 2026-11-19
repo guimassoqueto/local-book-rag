@@ -1,13 +1,9 @@
-"""Turns HTML into blocks. Both EPUB chapters and rendered Markdown arrive as HTML."""
+"""Turns HTML into blocks: Markdown is rendered to HTML, whose tags say what each block is."""
 
-import warnings
-
-from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 
 from app.ingestion.base import Block, BlockKind
-
-warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)  # every EPUB chapter is XHTML
 
 _HEADING_LEVELS = {f"h{level}": level for level in range(1, 7)}
 _SKIPPED = {"head", "script", "style", "template", "svg", "nav", "noscript", "object", "embed", "iframe"}
@@ -39,25 +35,15 @@ _BLOCK_TAGS = {
 }
 
 
-def html_to_blocks(html: str | bytes, anchors: frozenset[str] = frozenset()) -> tuple[list[Block], dict[str, int]]:
-    """Extract the blocks of an HTML document.
-
-    Args:
-        html: the document.
-        anchors: element IDs whose position the caller needs.
-
-    Returns:
-        The blocks in reading order, and for each anchor found, the index of the first
-        block at or after it.
-    """
+def html_to_blocks(html: str | bytes) -> list[Block]:
+    """Extract the blocks of an HTML document, in reading order."""
     soup = BeautifulSoup(html, "lxml")
     blocks: list[Block] = []
-    positions: dict[str, int] = {}
-    _walk(soup.body or soup, blocks, anchors, positions)
-    return blocks, positions
+    _walk(soup.body or soup, blocks)
+    return blocks
 
 
-def _walk(node: Tag, blocks: list[Block], anchors: frozenset[str], positions: dict[str, int]) -> None:
+def _walk(node: Tag, blocks: list[Block]) -> None:
     inline: list[str] = []
 
     def flush_inline() -> None:
@@ -73,23 +59,16 @@ def _walk(node: Tag, blocks: list[Block], anchors: frozenset[str], positions: di
         if not isinstance(child, Tag) or child.name in _SKIPPED:
             continue
         if child.name not in _BLOCK_TAGS and not child.find(_BLOCK_TAGS):
-            for tag in (child, *child.find_all(id=True)):
-                _record_anchor(tag, len(blocks) + (1 if "".join(inline).strip() else 0), anchors, positions)
             inline.append(child.get_text())
             continue
 
         flush_inline()
-        _record_anchor(child, len(blocks), anchors, positions)
-        _append_block(child, blocks, anchors, positions)
+        _append_block(child, blocks)
 
     flush_inline()
 
 
-def _append_block(tag: Tag, blocks: list[Block], anchors: frozenset[str], positions: dict[str, int]) -> None:
-    for inner in tag.find_all(id=True):
-        if tag.name in _HEADING_LEVELS or tag.name in {"p", "pre", "table", "ul", "ol"}:
-            _record_anchor(inner, len(blocks), anchors, positions)
-
+def _append_block(tag: Tag, blocks: list[Block]) -> None:
     if tag.name in _HEADING_LEVELS:
         if text := _collapse(tag.get_text()):
             blocks.append(Block(BlockKind.HEADING, text, level=_HEADING_LEVELS[tag.name]))
@@ -103,14 +82,9 @@ def _append_block(tag: Tag, blocks: list[Block], anchors: frozenset[str], positi
         if text := _list_text(tag):
             blocks.append(Block(BlockKind.LIST, text))
     elif tag.find(_BLOCK_TAGS):
-        _walk(tag, blocks, anchors, positions)
+        _walk(tag, blocks)
     elif text := _collapse(tag.get_text()):
         blocks.append(Block(BlockKind.PARAGRAPH, text))
-
-
-def _record_anchor(tag: Tag, position: int, anchors: frozenset[str], positions: dict[str, int]) -> None:
-    if (identifier := tag.get("id")) in anchors:
-        positions.setdefault(identifier, position)
 
 
 def _collapse(text: str) -> str:

@@ -79,7 +79,7 @@ class HealthService:
     def _gpu(self) -> CheckResult:
         status = self._gpu_probe()
         if status is None:
-            return CheckResult("gpu", False, "no GPU visible to the application: reranking and Docling stay on CPU")
+            return CheckResult("gpu", False, "no GPU visible to the application: the reranker stays on the CPU")
         memory = f"{status.memory_used_mb}/{status.memory_total_mb} MiB used"
         return CheckResult("gpu", True, f"{status.name}, {memory}")
 

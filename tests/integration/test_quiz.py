@@ -74,7 +74,7 @@ def writer(settings, monkeypatch):
 
 
 def passage(text):
-    return replace(make_chunk(text, book_id="on_liberty", section=None, page_start=None), book_title="On Liberty")
+    return replace(make_chunk(text, book_id="on_liberty", section=None), book_title="On Liberty")
 
 
 def test_an_english_passage_gives_a_question_in_the_language_named(writer, settings):

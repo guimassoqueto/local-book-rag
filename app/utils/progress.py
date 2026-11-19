@@ -1,7 +1,7 @@
 """What an operation on the library reports as it runs: its stages, counts, time left and outcome.
 
-An operation declares its stages before it starts and opens each one as it reaches it. The PDF
-loader counts pages and the embedding batches count chunks. The Library tab asks `snapshot()`,
+An operation declares its stages before it starts and opens each one as it reaches it. The
+embedding batches count chunks, and a reindex counts books. The Library tab asks `snapshot()`,
 and a command gives a sink, and both only show what they get (specs/004-library-progress).
 
 Nothing here raises into the operation: a mistake in reporting is logged, so that showing progress
@@ -33,7 +33,7 @@ class StageSpec:
     Attributes:
         key: the name in the log, such as "extract".
         label: the name on screen, such as "Extracting the text".
-        unit: what a count counts: pages, chunks, books, summaries or originals.
+        unit: what a count counts: chunks, books, summaries or originals.
         estimate: whether a count shows a time left. Not for books or summaries, whose sizes vary
             too much for the ones done to say anything about the ones left.
         steps: the stages inside each item, for the books of a reindex.
@@ -101,7 +101,6 @@ class _State:
         self.done: int | None = None
         self.total: int | None = None
         self.counted: tuple[int, int] | None = None  # (done, total), kept for the log line
-        self.ocr = False
         self.note: str | None = None
         self.item_id: str | None = None
         self.last_advance = started
@@ -132,8 +131,6 @@ class _State:
         fields: dict[str, Any] = {"stage": self.key}
         if self.counted is not None:
             fields.update(done=self.counted[0], total=self.counted[1], unit=self.spec.unit if self.spec else None)
-        if self.ocr:
-            fields["ocr"] = True
         fields["duration_seconds"] = now - self.started
         if within is not None:
             fields.update(within=within.key, item=within.item_id)
@@ -178,11 +175,6 @@ class Stage:
         """Mark what the stage's steps are now about, such as the book a reindex is indexing."""
         if self._progress is not None and self._state is not None:
             self._progress._item(self._state, item_id, note)
-
-    def uncount(self, note: str) -> None:
-        """Stop showing a count for the rest of the stage, which the log line keeps: OCR has no pages to count."""
-        if self._progress is not None and self._state is not None:
-            self._progress._uncount(self._state, note)
 
 
 _IDLE = Stage(None, None)
@@ -351,14 +343,6 @@ class Progress:
                 self._step = None
 
         self._update(state, mark, force=True)
-
-    def _uncount(self, state: _State, note: str) -> None:
-        def drop(now: float) -> None:
-            state.done = state.total = None
-            state.note = note
-            state.ocr = "OCR" in note
-
-        self._update(state, drop, force=True)
 
     def _update(self, state: _State, change: Callable[[float], Any], force: bool) -> Any:
         try:

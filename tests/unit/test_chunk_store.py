@@ -22,7 +22,7 @@ def store(server):
     return ChunkStore(server, COLLECTION)
 
 
-def chunk(book_id="book_001", index=0, text=None, chapter=1, page_start=3, section="Section", language="en"):
+def chunk(book_id="book_001", index=0, text=None, chapter=1, section="Section", language="en"):
     return Chunk(
         chunk_id=f"{book_id}_chapter_{chapter:02d}_chunk_{index:04d}",
         book_id=book_id,
@@ -30,8 +30,6 @@ def chunk(book_id="book_001", index=0, text=None, chapter=1, page_start=3, secti
         chapter_number=chapter,
         chapter_title="One",
         section_title=section,
-        page_start=page_start,
-        page_end=page_start,
         chunk_index=index,
         language=language,
         text=text or f"Text of {book_id} chunk {index}.",
@@ -56,14 +54,12 @@ def test_a_chunk_comes_back_exactly_as_it_went_in(store):
     assert found.chunk == original
 
 
-def test_null_pages_and_sections_stay_null(store):
-    original = chunk(page_start=None, section=None)
+def test_a_null_section_stays_null(store):
+    original = chunk(section=None)
     add(store, [original])
 
     [found] = store.query(embedder.embed_query(original.text), 1, everything(revision_key("book_001", 1)))
 
-    assert found.chunk.page_start is None
-    assert found.chunk.page_end is None
     assert found.chunk.section_title is None
 
 
@@ -148,20 +144,6 @@ def test_metadata_filters_narrow_a_query(store):
     [found] = store.query(embedder.embed_query("anything"), 10, filters)
 
     assert found.chunk.chapter_number == 2
-
-
-def test_a_page_range_never_matches_a_chunk_without_pages(store):
-    add(store, [chunk(index=0, page_start=None), chunk(index=1, page_start=5)])
-    filters = MetadataFilters(
-        filters=[
-            *everything(revision_key("book_001", 1)).filters,
-            MetadataFilter(key="page_start", value=1, operator=FilterOperator.GTE),
-        ]
-    )
-
-    [found] = store.query(embedder.embed_query("anything"), 10, filters)
-
-    assert found.chunk.page_start == 5
 
 
 def test_vectors_of_another_size_are_refused(store):

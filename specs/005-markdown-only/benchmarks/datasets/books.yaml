@@ -1,0 +1,49 @@
+# The three books of the benchmark, as Markdown. The owner converts them as they convert their own
+# books, with MarkItDown, and copies them into benchmarks/books; the benchmark checks each file's
+# sha256 before it reads it. The questions hold only for these files: rebuilding a book takes the
+# same conversion, and converting with a newer MarkItDown or other plugins makes a new version of
+# this dataset, whose quotes have to be validated again (`book-rag validate-benchmark`). Each
+# original is recorded for provenance, and never fetched. All three can be redistributed.
+books:
+  - key: quincas_borba
+    role: Portuguese book
+    title: Quincas Borba
+    author: Machado de Assis
+    language: pt
+    filename: quincas-borba.md
+    sha256: ae3e75a17484d4b732e54aff82ad6e108e51ffbb2d4c292a15509087240b5eb0
+    original:
+      url: https://www.gutenberg.org/ebooks/55682.epub3.images
+      sha256: 6b3ba37e0343c339983cf2ff5402f2a10b6799e7a3d891daaed24889b9e343c0
+    conversion: &conversion >-
+      MarkItDown 0.1.9 (microsoft/markitdown at ed17895), on Python 3.14.7, with the plugin
+      markitdown-pdf-headings 0.2.0 (guimassoqueto/markitdown-pdf-headings at f10b81b), which
+      handles PDFs only (EPUBs go through MarkItDown's built-in converter). Command:
+      markitdown --use-plugins BOOK > BOOK.md
+    license: Public domain, from Project Gutenberg
+
+  - key: think_python
+    role: English book
+    title: Think Python, 2nd edition
+    author: Allen B. Downey
+    language: en
+    filename: think-python.md
+    sha256: 380a8ec60e6368eb744302a4d6428190744bbc63924a753c68ded1587aba8e5c
+    original:
+      url: https://greenteapress.com/thinkpython2/thinkpython2.pdf
+      sha256: 6033000bac3f9268ad75ee041bf8e5d9a3bc8a33bb156399cbd014918cb59f94
+    conversion: *conversion
+    license: Creative Commons Attribution-NonCommercial 3.0
+
+  - key: on_liberty
+    role: Book of complex arguments and conceptual relationships
+    title: On Liberty
+    author: John Stuart Mill
+    language: en
+    filename: on-liberty.md
+    sha256: 5588535e4db9f47c3f60905af3d509bf53c18857d32c25d7c6ec7eecc3ed96e9
+    original:
+      url: https://www.gutenberg.org/ebooks/34901.epub3.images
+      sha256: 5ace8dd56417e22dfc28916200dacd6ec58bc246c1d3faf93991a4b34a96af3d
+    conversion: *conversion
+    license: Public domain, from Project Gutenberg

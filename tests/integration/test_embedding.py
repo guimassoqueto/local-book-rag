@@ -48,9 +48,7 @@ def store():
 
 
 def chunk(index, text):
-    return Chunk(
-        f"book_001_chapter_01_chunk_{index:04d}", "book_001", "T", 1, "One", None, None, None, index, "en", text
-    )
+    return Chunk(f"book_001_chapter_01_chunk_{index:04d}", "book_001", "T", 1, "One", None, index, "en", text)
 
 
 def embedder_for(settings, runtime, model):

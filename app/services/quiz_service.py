@@ -819,14 +819,8 @@ def _mark(right: bool) -> str:
 
 
 def _reference(passage: Chunk) -> str:
-    """Where a passage is: chapter, section and pages."""
-    if passage.page_start is None:
-        pages = ""
-    elif passage.page_end is None or passage.page_end == passage.page_start:
-        pages = f"p. {passage.page_start}"
-    else:
-        pages = f"pp. {passage.page_start}–{passage.page_end}"
-    return ", ".join(part for part in (passage.chapter_title, passage.section_title, pages) if part)
+    """Where a passage is: chapter and section."""
+    return ", ".join(part for part in (passage.chapter_title, passage.section_title) if part)
 
 
 def _ranking(questions: Sequence[Question], right: Sequence[bool]) -> tuple[ChapterTally, ...]:

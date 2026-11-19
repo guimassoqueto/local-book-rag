@@ -34,10 +34,10 @@ def book(**overrides):
         "book_id": "book_001",
         "title": "The Title",
         "author": None,
-        "original_filename": "b.pdf",
+        "original_filename": "b.md",
         "original_path": "x",
         "checksum": "c",
-        "format": "pdf",
+        "format": "markdown",
         "language": "en",
         "chapter_count": 3,
         "chunk_count": 30,
@@ -53,7 +53,7 @@ def book(**overrides):
 
 
 def passage(index=0, **scores):
-    return Passage(make_chunk(f"Text of passage {index}.", index=index, page_start=10 + index), **scores)
+    return Passage(make_chunk(f"Text of passage {index}.", index=index), **scores)
 
 
 def answer(passages=None, citations=None, candidates=None, generation=True, **overrides):
@@ -136,7 +136,10 @@ def test_the_index_status_warns_when_a_reindex_is_needed():
 
 
 def test_sources_list_what_the_answer_cites():
-    assert "**[1]** Title, Chapter 1, Section, p. 10" in formatting.sources_markdown(answer())
+    text = formatting.sources_markdown(answer())
+
+    assert "- **[1]** Title, Chapter 1, Section" in text
+    assert "p. " not in text
 
 
 def test_an_answer_without_sources_is_flagged():
@@ -158,9 +161,10 @@ def test_passages_show_the_original_text_and_what_was_cited():
     passages = [passage(0), passage(1)]
     text = formatting.passages_markdown(passages, [citation_for(1, passages[0].chunk)])
 
-    assert "**[1]** Title, Chapter 1, Section, p. 10 · cited" in text
+    assert "**[1]** Title, Chapter 1, Section · cited" in text
     assert "> Text of passage 0." in text
-    assert "**[2]** Title, Chapter 1, Section, p. 11\n" in text
+    assert "**[2]** Title, Chapter 1, Section\n" in text
+    assert "p. " not in text
 
 
 def test_timing_reports_the_inference():
@@ -173,11 +177,13 @@ def test_scores_show_every_stage_with_the_best_first():
 
     rows = formatting.score_rows(answer(passages=candidates[1:], candidates=candidates))
 
+    assert formatting.SCORE_COLUMNS == ["In context", "Chunk", "Chapter", "Dense", "BM25", "Fusion", "Reranker"]
     assert [row[1] for row in rows] == [candidates[1].chunk.chunk_id, candidates[0].chunk.chunk_id]
+    assert all(len(row) == len(formatting.SCORE_COLUMNS) for row in rows)
     assert rows[0][0] == "[1]"
     assert rows[1][0] == ""
-    assert rows[0][5] == "4.000"
-    assert rows[0][4] == ""
+    assert rows[0][4] == "4.000"
+    assert rows[0][3] == ""
 
 
 def test_the_run_report_covers_what_the_spec_asks_for():
@@ -432,8 +438,6 @@ def quiz_question(position=7, key="C"):
     passage = make_chunk(
         "Wages were high in Britain and energy was cheap, so machines paid.",
         section="Salários reais",
-        page_start=12,
-        page_end=13,
     )
     return Question(
         position=position,
@@ -473,7 +477,6 @@ def test_a_slot_shows_nothing_of_its_answer_before_submission():
     assert question.explanation not in shown
     assert question.passage.text not in shown
     assert "Salários reais" not in shown
-    assert "12" not in shown
     assert "✓" not in shown
 
 
@@ -487,8 +490,8 @@ def test_a_missed_question_shows_the_answers_the_explanation_and_the_passage():
     assert "Wages were high in Britain" in feedback
     assert "Title" in feedback
     assert "Chapter 1" in feedback
-    assert "Salários reais" in feedback
-    assert "pp. 12–13" in feedback
+    assert "Title, Chapter 1, Salários reais" in feedback
+    assert "p. " not in feedback
 
 
 def test_an_unanswered_question_says_so():
@@ -658,13 +661,17 @@ def test_the_time_left_is_rounded(seconds, text):
 
 
 def test_a_counted_stage_has_a_filling_bar():
-    view = progress_view(stage_view(done=130, total=244, unit="pages", time_left=9.2))
+    view = progress_view(
+        stage_view(
+            key="embed", label="Embedding the chunks", position=4, done=130, total=244, unit="chunks", time_left=9.2
+        )
+    )
 
     html = formatting.progress_html(view)
 
     assert '<progress value="130" max="244">' in html
-    assert "130 of 244 pages" in html and "about 10 s left" in html
-    assert "Extracting the text" in html and "stage 2 of 5" in html
+    assert "130 of 244 chunks" in html and "about 10 s left" in html
+    assert "Embedding the chunks" in html and "stage 4 of 5" in html
     assert "Adding a book" in html and "book_003" in html and "0:12" in html
 
 
@@ -786,7 +793,12 @@ def test_the_outcome_lines_of_each_operation():
 
 
 def test_the_commands_lines():
-    count = progress_view(stage_view(done=58, total=244, unit="pages", time_left=17.5), elapsed=4)
+    count = progress_view(
+        stage_view(
+            key="embed", label="Embedding the chunks", position=4, done=58, total=244, unit="chunks", time_left=17.5
+        ),
+        elapsed=4,
+    )
     reindex = progress_view(
         stage_view(
             key="books",
@@ -808,7 +820,7 @@ def test_the_commands_lines():
 
     assert formatting.progress_text(progress_view(elapsed=0)) == "[0:00] Adding a book, book_003: starting"
     assert formatting.progress_text(count) == (
-        "[0:04] Adding a book, book_003: stage 2 of 5, Extracting the text, 58 of 244 pages, about 20 s left"
+        "[0:04] Adding a book, book_003: stage 4 of 5, Embedding the chunks, 58 of 244 chunks, about 20 s left"
     )
     assert formatting.progress_text(reindex) == (
         "[0:40] Reindexing the library: stage 2 of 3, Indexing the books, 2 of 5 books, Quincas Borba: "
@@ -1031,3 +1043,42 @@ def test_a_refused_removal_empties_the_area_and_keeps_the_confirmation(interface
             values.append(value)
 
     assert values == [("", gr.skip())]
+
+
+# Markdown only (specs/005-markdown-only, FR-004, contracts/books.md, research.md R3)
+
+
+def pickers(interface):
+    return [block for block in interface.blocks.values() if isinstance(block, gr.File)]
+
+
+def test_both_pickers_offer_only_markdown(interface):
+    found = pickers(interface)
+
+    assert len(found) == 2
+    assert all(picker.file_types == [".md", ".markdown"] for picker in found)
+    assert all(picker.label == "Markdown book (.md, .markdown)" for picker in found)
+
+
+def test_the_tab_says_books_are_markdown_and_how_to_convert_one(interface):
+    notes = [
+        block.value
+        for block in interface.blocks.values()
+        if isinstance(block, gr.Markdown) and "Books are Markdown files" in str(block.value)
+    ]
+
+    assert notes == [
+        "Books are Markdown files. Convert a PDF or an EPUB to Markdown first, with MarkItDown for example. "
+        "The file's name becomes the book's title."
+    ]
+
+
+def test_each_picker_refuses_a_pdf_before_any_handler_runs(interface, tmp_path):
+    from gradio.data_classes import FileData
+
+    pdf = tmp_path / "book.pdf"
+    pdf.write_bytes(b"stand-in")
+
+    for picker in pickers(interface):
+        with pytest.raises(gr.Error, match="Invalid file type"):
+            picker.preprocess(FileData(path=str(pdf), orig_name="book.pdf"))

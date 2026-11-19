@@ -35,7 +35,6 @@ from app.evaluation.dataset import (
     relevant_chunks,
     validate_against_book,
 )
-from app.evaluation.extraction_metrics import extraction_scores
 from app.evaluation.generation_metrics import (
     RagasJudge,
     abstention_is_correct,
@@ -100,7 +99,6 @@ _PERFORMANCE_METRICS = (
     "peak_ram_mb",
     "gpu_fraction",
 )
-_EXTRACTION_METRICS = ("toc_coverage", "chapters", "chunks", "pages_covered")
 _QUIZ_ROW_METRICS = ("delivered_share", "seconds", "first_question_seconds")
 _QUESTION_METRICS = ("key_is_longest", "key_is_shortest", "closed_book_correct")
 QUIZ_METRICS = _QUIZ_ROW_METRICS + _QUESTION_METRICS
@@ -177,7 +175,7 @@ class Experiment(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str
-    kind: Literal["retrieval", "generation", "summarization", "performance", "extraction", "quiz", "quiz_check"]
+    kind: Literal["retrieval", "generation", "summarization", "performance", "quiz", "quiz_check"]
     description: str
     variants: tuple[VariantConfig, ...]
     judge: JudgeConfig | None = None
@@ -236,7 +234,6 @@ def index_key(settings: Settings) -> str:
         "embedding": settings.embedding.model,
         "profile": settings.embedding_profile.model_dump(),
         "chunking": settings.chunking.model_dump(),
-        "extraction": {"pdf": settings.pdf.model_dump(), "normalization": settings.normalization.model_dump()},
     }
     return hashlib.sha256(json.dumps(shape, sort_keys=True).encode()).hexdigest()[:10]
 
@@ -287,9 +284,9 @@ class BenchmarkRunner:
             The directory holding the results.
 
         Raises:
-            ConfigurationError: a local book's file is missing or isn't the expected one.
+            ConfigurationError: a book's file is missing or isn't the expected one.
         """
-        self._check_local_books(experiment)
+        self._check_books(experiment.local_books)
         environment = self._describe_environment(experiment, commit)  # first: a run can take hours
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
         directory = self._root / "results" / f"{experiment.name}_{stamp}"
@@ -310,9 +307,6 @@ class BenchmarkRunner:
             case "performance":
                 self._run_performance(experiment, rows)
                 metrics = _PERFORMANCE_METRICS
-            case "extraction":
-                self._run_extraction(experiment, rows)
-                metrics = _EXTRACTION_METRICS
             case "quiz":
                 reading: list[dict[str, Any]] = []
                 self._run_quiz(experiment, rows, reading)
@@ -323,9 +317,26 @@ class BenchmarkRunner:
         self._write(directory, experiment, environment, rows.all, metrics, limit)
         return directory
 
-    def _check_local_books(self, experiment: Experiment) -> None:
-        """Stop before any work when a local book isn't the owner's copy the experiment names."""
-        for book in experiment.local_books:
+    def _check_books(self, local_books: Sequence[LocalBook] = ()) -> None:
+        """Stop before any work when a book isn't the file the dataset or the experiment names.
+
+        The dataset's books are the owner's Markdown conversions, and its questions hold only for
+        the files they were validated against (specs/005-markdown-only, FR-018). A local book is
+        the owner's copy of a book that isn't public.
+        """
+        for book in self._dataset.books:
+            path = self._root / "books" / book.filename
+            if not path.is_file():
+                raise ConfigurationError(
+                    f"{book.key}: {path} is missing. The benchmark's books are Markdown conversions that the owner "
+                    "makes: see README, Benchmarks."
+                )
+            if (checksum := file_checksum(path)) != book.sha256:
+                raise ConfigurationError(
+                    f"{book.key}: {path} isn't the file the dataset names: its sha256 is {checksum}, not "
+                    f"{book.sha256}. Its evidence quotes may not be found in it."
+                )
+        for book in local_books:
             path = self._root / "books" / book.filename
             if not path.is_file():
                 raise ConfigurationError(f"{book.key}: {path} is missing. Copy the owner's file there first.")
@@ -336,13 +347,19 @@ class BenchmarkRunner:
                 )
 
     def validate(self) -> list[str]:
-        """Check every question against the real text of its book, as the current code extracts it."""
+        """Check every question against the real text of its book, as the current code extracts it.
+
+        Raises:
+            ConfigurationError: a book's file is missing or isn't the one the dataset names.
+        """
+        self._check_books()
         pipeline = build_pipeline(self._settings)
         problems: list[str] = []
         for entry in self._dataset.books:
             self._say(f"checking {entry.title}")
             path = self._root / "books" / entry.filename
-            processed = pipeline.process(path, validate_upload(path, entry.filename, 2**30), "book", entry.title)
+            title = Path(entry.filename).stem  # as the library titles it
+            processed = pipeline.process(path, validate_upload(path, entry.filename, 2**30), "book", title)
             chapters = [chapter.title for chapter in processed.structure.chapters]
             problems.extend(validate_against_book(self._dataset, entry.key, processed.chunks, chapters))
         return problems
@@ -589,16 +606,6 @@ class BenchmarkRunner:
                 }
             )
 
-    def _run_extraction(self, experiment: Experiment, rows: "_Rows") -> None:
-        for variant in experiment.variants:
-            settings = apply_overrides(self._settings, variant.overrides)
-            pipeline = build_pipeline(settings)
-            for entry in self._dataset.books:
-                self._say(f"{variant.name}: extracting {entry.title}")
-                path = self._root / "books" / entry.filename
-                processed = pipeline.process(path, validate_upload(path, entry.filename, 2**30), "book", entry.title)
-                rows.append({"variant": variant.name, "book": entry.key, **asdict(extraction_scores(path, processed))})
-
     def _run_quiz_check(self, experiment: Experiment, rows: "_Rows") -> None:
         """Run the key check, and the comparator, over the known cases of one set (FR-026, FR-027).
 
@@ -769,7 +776,6 @@ class BenchmarkRunner:
                     "question": identifier,
                     "book": target.book,
                     "chapter": passage.chapter_title,
-                    "pages": "" if passage.page_start is None else f"{passage.page_start}-{passage.page_end}",
                     "passage": passage.text,
                     "text": question.text,
                     **dict(zip(QUIZ_LETTERS, question.options, strict=True)),
@@ -872,10 +878,8 @@ def _relevant_places(evidence: Sequence[set[str]], chunks: Sequence[Chunk]) -> d
     """Say where a question's evidence is under this chunking: the dataset only holds the quotes."""
     relevant = set().union(*evidence) if evidence else set()
     found = [chunk for chunk in chunks if chunk.chunk_id in relevant]
-    pages = sorted({page for chunk in found for page in (chunk.page_start, chunk.page_end) if page is not None})
     return {
         "relevant_chapters": "; ".join(dict.fromkeys(chunk.chapter_title for chunk in found)),
-        "relevant_pages": f"{pages[0]}-{pages[-1]}" if pages else "",
         "relevant_chunks": "; ".join(chunk.chunk_id for chunk in found),
     }
 

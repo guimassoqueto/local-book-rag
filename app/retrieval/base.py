@@ -15,28 +15,19 @@ class RetrievalFilters:
         chapter_numbers: chapters, as positions in the book.
         section_titles: sections, by their exact title.
         languages: ISO 639-1 codes.
-        page_start: first page of a range. A chunk qualifies if it overlaps the range, so
-            chunks without pages never do.
-        page_end: last page of a range.
     """
 
     book_ids: tuple[str, ...] = ()
     chapter_numbers: tuple[int, ...] = ()
     section_titles: tuple[str, ...] = ()
     languages: tuple[str, ...] = ()
-    page_start: int | None = None
-    page_end: int | None = None
 
     def allows(self, chunk: Chunk) -> bool:
         if self.chapter_numbers and chunk.chapter_number not in self.chapter_numbers:
             return False
         if self.section_titles and chunk.section_title not in self.section_titles:
             return False
-        if self.languages and chunk.language not in self.languages:
-            return False
-        if self.page_start is not None and (chunk.page_end is None or chunk.page_end < self.page_start):
-            return False
-        return self.page_end is None or (chunk.page_start is not None and chunk.page_start <= self.page_end)
+        return not (self.languages and chunk.language not in self.languages)
 
 
 @dataclass(frozen=True)

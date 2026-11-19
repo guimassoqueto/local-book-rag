@@ -1,18 +1,3 @@
-pdf:
-  # pymupdf reads most books quickly. docling runs layout models over the pages, which is
-  # slower and suits complex layouts.
-  extractor: pymupdf
-  extract_tables: true
-
-  ocr:
-    # Scanned PDFs go through Docling's OCR when enabled, and are rejected otherwise.
-    enabled: false
-
-
-normalization:
-  remove_repeated_margins: true
-
-
 languages:
   # ISO 639-1 codes. A book in any other language is rejected.
   supported: [en, pt, es, fr, de, it]
@@ -30,4 +15,3 @@ chunking:
     chapters: true
     sections: true
     paragraphs: true
-    page_numbers: true

@@ -27,7 +27,7 @@ class FakeRetrieval:
 
 def passages(*texts):
     return [
-        Passage(make_chunk(text, index=index, chapter=4, section="Costs", page_start=85 + index), rerank_score=0.9)
+        Passage(make_chunk(text, index=index, chapter=4, section="Costs"), rerank_score=0.9)
         for index, text in enumerate(texts)
     ]
 
@@ -57,7 +57,7 @@ def test_an_answer_cites_the_passages_it_used(settings):
     [citation] = answer.citations
     assert citation.chapter_title == "Chapter 4"
     assert citation.section_title == "Costs"
-    assert citation.page_start == 85
+    assert citation.reference == "Title, Chapter 4, Costs"
     assert not answer.insufficient_evidence
 
 
@@ -86,7 +86,8 @@ def test_passages_reach_the_prompt_with_their_sources(settings):
     ask(settings, llm)
 
     prompt = user_message(llm)
-    assert "[1] Book: Title | Chapter: Chapter 4 | Section: Costs | Pages: 85-85" in prompt
+    assert "[1] Book: Title | Chapter: Chapter 4 | Section: Costs\n" in prompt
+    assert "Pages" not in prompt
     assert "Opportunity cost is what you give up." in prompt
     assert prompt.endswith("Question: What is opportunity cost?")
 
@@ -104,13 +105,12 @@ def test_the_prompt_carries_the_spec_requirements(settings):
     assert NO_EVIDENCE_MARKER in system
 
 
-def test_formats_without_pages_leave_them_out(settings):
+def test_a_passage_without_a_section_leaves_it_out(settings):
     chunk = make_chunk("Text.", section=None)
     llm = FakeLLM(["Answer [1]."])
 
     QuestionAnsweringService(settings, FakeRetrieval([Passage(chunk)]), llm).answer("Q?", RetrievalFilters())
 
-    assert "Pages" not in user_message(llm)
     assert "Section" not in user_message(llm)
 
 

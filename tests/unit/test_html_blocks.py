@@ -3,7 +3,7 @@ from app.ingestion.html_blocks import html_to_blocks
 
 
 def blocks_of(html):
-    return html_to_blocks(html)[0]
+    return html_to_blocks(html)
 
 
 def test_extracts_each_kind_of_block():
@@ -70,23 +70,6 @@ def test_loose_text_between_blocks_is_kept():
     blocks = blocks_of("<div>Loose <b>text</b><p>Inside</p>after</div>")
 
     assert [block.text for block in blocks] == ["Loose text", "Inside", "after"]
-
-
-def test_anchors_point_at_their_blocks():
-    _, positions = html_to_blocks(
-        '<p>Intro</p><h2 id="first">One</h2><p>Body</p><div id="second"><p>Two</p></div>',
-        anchors=frozenset({"first", "second", "missing"}),
-    )
-
-    assert positions == {"first": 1, "second": 3}
-
-
-def test_inline_anchors_point_at_the_block_holding_them():
-    _, positions = html_to_blocks(
-        '<p>Intro</p><p><a id="target"></a>The section starts here.</p>', anchors=frozenset({"target"})
-    )
-
-    assert positions == {"target": 1}
 
 
 def test_table_cells_escape_pipes():

@@ -69,18 +69,15 @@ def test_numbers_that_match_no_source_are_reported():
     assert invented == [7, 0]
 
 
-def test_a_reference_names_everything_that_exists():
-    chunk = make_chunk(section="Economic Decisions", page_start=85, page_end=87)
+def test_a_reference_is_the_book_the_chapter_and_the_section():
+    chunk = make_chunk(section="Economic Decisions")
 
-    assert citation_for(1, chunk).reference == "Title, Chapter 1, Economic Decisions, pp. 85-87"
+    assert citation_for(1, chunk).reference == "Title, Chapter 1, Economic Decisions"
+    assert not hasattr(citation_for(1, chunk), "pages")
 
 
-def test_a_reference_skips_what_a_format_lacks():
+def test_a_reference_skips_a_missing_section():
     assert citation_for(1, make_chunk(section=None)).reference == "Title, Chapter 1"
-
-
-def test_a_single_page_reads_naturally():
-    assert citation_for(1, make_chunk(page_start=85)).pages == "p. 85"
 
 
 def test_the_excerpt_opens_the_passage():

@@ -29,8 +29,6 @@ class Chunk:
     chapter_number: int
     chapter_title: str
     section_title: str | None
-    page_start: int | None
-    page_end: int | None
     chunk_index: int
     language: str | None
     text: str
@@ -45,8 +43,6 @@ class _Piece:
         tokens: its length.
         kind: the kind of block it came from.
         joiner: what separates it from the piece before it in a chunk.
-        page_start: first page of its block.
-        page_end: last page of its block.
         section_title: the section it belongs to.
     """
 
@@ -54,8 +50,6 @@ class _Piece:
     tokens: int
     kind: BlockKind
     joiner: str
-    page_start: int | None
-    page_end: int | None
     section_title: str | None
 
 
@@ -81,8 +75,6 @@ class Chunker:
         for chapter in structure.chapters:
             for pieces in self._chapter_groups(chapter):
                 index = len(chunks)
-                pages = [page for piece in pieces for page in (piece.page_start, piece.page_end) if page is not None]
-                keep_pages = self._config.preserve.page_numbers and pages
                 chunks.append(
                     Chunk(
                         chunk_id=f"{book_id}_chapter_{chapter.number:02d}_chunk_{index:04d}",
@@ -91,8 +83,6 @@ class Chunker:
                         chapter_number=chapter.number,
                         chapter_title=chapter.title,
                         section_title=pieces[-1].section_title,
-                        page_start=min(pages) if keep_pages else None,
-                        page_end=max(pages) if keep_pages else None,
                         chunk_index=index,
                         language=structure.language,
                         text=pieces[0].text + "".join(piece.joiner + piece.text for piece in pieces[1:]),
@@ -117,7 +107,7 @@ class Chunker:
         """Keep a block whole when it fits. Otherwise divide it at the gentlest boundary that works."""
 
         def piece(text: str, joiner: str) -> _Piece:
-            return _Piece(text, self._count(text), block.kind, joiner, block.page_start, block.page_end, section_title)
+            return _Piece(text, self._count(text), block.kind, joiner, section_title)
 
         fits = self._count(block.text) <= self._config.target_size
         if fits and (self._config.preserve.paragraphs or block.kind is not BlockKind.PARAGRAPH):
@@ -186,7 +176,7 @@ class Chunker:
     def _fixed_windows(self, chapter: Chapter) -> Iterator[list[_Piece]]:
         """The baseline that structural chunking is measured against: windows over the chapter's words."""
         words = [
-            _Piece(word, self._count(word), block.kind, _SPACE, block.page_start, block.page_end, section.title)
+            _Piece(word, self._count(word), block.kind, _SPACE, section.title)
             for section in chapter.sections
             for block in section.blocks
             for raw in block.text.split()

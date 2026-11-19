@@ -13,10 +13,10 @@ from app.storage.chroma import ChromaServer, ChunkStore
 from tests.fakes import FakeEmbedder, make_chunk
 
 CHUNKS = [
-    make_chunk("One.", index=0, chapter=1, section="Intro", page_start=1, page_end=2, language="en"),
-    make_chunk("Two.", index=1, chapter=1, section="Body", page_start=3, page_end=5, language="en"),
-    make_chunk("Three.", index=2, chapter=2, section="Body", page_start=6, page_end=6, language="pt"),
-    make_chunk("Four.", index=3, chapter=3, section=None, page_start=None, language="pt"),
+    make_chunk("One.", index=0, chapter=1, section="Intro", language="en"),
+    make_chunk("Two.", index=1, chapter=1, section="Body", language="en"),
+    make_chunk("Three.", index=2, chapter=2, section="Body", language="pt"),
+    make_chunk("Four.", index=3, chapter=3, section=None, language="pt"),
 ]
 
 CASES = [
@@ -25,12 +25,8 @@ CASES = [
     RetrievalFilters(chapter_numbers=(1, 3)),
     RetrievalFilters(section_titles=("Body",)),
     RetrievalFilters(languages=("pt",)),
-    RetrievalFilters(page_start=3),
-    RetrievalFilters(page_end=2),
-    RetrievalFilters(page_start=2, page_end=4),
-    RetrievalFilters(page_start=5, page_end=5),
-    RetrievalFilters(page_start=100),
-    RetrievalFilters(chapter_numbers=(1,), section_titles=("Body",), languages=("en",), page_start=4),
+    RetrievalFilters(chapter_numbers=(1,), section_titles=("Body",), languages=("en",)),
+    RetrievalFilters(chapter_numbers=(3,), languages=("en",)),
 ]
 
 
@@ -52,15 +48,8 @@ def test_chromadb_and_python_agree(dense, filters):
     assert {p.chunk.chunk_index for p in found} == {c.chunk_index for c in CHUNKS if filters.allows(c)}
 
 
-def test_a_page_range_means_overlap():
-    filters = RetrievalFilters(page_start=2, page_end=4)
-
-    assert [chunk.chunk_index for chunk in CHUNKS if filters.allows(chunk)] == [0, 1]
-
-
-def test_chunks_without_pages_never_match_a_page_range():
-    assert not RetrievalFilters(page_start=1).allows(CHUNKS[3])
-    assert not RetrievalFilters(page_end=100).allows(CHUNKS[3])
+def test_filters_have_no_page_range():
+    assert {"page_start", "page_end"}.isdisjoint(RetrievalFilters.__dataclass_fields__)
 
 
 def test_every_scope_is_limited_to_one_revision():

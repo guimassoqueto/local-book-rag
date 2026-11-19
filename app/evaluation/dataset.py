@@ -1,5 +1,10 @@
 """The benchmark dataset: its books, its questions, and what a correct answer rests on.
 
+The books are Markdown files that the owner converts, as they convert their own books, and the
+dataset names each one by its sha256: the benchmark checks the file before it reads it, so no
+question is measured against a text it wasn't validated on. Where each came from, and how it was
+converted, is kept for provenance (specs/005-markdown-only, FR-018).
+
 Relevance is stored as evidence, verbatim quotes from the book, and not as chunk IDs. IDs change
 with every chunk size and comparing chunk sizes is one of the experiments, while a quote finds
 its chunks under any configuration.
@@ -12,13 +17,11 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
-import httpx
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 
 from app.errors import BenchmarkDatasetError
 from app.ingestion.chunker import Chunk
-from app.utils.hashing import file_checksum
 
 Category = Literal["factual", "conceptual", "multi_section", "chapter_specific", "unanswerable"]
 
@@ -40,15 +43,35 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+class BookOrigin(_Model):
+    """The file a benchmark book was converted from. Never fetched: it is provenance."""
+
+    url: str
+    sha256: str
+
+
 class BenchmarkBook(_Model):
+    """One of the dataset's books.
+
+    Attributes:
+        title: names the book in the benchmark's messages. The library titles it by its file name.
+        author: provenance. The library reads no author.
+        filename: the Markdown file in benchmarks/books.
+        sha256: that file's, checked before a run reads it.
+        original: what it was converted from.
+        conversion: MarkItDown's version and commit, each plugin's name, version and commit, and
+            the command, as the owner gives them.
+    """
+
     key: str
     role: str
     title: str
     author: str
     language: str
     filename: str
-    url: str
     sha256: str
+    original: BookOrigin
+    conversion: str
     license: str
 
 
@@ -134,36 +157,6 @@ def dataset_checksum(directory: Path) -> str:
     for name in (_BOOKS_FILE, _QUESTIONS_FILE, _KEY_POINTS_FILE):
         digest.update((directory / name).read_bytes())
     return digest.hexdigest()
-
-
-def fetch_books(dataset: BenchmarkDataset, directory: Path) -> list[str]:
-    """Download the dataset's books, checking that each is the file the dataset was written against.
-
-    Returns:
-        A line about each book.
-
-    Raises:
-        BenchmarkDatasetError: a book differs from its checksum.
-    """
-    directory.mkdir(parents=True, exist_ok=True)
-    report = []
-    for book in dataset.books:
-        path = directory / book.filename
-        if path.exists():
-            checksum = file_checksum(path)
-        else:
-            response = httpx.get(book.url, follow_redirects=True, timeout=120)
-            response.raise_for_status()
-            checksum = hashlib.sha256(response.content).hexdigest()
-            if checksum == book.sha256:  # a wrong download kept on disk would fail every later run
-                path.write_bytes(response.content)
-        if checksum != book.sha256:
-            raise BenchmarkDatasetError(
-                f"{book.filename} differs from the file this dataset was written against. "
-                "Its evidence quotes may no longer be found in it."
-            )
-        report.append(f"{book.key}: {path}")
-    return report
 
 
 def _comparable(text: str) -> str:

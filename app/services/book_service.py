@@ -53,7 +53,7 @@ def indexed_update(
         chapters=chapters,
         fields={
             "title": processed.title,
-            "author": processed.author,
+            "author": None,  # never read: a later feature may fill it (specs/005-markdown-only, FR-005)
             "language": processed.language,
             "chapter_count": len(chapters),
             "chunk_count": len(processed.chunks),

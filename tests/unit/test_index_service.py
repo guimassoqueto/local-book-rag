@@ -4,6 +4,7 @@ import chromadb
 import pytest
 
 from app.errors import EmbeddingDimensionError, ReindexRequiredError
+from app.services import index_service
 from app.services.index_service import IndexService
 from app.storage.catalog import BookCatalog
 from app.storage.chroma import ChromaServer
@@ -145,3 +146,24 @@ def test_the_index_survives_reopening_the_catalog(settings, catalog, server, tmp
     record = indexes(settings, catalog, server).require_writable()
 
     assert indexes(settings, BookCatalog(tmp_path / "catalog.db"), server).active() == record
+
+
+# Pages removed from the chunk metadata (specs/005-markdown-only, FR-015, research.md R7)
+
+
+def test_the_fingerprint_holds_the_metadata_schema_without_pages(settings, catalog, server):
+    configuration = json.loads(indexes(settings, catalog, server).require_writable().configuration)
+
+    assert configuration["metadata_schema"] == 2
+    assert "page_numbers" not in configuration["chunking"]["preserve"]
+
+
+def test_an_index_built_before_pages_were_removed_needs_a_reindex(settings, catalog, server, monkeypatch):
+    with monkeypatch.context() as patch:
+        patch.setattr(index_service, "METADATA_SCHEMA_VERSION", 1)
+        indexes(settings, catalog, server).require_writable()
+    service = indexes(settings, catalog, server)
+
+    assert service.needs_reindex()
+    with pytest.raises(ReindexRequiredError, match="reindex-all"):
+        service.require_writable()

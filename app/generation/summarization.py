@@ -478,8 +478,8 @@ def _with_references(text: str, citations: Sequence[Citation]) -> str:
         return text
     lines = []
     for citation in citations:
-        place = ", ".join(part for part in (citation.section_title, citation.pages) if part)
-        lines.append(f"- [{citation.number}] " + (f"{place}: " if place else "") + f"“{citation.excerpt}”")
+        place = f"{citation.section_title}: " if citation.section_title else ""
+        lines.append(f"- [{citation.number}] {place}“{citation.excerpt}”")
     return f"{text.rstrip()}{_REFERENCES}" + "\n".join(lines)
 
 

@@ -100,7 +100,6 @@ class ChunkPreservation(ConfigModel):
     chapters: Literal[True]  # a chunk's metadata names one chapter
     sections: bool
     paragraphs: bool
-    page_numbers: bool
 
 
 class ChunkingConfig(ConfigModel):
@@ -109,20 +108,6 @@ class ChunkingConfig(ConfigModel):
     overlap: int = Field(ge=0)
     unit: Literal["tokens"]
     preserve: ChunkPreservation
-
-
-class PdfOcrConfig(ConfigModel):
-    enabled: bool
-
-
-class PdfConfig(ConfigModel):
-    extractor: Literal["pymupdf", "docling"]
-    extract_tables: bool
-    ocr: PdfOcrConfig
-
-
-class NormalizationConfig(ConfigModel):
-    remove_repeated_margins: bool
 
 
 class LanguagesConfig(ConfigModel):
@@ -275,8 +260,6 @@ class Settings(ConfigModel):
     reranker: RerankerModelConfig
     embedding_profiles: dict[str, EmbeddingProfile]
     llm_profiles: dict[str, LLMProfile]
-    pdf: PdfConfig
-    normalization: NormalizationConfig
     languages: LanguagesConfig
     chunking: ChunkingConfig
     retrieval: RetrievalConfig

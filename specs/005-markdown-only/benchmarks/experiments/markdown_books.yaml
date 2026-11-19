@@ -1,0 +1,8 @@
+name: markdown_books
+kind: retrieval
+description: >-
+  The default configuration, run on main with the original PDF and EPUBs and on the branch with
+  their Markdown conversions, to compare question by question (specs/005-markdown-only).
+
+variants:
+  - name: default
