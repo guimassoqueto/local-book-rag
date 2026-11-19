@@ -325,6 +325,15 @@ The rest the agent settled.
   - The edge cases cover a single top-level heading, front matter that doesn't parse, and the
     file's name.
 
+### Corrections from convergence, 2026-11-19
+
+- **For a command, SC-003's second is timed from the service call.** On the real stack, each
+  command's refusal took about 2.85 s from the command's start, but the refusal itself takes
+  43 ms in the service. The rest is the command starting up, its imports, which every command
+  pays: `list-books` takes about 2.8 s too, on `main` as well. The owner chose to time the
+  service call (`tasks.md`, Notes, T051, and T059). In the tab, the second is still timed from
+  the click.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -581,8 +590,9 @@ The rest the agent settled.
   longer exist (FR-014); the title and the author (FR-005); and the title of a heading-less
   file's only chapter, which is the book's title.
 - **SC-003**: A PDF and an EPUB are refused in each of the four ways in (tab add, tab replace,
-  `add-book`, `replace-book`), each within a second of the click or of the command's start.
-  Afterwards, these are as they were before the attempt, compared as the unit tests' library
+  `add-book`, `replace-book`), each within a second of the click, in the tab, or of the service
+  call, for a command: a command's startup, which every command pays, isn't counted (Corrections
+  from convergence). Afterwards, these are as they were before the attempt, compared as the unit tests' library
   snapshot compares them: the catalog's rows, the journal's entries, the index's chunks, and the
   files under the library's data directory.
 - **SC-004**: The image no longer contains Docling, PyMuPDF or EbookLib, and is smaller than

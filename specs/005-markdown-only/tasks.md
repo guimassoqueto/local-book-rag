@@ -724,3 +724,12 @@ Task: "T026 Pages, OCR, extraction and Docling out of the interface, command, be
     ```
   - **After the merge:** the stashed dependency bump is redone as its own `chore:` with
     `make update`, and `stash@{0}` is dropped.
+
+---
+
+## Phase 7: Convergence
+
+- [X] T059 Settle how SC-003's "within a second" is measured. Refusing a PDF or an EPUB from a command takes about 2.85 s, while the refusal itself takes 43 ms in the service, and every command, `list-books` included, takes about 2.8 s to start (tasks.md Notes, T051). Ask the owner whether SC-003 means the service call. If so, record it in spec.md's corrections (quickstart.md § 6 already says so). If not, make the commands reach the service within a second, for example by importing `app/main.py`'s heavy modules lazily, and measure again. Per SC-003 (partial)
+  - **Done.** The owner chose "Measure the service call". SC-003 now times a command's refusal
+    from the service call, and spec.md's "Corrections from convergence" says why. quickstart.md
+    § 6 already said so. No code changed.
