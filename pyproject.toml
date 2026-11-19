@@ -92,8 +92,10 @@ line-length = 120
 # blocks inside .md files, which rewrites hand-aligned snippets in the docs.
 # Notebooks are left as written too: ruff lints and formats .ipynb cells by default
 # (.ipynb is the only notebook format it reads).
+# Spec Kit's scripts are generated: a reformatted one no longer matches the hash Spec
+# Kit recorded, and `specify integration upgrade` would refuse to refresh it.
 # extend-exclude (not exclude) keeps ruff's own default exclusions in place.
-extend-exclude = ["*.md", "*.ipynb", "devtools"]
+extend-exclude = ["*.md", "*.ipynb", "devtools", ".specify/scripts"]
 
 [tool.ruff.lint]
 select = [
