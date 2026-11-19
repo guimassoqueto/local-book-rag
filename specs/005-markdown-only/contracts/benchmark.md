@@ -51,8 +51,11 @@ uv run python devtools/compare_runs.py BASELINE_RESULTS CHANGED_RESULTS --labels
 ```
 
 It runs on the host, on the branch's code. It reads `results.json` from two retrieval results
-directories, each with one variant, and writes Markdown to standard output:
+directories, each with one variant. It leaves out every question whose `relevant_chunks` is empty
+in either run, because none of its evidence resolved to a chunk, and counts them (FR-020). Then it
+writes Markdown to standard output:
 1. Each run's environment line: the commit, the dataset's sha256, each book's sha256, the date.
+   Then the questions left out, by ID, with the run where their evidence resolved nowhere.
 2. Both runs' summaries side by side, from `app.evaluation.report`'s rendering.
 3. The paired difference of each metric, `markdown − originals`, with its 95% interval from
    `paired_difference`: 4,000 resamples, pairs by question ID. An interval that leaves zero out is
@@ -69,7 +72,7 @@ not retrieval runs.
 | ---- | ----------- | ------------------------------------------------ |
 | `datasets/books.yaml`, `questions.jsonl`, `chapter_key_points.jsonl` | `benchmarks/datasets/` | `specs/005-markdown-only/benchmarks/datasets/`, as validated |
 | `experiments/markdown_books.yaml` | `benchmarks/experiments/` | `specs/005-markdown-only/benchmarks/experiments/` |
-| `experiments/quiz.yaml`, `quiz_models.yaml`, `quiz_check.yaml` | `benchmarks/experiments/`, local book pointed to the Markdown | `specs/005-markdown-only/benchmarks/experiments/` |
+| `experiments/quiz.yaml`, `quiz_models.yaml`, `quiz_check.yaml` | `benchmarks/experiments/`, untouched: the next feature removes the quiz | unchanged in `specs/003-chapter-quiz/benchmarks/` |
 | the other experiments | `benchmarks/experiments/`, `extraction.yaml` deleted | unchanged at `c7bb785` |
 | the three Markdown books, the owner's História | `benchmarks/books/` | never: the checksums and provenance identify them |
 

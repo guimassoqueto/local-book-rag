@@ -243,22 +243,27 @@ to 2.151.0. The running app image was built at 11:43 on 2026-11-19 from `main`'s
 `app/`, `config/` and `pyproject.toml` match `main` byte for byte, but from that bumped lock, and
 it reports gradio 6.32.0 and docling 2.151.0.
 
-**Decision.** The bump never enters this feature's commits. Before any `uv` command of this
-feature, image build, or baseline run, one of these two holds, and the owner chooses which:
-1. **It lands first** as its own `chore: update dependencies` pull request, as PR #14 and PR #15
-   did, and this branch is rebased on it (recommended). The running image is then exactly `main`'s,
-   code and lock, so the baselines of R12 and R13 run on it as it is, without a rebuild that would
-   empty the owner's library before its time. SC-004 compares two images that differ only by this
-   feature, and the feature's `uv lock` starts from `main`'s lock.
-2. **It is stashed for the feature's whole length**, which takes
-   `git stash push -m "chore: commitizen 4.19.4 + uv.lock (owner undecided)" -- .pre-commit-config.yaml uv.lock`.
-   It is put back only after the pull request is open. The running image then isn't `main`'s, so
-   `make up` rebuilds it from `main` before the baselines, which empties the library: today one
-   book, `book_001`, `01_historia_economica_global`.
+**Decision.** The owner left this to the agent, at the checklist (CHK027).
+1. **The bump is stashed for the feature's whole length**, from the checklist's resolution on,
+   with `git stash push -m "chore: commitizen 4.19.4 + uv.lock (owner undecided)" -- .pre-commit-config.yaml uv.lock`.
+2. **Before the baselines, `make up` rebuilds the running image** from `main`'s committed lock.
+   The branch's `app/`, `config/` and `pyproject.toml` are still `main`'s at that point, so the
+   image is exactly `main`'s. The rebuild empties the library, today one book, `book_001`
+   (`01_historia_economica_global`). The owner allows that at any time (CHK006).
+3. **This feature's `uv lock`** then starts from `main`'s lock, and its image differs from the
+   baseline's by this feature only.
+4. **After this feature merges**, the dependency update is redone as its own `chore:` with
+   `make update`, which recomputes the lock from the merged `pyproject.toml`. The stash is only a
+   reference for that chore, and is dropped once it lands.
 
 **Rationale.** A lock computed from the bumped one would carry a dozen unrelated upgrades into a
 `feat!` commit. A baseline image that differs from the branch's by more than the feature makes
-SC-004's size comparison and R13's runs compare two changes at once.
+SC-004's size comparison and R13's runs compare two changes at once. Landing the bump first as
+its own pull request would also keep both clean, but it needs a push and a merge before the
+feature can move. Stashing needs neither, and the owner has accepted emptying the library.
+
+**Alternatives considered.** *Landing the bump first, as PR #14 and PR #15 did, and rebasing this
+branch on it.* It is just as clean. It is set aside only because it waits on a pull request.
 
 ## R11. The benchmark's books
 
@@ -281,11 +286,9 @@ the books are converted by the owner and names the README's section. Then:
 - `fetch-benchmark-books` goes: the subcommand, `fetch_books`, and their tests.
 - The extraction experiment goes too (R15).
 - On the host, `benchmarks/experiments/extraction.yaml` is deleted.
-- The quiz experiments' local book (`quiz.yaml`, `quiz_models.yaml`, `quiz_check.yaml`) points
-  to the owner's Markdown, `01_historia_economica_global.md`, with its checksum.
-
-`quiz_check.yaml`'s known cases quote the PDF's text, and nothing in this feature runs them, so
-`docs/benchmark-results.md` notes they are checked when the quiz benchmarks next run.
+- The quiz experiments (`quiz.yaml`, `quiz_models.yaml`, `quiz_check.yaml`) aren't touched. They
+  still name the PDF of *História econômica global*, and the next feature removes the quiz (spec,
+  Assumptions).
 
 The evidence quotes are corrected by hand, as FR-019 sets out:
 1. Run `validate-benchmark` on the Markdown books.
@@ -295,8 +298,11 @@ The evidence quotes are corrected by hand, as FR-019 sets out:
    the Markdown gives, under the same rule.
 4. Run it again until it reports nothing.
 
-No question is dropped. `docs/benchmark-results.md` records how many quotes and chapter names
-changed, and any quote that couldn't be corrected, with the reason.
+No question is dropped. A chapter the conversion merged, split or lost is replaced: a question
+takes the Markdown chapter that holds its first evidence quote, and a key point the one that holds
+the original chapter's opening (FR-019). `docs/benchmark-results.md` records how many quotes and
+chapter names changed, each replaced chapter, and any quote that couldn't be corrected, with the
+reason.
 
 **Rationale.** Checking the books where the work starts keeps the guarantee that
 `fetch-benchmark-books` gave: no question is measured against a text it wasn't validated on.
@@ -318,16 +324,18 @@ versions of the code (R4).
 
 It runs twice on the same files: the three converted benchmark books and the owner's
 `01_historia_economica_global.md`.
-1. **On `main`'s image**, before this branch's first `make up`.
+1. **On `main`'s image**, before the image is rebuilt with this branch's code.
 2. **On the branch's image**, after it.
 
 The two outputs must be identical, compared with `cmp` on the host. The unit tests whose
 Markdown files check chunk texts and chapters keep their expected values. A change to one, other
 than a title, an author or a page, is a regression.
 
-**The gate.** The branch's first `make up` waits for the owner's three converted books and their
-conversion record, because the dump on `main`'s code needs them. Everything before it, the code
-and `make test`, doesn't. This corrects the spec's assumption that nothing before the benchmark's
+**The gate.** The rebuild with this branch's code waits for the owner's three converted books
+and their conversion record, because the dump on `main`'s code needs them. Everything before it,
+the code and `make test`, doesn't. `main`'s image is rebuilt before any change under `app/` (R10),
+and since nothing is mounted it keeps `main`'s code until that rebuild, while the code changes
+go on. This corrects the spec's assumption that nothing before the benchmark's
 tasks needs them (Corrections during planning).
 
 **Rationale.** Identical chunks are what make this a removal, not a change to reading Markdown,
@@ -347,7 +355,8 @@ say nothing about where a difference is: the JSON can be diffed.
   `retrieval`, with one variant, `default`, without overrides: the default configuration, with
   the reranker on the CPU as `config/models.yaml` sets it.
 - **The run on the originals.** It uses `main`'s image, `main`'s dataset and the original PDF and
-  EPUBs, with `benchmarks/workspace` deleted first, and runs before the branch's first `make up`.
+  EPUBs, with `benchmarks/workspace` deleted first. It runs before the image is rebuilt with the
+  branch's code.
 - **The run on the Markdown.** After that `make up`, it uses the branch's image and the Markdown
   dataset, again with the workspace deleted first.
 - **Copies.** Both results are copied to the host, under `benchmarks/results`.
@@ -356,8 +365,12 @@ A development tool, `devtools/compare_runs.py`, runs on the host with `uv run`. 
 `results.json` files, renames each run's `default` variant (`originals`, `markdown`), merges
 their rows and summaries, and renders them with `app.evaluation.report.render(...,
 baseline="originals")`. That reuses `paired_difference`: pairs by question ID, 4,000 resamples,
-95%. It adds a table of each question whose metrics moved, with its book and category, to read
-what those questions retrieved before naming a difference (FR-020). Each run keeps its own
+95%. Before merging, it leaves out every question whose `relevant_chunks` is empty in either run,
+and counts them: none of its evidence resolved to a chunk, so its metrics measure the chunking,
+not the retrieval (FR-020). Those empty rows are what the rows can show. A question with part of
+its evidence unresolved stays in, scored as today in both runs. It adds a table of each question
+whose metrics moved, with its book and category, to read what those questions retrieved before
+naming a difference (FR-020). Each run keeps its own
 environment block: dataset checksum, book checksums, packages and commit.
 
 **Rationale.**
@@ -399,9 +412,9 @@ integration tests are what show that parsing and citing still work against real 
   `_EXTRACTION_METRICS`, `app/evaluation/extraction_metrics.py` and its tests. An experiment of
   that kind is then refused by the model's literal, naming the allowed kinds (FR-017).
 - **`devtools/measure_library_progress.py`** and its 27 tests
-  (`tests/unit/test_progress_devtool.py`). It measured specs/004's progress on two PDFs and two EPUBs, needs PyMuPDF for page counts, and
-  its results are recorded in specs/004. The question it answered, whether reporting progress
-  slows an operation, has its answer.
+  (`tests/unit/test_progress_devtool.py`). It measured specs/004's progress on two PDFs and two
+  EPUBs, needs PyMuPDF for page counts, and its results are recorded in specs/004. The question
+  it answered, whether reporting progress slows an operation, has its answer.
 - **`comparable_text`** in `app/ingestion/base.py`: only the PDF and EPUB loaders and the
   extraction metrics used it. `ORDINAL` stays, for the structure extractor.
 - **`html_to_blocks`' `anchors` and the positions it returns**: only the EPUB loader asked for
@@ -456,7 +469,8 @@ stay tested, now with Markdown.
   - *Library*: the commands with a `.md`, and how to prepare a book, from FR-022. It is converted
     outside the application, MarkItDown for example. It is named as it should be titled. Headings
     mark chapters and sections, with the chapter rules. Front matter is optional, for `language`.
-    What is refused, and why.
+    What is refused, and why. That the title is the file's name, so a book copied into the
+    container keeps its name (FR-022).
   - *Following an operation*: extraction without a count, no OCR.
   - *Index* and *Retrieval*: metadata and filters without pages.
   - *Questions*, *Summaries* and *Quizzes*: citations and pointers without pages.
@@ -469,7 +483,8 @@ stay tested, now with Markdown.
     - the title is the file name, and no author;
     - pages dropped rather than read from markers;
     - the benchmark's books record their conversion;
-    - normalization keeps only the cleaning that applies to any text.
+    - normalization keeps only the cleaning that applies to any text;
+    - the dependencies removed: both image sizes, and the packages the lock dropped (SC-004).
   - *Library lifecycle*: "What an operation counts" is updated, since extraction is no longer
     counted.
   - *Removed with PDF and EPUB (v1.0.0)*, a new closing section. One line each, with the failure
@@ -500,7 +515,7 @@ release workflow takes 0.4.0 to 1.0.0.
 removed keys stops the app, and a script calling `fetch-benchmark-books` or `search --page-start`
 fails.
 
-## R19. Where the Markdown dataset is recorded [owner to confirm]
+## R19. Where the Markdown dataset is recorded
 
 **Finding.** The dataset and the experiments live only on the host, in `benchmarks/` (ignored by
 git). The constitution's Development Workflow, the README's Benchmarks section,
@@ -510,23 +525,23 @@ chapter names corrected to the Markdown text (R11). The results of R13 record it
 on the host alone, that checksum would point at files nobody else has, and the corrections would
 be lost with the folder.
 
-**Decision (recommended).** The validated dataset is recorded in
-`specs/005-markdown-only/benchmarks/`:
+**Decision.** The owner left this to the agent, at the checklist (CHK023). The validated dataset
+is recorded in `specs/005-markdown-only/benchmarks/`:
 - `datasets/`: `books.yaml`, `questions.jsonl` and `chapter_key_points.jsonl`.
-- `experiments/`:
-  - `markdown_books.yaml`;
-  - the three quiz experiments of `specs/003-chapter-quiz/benchmarks/`, with their local book
-    pointed to the owner's Markdown.
+- `experiments/markdown_books.yaml`.
 
 This follows `specs/003-chapter-quiz/benchmarks/`, where that feature recorded its experiments.
-The other experiments stay at `c7bb785`, less `extraction.yaml`. The Markdown books stay out of
-the repository, as the originals did: their checksums and provenance identify them, and the check
-of R11 refuses a different file. The README, `docs/benchmark-results.md` and `docs/decisions.md`
-then point to the new place.
+The other experiments stay at `c7bb785`, less `extraction.yaml`. The quiz experiments stay in
+`specs/003` until the next feature removes the quiz. The Markdown books stay out of the
+repository, as the originals did: their checksums and provenance identify them, and the check of
+R11 refuses a different file. The README, `docs/benchmark-results.md` and `docs/decisions.md`
+then point to the new place. Each corrected quote shows as a diff against `c7bb785`, which the
+owner reviews in the pull request (FR-019).
 
-The constitution's sentence "their last versions are at `c7bb785`" stops being true, so it needs
-a PATCH amendment through `/speckit-constitution`, which only the owner starts. It names where
-the dataset now lives, before the pull request.
+The constitution's sentence "their last versions are at `c7bb785`" stops being true once the
+dataset changes, wherever it is recorded. So it needs a PATCH amendment through
+`/speckit-constitution`, which only the owner starts, after the dataset validates and before the
+pull request.
 
 **Alternative.** The dataset stays on the host only, and `docs/benchmark-results.md` records its
 checksum and how many quotes changed. This is closer to "dataset and experiments stay out of the

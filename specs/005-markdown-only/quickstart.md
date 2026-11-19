@@ -13,10 +13,9 @@ The Bash tool and a fresh shell need asdf's paths for `uv` and `make`:
 export ASDF_DATA_DIR="$HOME/.asdf" PATH="$HOME/.asdf/shims:$HOME/.asdf:$PATH"
 ```
 
-The uncommitted dependency bump (`.pre-commit-config.yaml`, `uv.lock`) is either merged to `main`
-as its own pull request, with this branch rebased on it, or stashed (`research.md`, R10).
-`git status --short` shows neither file as modified while this feature's lock is computed or its
-image built.
+The uncommitted dependency bump (`.pre-commit-config.yaml`, `uv.lock`) stays stashed for the
+whole feature (`research.md`, R10). `git status --short` shows neither file as modified, and
+`git stash list` shows it under "chore: commitizen 4.19.4 + uv.lock".
 
 ## 1. Unit tests and lint
 
@@ -57,14 +56,25 @@ them. Everything from § 3 on does.
 
 ## 3. On `main`'s code, before the rebuild
 
-Check that the app container still runs `main`'s code and lock, as it did on 2026-11-19
-(`research.md`, R10). The files under `app/` and `config/`, and `uv.lock`, must hash as
-`git show main:<file>` does. If they don't, run `make up` on `main` first, which empties the
-library.
+The image running on 2026-11-19 has `main`'s code but the stashed bump's lock (`research.md`,
+R10). So it is rebuilt from this branch before any change under `app/`, while its `app/`,
+`config/`, `pyproject.toml` and `uv.lock` are still `main`'s
+(`git diff main --stat -- app config pyproject.toml uv.lock` is empty). That **deletes the
+library the app container holds**, today `book_001`, which the owner allows. Old collections are
+cleared by `reset-everything`, as after any rebuild:
 
 ```bash
+make up
+docker compose exec app book-rag reset-everything --confirm "DELETE EVERYTHING"
 docker image ls local-book-rag-app --format '{{.Size}}'          # main's image size, for SC-004
+```
 
+Nothing is mounted, so the running container keeps `main`'s code whatever the host's files
+become. Only the next `make up` changes it. So this rebuild comes first, the code changes go on
+meanwhile, and the runs below wait for the converted books (§ 2), as long as no `make up` comes
+between:
+
+```bash
 # The run on the original books, in a fresh workspace (FR-020).
 stage=$(mktemp -d) && mkdir -p "$stage/benchmarks/results" "$stage/benchmarks/experiments"
 cp -r benchmarks/datasets "$stage/benchmarks/"                   # main's dataset, unchanged

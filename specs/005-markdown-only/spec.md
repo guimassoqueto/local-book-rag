@@ -208,6 +208,13 @@ original books.
   book: the title is the file name and the author stays empty. The front matter is still removed
   from the text, and its `language` (or `lang`) still sets the language. Without it, the
   language is detected from the text, as today.
+- **A single top-level heading** is still read by the structure rules as the book's own title
+  line, not as a chapter. With the title taken from the file name, its text now shows nowhere.
+- **Front matter that doesn't parse as YAML, or isn't closed,** stays in the text, as today.
+- **The file's name** is what remains after the upload's name cleaning: the folders of a path are
+  dropped, characters that can't be printed are removed, and a name left empty becomes `unnamed`.
+  `BOOK.MD` is titled `BOOK`. A file named only `.md` has no extension, so it is refused as an
+  unsupported type.
 - **Two files with the same name and different content** are two books with the same title,
   told apart by their IDs.
 - **Replacing a book with a file of another name** changes the book's title to the new name,
@@ -273,13 +280,50 @@ original books.
   only `fetch-benchmark-books` checks them, so the check moves where the work starts (R11).
   Chapter names in the questions and key points that the conversion changed are corrected too,
   under FR-019's rule.
-- **The converted books are needed before this branch's first `make up`**, not only at the
-  benchmark's tasks. Proving the chunks unchanged (SC-002) reads them on `main`'s code, which the
-  rebuild replaces (R12).
+- **The converted books are needed before the image is rebuilt with this branch's code**, not
+  only at the benchmark's tasks. Proving the chunks unchanged (SC-002) reads them on `main`'s
+  code, which the rebuild replaces (R12).
 - **SC-005 leaves out more history.** The constitution's Why sections, which tell the Docling and
   *Think Python* failures behind principles V and VI. The bug and assessment records under
   `.specify/`, which are history like the specs. And `uv.lock`, which is generated and is checked
   on its own for the removed packages.
+
+### Corrections from the requirements checklist, 2026-11-19
+
+The owner answered the checklist's main findings (`checklists/removal-and-measurement.md`):
+- "You can reset-everything any time you want" (CHK006).
+- The quiz is removed by the next feature (CHK011).
+- The agent chooses how to handle the dataset's record, the baseline's packages, the outside
+  dependencies (CHK023, CHK027, CHK034) and the breaking-change footer (CHK032).
+
+The rest the agent settled.
+- **After the rebuild, `reset-everything` comes first** (FR-015). The old version said the first
+  index would be built fresh, but ChromaDB keeps the old collections.
+- **The quiz goes next.** Its changed inputs aren't proved again, and its experiments aren't
+  touched (Assumptions).
+- **The comparison's edge cases.** A chapter the conversion merged, split or lost is replaced by a
+  stated rule (FR-019). A question whose evidence resolves nowhere is left out of the pairing and
+  counted (FR-020). These two are about the retrieval benchmark, not the quiz.
+- **The dataset's record.** The validated dataset is recorded in
+  `specs/005-markdown-only/benchmarks/`, with a constitution amendment before the pull request
+  (FR-018, Assumptions, R19).
+- **The pending bump stays stashed** for the whole feature, and both images are built from
+  `main`'s lock apart from this feature's change (FR-020, SC-004, R10).
+- **The footer** adds the whole `normalization` section, `search`'s page options, the results'
+  page columns and the dataset's schema (FR-025).
+- **Precision.**
+  - SC-002 names the books and the unit tests.
+  - SC-003, SC-004 and SC-008 say what is compared and read.
+  - FR-002 gives the order of the checks.
+  - FR-004 says what the tab's note may name.
+  - FR-005 lists every path that sets a title, and every place an author is empty.
+  - FR-014 lists every place pages are shown.
+  - FR-018 says where the description goes, and what the conversion record holds.
+  - FR-021 says what the checksum covers.
+  - FR-022 tells the reader to keep the file's name.
+  - FR-023 lists the decisions to move.
+  - The edge cases cover a single top-level heading, front matter that doesn't parse, and the
+    file's name.
 
 ## Requirements *(mandatory)*
 
@@ -294,18 +338,28 @@ original books.
   The message names the format and says to convert the book to Markdown first, and may name
   MarkItDown as an example. Replacing a book with one leaves the book as it was. In the Library
   tab, Gradio refuses such a file before the service, with its own message naming the accepted
-  types, and a note under "Add a book" gives the advice to convert (Corrections during planning).
+  types, whatever its exact wording, and nothing is stored or journaled. A note under "Add a book"
+  says three things: books are Markdown files; a PDF or EPUB is converted to Markdown first, with
+  MarkItDown as an example; and the file's name becomes the book's title (Corrections during
+  planning). The checks keep today's order: a busy library first, then the file's type, size and
+  content, then a duplicate, then an index that needs a reindex.
 - **FR-003**: A file with any other extension MUST be refused as today, with the accepted
   extensions listed.
 - **FR-004**: The Library tab's file pickers MUST offer only `.md` and `.markdown` files. Their
-  labels, the commands' help and the error messages MUST name Markdown as the only format.
+  labels, the commands' help and the error messages MUST name Markdown as the only accepted
+  format. They, and the tab's note, may name PDF, EPUB and MarkItDown only to say that a book is
+  converted first, or why a file is refused.
 - **FR-005**: Reading a Markdown book MUST stay as it is today, except for its title and author:
   - **the checks**: the size limit, an empty file, binary data, and UTF-8;
   - **the title**: always the name of the file the book arrived as, without its extension, as
-    given and not reformatted. A title or author in the front matter, or a single top-level
-    heading, MUST NOT set it.
+    given and not reformatted. That holds on every path that indexes a book: adding, replacing,
+    processing it again, `reindex-all`, and an original brought back by a rebuild, each of which
+    reads the name recorded with the original. A title or author in the front matter, or a
+    single top-level heading, MUST NOT set it.
   - **the author**: never read, and left empty in the catalog, whose field stays for a later
-    feature. Wherever an author is shown or passed on today, it is empty.
+    feature. Wherever an author is shown or passed on today, it is empty: the Library tab's
+    Author column, the quiz's prompts, and its check for questions answerable without reading.
+    The tab keeps its Author and Format columns, one empty and the other always `markdown`.
   - **the front matter**: still removed from the text, and its `language` (or `lang`) still
     sets the book's language;
   - **the structure**: headings as structure, the rules that find chapters and sections, the
@@ -329,11 +383,15 @@ original books.
 - **FR-009**: The packages installed only for PDF or EPUB, and the models they download, MUST
   be removed from the dependencies and the image: Docling and its extra, PyMuPDF and EbookLib.
   Packages that something else still uses MUST stay, such as the reranker's GPU stack and the HTML
-  parsing that reads Markdown.
+  parsing that reads Markdown. "Installed only for them" means the packages the lock drops once the
+  three are removed. Docling's models were downloaded when first used, into the container and
+  never into the image, so removing Docling is what removes them.
 - **FR-010**: Code, tests, test helpers, development tools, comments and settings that served
   only PDF or EPUB MUST be removed. A test that checks something independent of the format
   through a PDF or an EPUB MUST be rewritten with Markdown, so that what it checks is still
-  checked.
+  checked. The removal includes `devtools/measure_library_progress.py`. It measured
+  `specs/004`'s progress on the PDF and EPUB books with PyMuPDF, and the question it answered is
+  settled.
 - **FR-011**: The progress of adding, replacing or processing a book again MUST show its
   extraction stage without a count, as a Markdown book's extraction shows today. The page unit
   and the OCR state MUST go from the progress reporting.
@@ -346,26 +404,36 @@ original books.
 #### Pages
 
 - **FR-014**: Pages MUST be removed everywhere a book's pages appear or are used:
-  - **what the reader sees**: citations in answers and summaries, the passages shown in the Chat
-    tab and by `search` and `ask`, and the quiz's passage pointers;
+  - **what the reader sees**:
+    - citations in answers;
+    - a saved summary's references;
+    - the passages shown in the Chat tab and by `search` and `ask`, with `search` printing
+      chapter and section;
+    - the Chat tab's scores table, which loses its Pages column;
+    - the quiz's passage pointers;
   - **the prompts**: the passage header sent to the model;
   - **the filters**: the `search` command's page range and the page filter in retrieval;
   - **the index**: the chunk metadata (`page_start`, `page_end`), the setting
     `chunking.preserve.page_numbers`, and the cleaning that rejoins a paragraph cut by a page
     break;
-  - **the benchmark**: its rows' page column.
+  - **the benchmark**: the retrieval rows' `relevant_pages` and the quiz reading's `pages`
+    column.
 
   A citation then resolves to the book, chapter and section. A configuration that still holds
-  `chunking.preserve.page_numbers` MUST stop the app at startup, naming the key.
+  `chunking.preserve.page_numbers` MUST stop the app at startup, naming the key. Pages go as
+  data. Wording that tells a model not to name pages stays (FR-016).
 - **FR-015**: Removing the page fields and the page setting changes the chunk metadata's schema
   and the chunking settings, both of which are in the index fingerprint. The fingerprint MUST
   change accordingly, and an index built before MUST be treated as any index whose configuration
   changed: `doctor` reports it, new books are refused, and `reindex-all` builds a new index
-  version (Principle III). On a fresh `make up` the library is empty, so the first index is built
-  under the new fingerprint.
+  version (Principle III). After the rebuild, `reset-everything` is the first command, before
+  any book. The library is empty, but ChromaDB keeps the old `book_chunks_v*` collections, and a
+  new catalog would number its first index 1 again and reuse one (`docs/decisions.md`,
+  Infrastructure). The owner allows a reset at any time.
 - **FR-016**: The quiz's check that refuses a question pointing at a page, a passage number or
   "the excerpt" MUST stay as it is. It reads what the model writes, which can still name a page,
-  and doesn't depend on the books having pages.
+  and doesn't depend on the books having pages. So does the prompts' wording that tells the model
+  not to name pages.
 
 #### Benchmarks
 
@@ -378,30 +446,51 @@ original books.
   with the same MarkItDown setup as their own books. For each book, the dataset MUST record:
   - the Markdown file's name and checksum, which `benchmark` and `validate-benchmark` check
     before they read a book, as `fetch-benchmark-books` checked the originals;
-  - for provenance, the original's URL and checksum, and the conversion used (MarkItDown's
-    version and the plugins, as the owner names them).
+  - for provenance, the original's URL and checksum, and the conversion used: MarkItDown's
+    version, each plugin's name and version, and any options, as the owner gives them.
 
   `fetch-benchmark-books` MUST be removed, because the application can't read the files it
-  downloads. The dataset's description MUST say that rebuilding the books takes the same
-  conversion, so the questions hold only for files with the recorded checksums.
+  downloads. The header comment of `books.yaml` MUST say that rebuilding the books takes the same
+  conversion, so the questions hold only for files with the recorded checksums. Once it
+  validates, the dataset is recorded in `specs/005-markdown-only/benchmarks/datasets/`, with the
+  experiment of FR-020 in `benchmarks/experiments/` beside it (`research.md`, R19). The Markdown
+  books stay out of the repository, as the originals did.
 - **FR-019**: Every evidence quote in the dataset MUST be found in its Markdown book by
   `validate-benchmark`. A quote the conversion changed MUST be corrected to the Markdown text,
   holding the same evidence for the same answer. A question is never dropped to make the
   validation pass. If a quote can't be corrected, `docs/benchmark-results.md` says which, and why.
+  - **A corrected quote** keeps `validate-benchmark`'s rules: it is found exactly, and is at most
+    30 words. Each change shows as a diff between the dataset at `c7bb785` and the recorded one,
+    which the owner reviews in the pull request.
+  - **A chapter name the conversion changed**, in a question or a key point, is corrected the same
+    way.
+  - **A chapter the conversion merged, split or lost** is replaced. A question takes the Markdown
+    chapter that holds its first evidence quote. A key point takes the one that holds the original
+    chapter's opening. `docs/benchmark-results.md` lists each case.
 - **FR-020**: The retrieval experiment's default variant MUST be run twice, each in a fresh
   `benchmarks/workspace`:
   - on `main`'s code with the original PDF and EPUBs, before the container is rebuilt with this
     branch;
   - on this branch with the Markdown books.
 
-  The two runs MUST be compared question by question, paired by question ID, with the project's
-  paired bootstrap (4,000 resamples, 95%). Each run judges relevance against its own books'
-  evidence quotes. Both runs and their comparison MUST be recorded in
-  `docs/benchmark-results.md`, as information and not as a verdict, since the owner has already
-  decided the format. A difference whose interval excludes zero MUST be named, along with the
-  questions behind it, after reading what those questions retrieved.
-- **FR-021**: A benchmark result MUST record the dataset's checksum as today. Since the dataset
-  now names Markdown files, the checksum covers the books the questions were validated against.
+  The two images MUST be built from the same lock, apart from this feature's change
+  (`research.md`, R10). The two runs MUST be compared question by question, paired by question
+  ID, with the project's paired bootstrap (4,000 resamples, 95%). Each run judges relevance
+  against its own books' evidence quotes.
+  - **Evidence found nowhere.** A question none of whose evidence resolves to a chunk, in either
+    run, is left out of the pairing and counted.
+  - **Evidence partly found.** A quote that resolves to no chunk while the question's others do
+    counts as missed, as today, by the same rule in both runs.
+
+  Both runs and their comparison MUST be recorded in `docs/benchmark-results.md`, as information
+  and not as a verdict, since the owner has already decided the format. A difference whose
+  interval excludes zero MUST be named, along with the questions behind it: those whose metric
+  moved the same way. For each, the record says whether its evidence was found in each run, and
+  what was retrieved instead.
+- **FR-021**: A benchmark result MUST record the dataset's checksum as today. That checksum
+  hashes `books.yaml`, the questions and the key points, and `books.yaml` holds each Markdown
+  book's checksum, which the run checks first (FR-018). So a result's dataset checksum identifies
+  the books it was measured on.
 
 #### Records
 
@@ -411,15 +500,24 @@ original books.
   and what is refused.
   Its citations, passages and the `search` command MUST be described without pages. It MUST NOT
   describe PDF, EPUB, OCR or Docling as part of the system. The benchmark's section MUST say how
-  its books are made (FR-018), in place of `fetch-benchmark-books`.
+  its books are made (FR-018), in place of `fetch-benchmark-books`. It MUST say that a book's
+  title comes from its file's name, so a book copied into the container keeps its name on the
+  way.
 - **FR-023**: `docs/decisions.md` MUST record the decision and its reason, and that it departs
   from the first version's spec. It also records why pages were dropped rather than read from
   markers in the Markdown, and why the benchmark's books record how they were converted.
   Decisions that explain only the removed readers MUST move to a closing section, "Removed with
   PDF and EPUB (v1.0.0)", shortened to one line each: the decision and the failure that taught
-  it. Examples are running heads recognized by page numbers, outline headings never taken for
-  running heads, outline entries each claiming one heading, and the Docling comparison. A lesson
-  that still applies anywhere stays where it is, such as a metric hiding a loss.
+  it. They are:
+  - running heads recognized by their page numbers;
+  - each table-of-contents entry claiming one heading;
+  - a heading the outline names never taken for a running head;
+  - Docling, with OCR, as the alternative PDF reader.
+
+  A lesson that still applies anywhere stays where it is. *Think Python*'s coverage lesson stays
+  under Evaluation, beside the Docling comparison, since both are metrics hiding a loss. "What an
+  operation counts" is updated where it is, since extraction is no longer counted. "Questions
+  don't point to their passage" stays as it is.
 - **FR-024**: Principle VII of the constitution MUST be amended through `/speckit-constitution`
   before the plan, so that citations resolve to the book, chapter and section, without pages
   (FR-014).
@@ -427,11 +525,14 @@ original books.
   with a `BREAKING CHANGE` footer that the squash commit keeps. The footer lists what was
   removed:
   - PDF and EPUB input, OCR and Docling;
-  - pages in citations, passages and quiz pointers, and the `search` page range;
+  - pages in citations, passages and quiz pointers, and `search`'s `--page-start` and
+    `--page-end`;
   - the book's title from front matter or a heading, and its author;
   - `fetch-benchmark-books` and the `extraction` experiment kind;
-  - the removed settings, which stop the app at startup if they are still there (`pdf`,
-    `normalization.remove_repeated_margins` and `chunking.preserve.page_numbers`).
+  - the removed settings, which stop the app at startup if they are still there: `pdf`, the
+    whole `normalization` section and `chunking.preserve.page_numbers`;
+  - in benchmark results, the `relevant_pages` and `pages` columns. In the dataset's `books.yaml`,
+    Markdown files, with the original's `url` moved under `original` and a `conversion` record.
 
   The release is v1.0.0.
 
@@ -443,7 +544,9 @@ original books.
   empty. Everything else is as today.
 - **Benchmark book**: one of the dataset's three books. It is now a Markdown file with its
   checksum, plus where it came from: the original's URL and checksum, and the conversion
-  (FR-018).
+  (FR-018). Its `title` and `author` name it in the benchmark's messages and its provenance. The
+  library never reads them: a benchmark workspace titles the book by its file name, as it does any
+  book.
 - **Evidence quote**: a verbatim passage of a benchmark book that holds a question's answer. It
   is now verbatim in the Markdown text.
 
@@ -454,52 +557,89 @@ original books.
 - **SC-001**: The three converted benchmark books are added through the Library tab and with
   `add-book` without an error. Each one's chapters, as the Summaries tab lists them, are the
   chapters its Markdown headings mark, checked by reading the list against the file.
-- **SC-002**: For the three converted benchmark books and every Markdown file used in the tests,
-  the chapters, sections and chunk texts are identical, in the same order, between `main` and
-  this branch, under the default configuration. Page fields are left out of the comparison: on
-  `main` they are empty for Markdown, and here they no longer exist (FR-014). So are the title
-  and the author (FR-005).
+- **SC-002**: The chapters, sections and chunk texts are identical, in the same order, on
+  `main`'s image and this branch's, under the default configuration (`research.md`, R12). This
+  holds for:
+  - the three converted benchmark books, and the owner's `01_historia_economica_global.md`;
+  - the unit tests that check a Markdown file's chapters, sections or chunk texts
+    (`test_markdown_loader`, `test_pipeline`, `test_chunker`, `test_structure_extractor`,
+    `test_html_blocks`), which keep `main`'s expected values.
+
+  Left out of both comparisons: page fields, which on `main` are empty for Markdown and here no
+  longer exist (FR-014); the title and the author (FR-005); and the title of a heading-less
+  file's only chapter, which is the book's title.
 - **SC-003**: A PDF and an EPUB are refused in each of the four ways in (tab add, tab replace,
-  `add-book`, `replace-book`), each within a second. Afterwards, the catalog, the journal, the
-  index and the library's files are as they were before the attempt.
+  `add-book`, `replace-book`), each within a second of the click or of the command's start.
+  Afterwards, these are as they were before the attempt, compared as the unit tests' library
+  snapshot compares them: the catalog's rows, the journal's entries, the index's chunks, and the
+  files under the library's data directory.
 - **SC-004**: The image no longer contains Docling, PyMuPDF or EbookLib, and is smaller than
-  `main`'s. The image sizes of both are recorded in the plan's results.
+  `main`'s image, built from `main`'s commit and lock (`research.md`, R10). `docs/decisions.md`
+  records both sizes and the packages the lock dropped.
 - **SC-005**: Outside `docs/decisions.md`, `docs/benchmark-results.md`, `specs/`, the
   constitution's Why sections, the bug and assessment records under `.specify/`, and `uv.lock`,
   the repository mentions PDF, EPUB, OCR, Docling, PyMuPDF or EbookLib only where it says that
   books are converted to Markdown outside the application, or that those formats are refused.
-  `uv.lock` names none of the removed packages.
+  `uv.lock` names none of the removed packages. Nor do `README.md`, the commands' help or the
+  Library tab describe a book's page, page range or page number, except the quiz's rule that a
+  question doesn't name one (FR-016).
 - **SC-006**: `make test` and `make test-integration` pass, and `doctor` reports no failure on
   the running stack.
 - **SC-007**: `validate-benchmark` passes on the Markdown dataset with all 75 answerable
   questions kept, and both retrieval runs of FR-020 are recorded with their paired comparison.
-- **SC-008**: On the running stack, after `make test-integration`'s questions, summaries and
-  quizzes, no answer, summary, quiz pointer or passage shown carries a page, and every citation
-  still resolves to its book, chapter and section.
+- **SC-008**: On the running stack, these are read on the owner's
+  `01_historia_economica_global.md` and on one converted benchmark book:
+  - three answers in the Chat tab, with their sources, passages and scores table;
+  - one `ask` and one `search`;
+  - one saved chapter summary;
+  - one chapter quiz.
+
+  None shows a page, and every citation reads as book, chapter and, when the passage has one,
+  section.
 
 ## Assumptions
 
 - **No book needs migrating.** `make up` empties the library after any change to the code
   (Context), so the catalog never holds a PDF or EPUB book under the new code. A library whose
   catalog still named one would come only from data kept across containers, which the
-  constitution forbids.
+  constitution forbids. The same goes for what was derived from the books, the processed files
+  and the saved summaries, which live in the app container too. ChromaDB's old collections
+  outlive it, which is why `reset-everything` comes first (FR-015).
 - **The application doesn't check how a file was made.** Any UTF-8 Markdown file is accepted,
   from MarkItDown or not, and the conversion's quality is the owner's to judge. The benchmark of
   FR-020 shows what it changes on the dataset's books.
 - **MarkItDown's output is read as it is.** No rule is added for its quirks. If the dataset's
   books show any (headings it doesn't mark, for example), they are reported as follow-ups and not
   fixed in this feature, which keeps Markdown reading as it is (FR-005).
-- **The owner provides the three converted books** before this branch's first `make up`, and
-  the conversion record that goes with them (FR-018). Proving the chunks unchanged reads them on
-  `main`'s code, which that rebuild replaces. The code and the unit tests don't need them.
+- **What the owner provides, and when.**
+  - **Before the image is rebuilt with this branch's code**: the three converted books in
+    `benchmarks/books` on the host, under names the owner chooses, which `books.yaml` records.
+    With them comes the conversion record: MarkItDown's version, each plugin's name and version,
+    and any options (FR-018). Proving the chunks unchanged reads the books on `main`'s code,
+    which that rebuild replaces. The code and the unit tests don't need them.
+  - **Before the pull request**: a PATCH amendment of the constitution through
+    `/speckit-constitution`, which the owner starts. Its Development Workflow names `c7bb785` as
+    the dataset's last version, and the amendment names `specs/005-markdown-only/benchmarks/`
+    instead (R19).
+- **The pending dependency bump stays out.** The uncommitted bump of `.pre-commit-config.yaml` and
+  `uv.lock` stays stashed for the whole feature. So `main`'s image for the baselines and this
+  branch's image differ only by this feature. The bump is redone as its own `chore:` after this
+  feature merges (R10).
 - **Only the retrieval experiment is measured**, because it needs no judge and covers what a
-  different text changes first: which passages are found. The generation, summarization and quiz
-  benchmarks can be run again later on the Markdown dataset. Their earlier results stay as they
-  are, measured on PDF and EPUB.
-- **The quiz names the book by its file name.** The quiz's prompts give the model the book's
-  title and, when known, its author. Their check for questions that can be answered without
-  reading also does. Both will now get the file name and no author. That is already what the
-  owner's books get today, because their conversions have no front matter, and the prompts'
-  wording doesn't change.
+  different text changes first: which passages are found. The generation and summarization
+  benchmarks can be run again later on the Markdown dataset, whose key points then name the
+  Markdown chapters (FR-019). Their earlier results stay as they are, measured on PDF and EPUB.
+  `extraction.yaml` is deleted from the host's experiments. A regression in citations or
+  abstentions would show in two places: `make test-integration`'s abstention cases, and SC-008's
+  reading. A Markdown book's prompts are the same as on `main` apart from its title, and no parser
+  changes.
+- **The quiz is removed by the next feature.** The owner decided on 2026-11-19 that the quiz
+  goes next, since they don't use it. Until then it keeps working.
+  - **Its prompts**, and its check for questions that can be answered without reading, now get
+    the file name and no author. That is already what the owner's books get, since their
+    conversions have no front matter. The prompts' wording doesn't change.
+  - **The check isn't proved again**, since the quiz goes next.
+  - **Its benchmark experiments** stay on the host as they are, still naming the PDF of *História
+    econômica global*, and aren't run.
 - **The specs of delivered features are history.** `specs/001` to `specs/004` mention PDF and
   EPUB and are not edited (Principle VIII).

@@ -38,7 +38,7 @@ The library reads Markdown alone, and removes PDF and EPUB from every place they
 
 **Primary Dependencies**:
 - **Kept.** `markdown`, `pyyaml`, BeautifulSoup and `lxml`, which read Markdown, and Gradio 6.31,
-  or 6.32 if the pending bump lands first (R10).
+  `main`'s version, while the pending bump stays stashed (R10).
 - **Removed.** `docling` (its extra), `pymupdf` and `ebooklib`, with whatever only they pulled in:
   `torchvision`, `pypdfium2`, `rapidocr`, the `docling-*` and `pymupdf*` packages.
 - `torch` stays for the reranker. No new dependency.
@@ -47,8 +47,8 @@ The library reads Markdown alone, and removes PDF and EPUB from every place they
 - **The catalog.** Same schema: `author` written empty, `format` always `markdown`.
 - **ChromaDB.** The chunk metadata loses `page_start` and `page_end`, under a new index version.
 - **On disk.** The originals and the processed files keep their layout.
-- **The benchmark.** The dataset changes on the host, in `benchmarks/datasets`, and may be
-  recorded in `specs/005-markdown-only/benchmarks/` (R19).
+- **The benchmark.** The dataset changes on the host, in `benchmarks/datasets`, and is recorded
+  in `specs/005-markdown-only/benchmarks/` once it validates (R19).
 
 **Testing**: pytest.
 - `make test`: the refusals, the title rule, the removed settings, the fingerprint, pages gone,
@@ -64,7 +64,8 @@ The library reads Markdown alone, and removes PDF and EPUB from every place they
 **Target Platform**: The Docker Compose stack on the owner's Linux machine:
 - an RTX 5060 Ti with 16 GB;
 - gpt-oss:20b, qwen3-embedding:0.6b and Qwen3-Reranker-0.6B, the reranker on the CPU by default;
-- today's app image: 11 GB, `main`'s code with the pending bump's lock (R10).
+- today's app image: 11 GB, `main`'s code with the pending bump's lock, rebuilt from `main`'s
+  lock before the baselines (R10).
 
 **Project Type**: A single Python application: Gradio interface, command line, services.
 
@@ -81,8 +82,8 @@ Nothing else may get slower: the steps removed did nothing for Markdown.
   their confirmations.
 - **The library and the benchmark.** No book needs migrating, since `make up` empties the library.
   The benchmark changes only in `benchmarks/workspace` and the `bench_*` collections.
-- **The pending bump** (`.pre-commit-config.yaml`, `uv.lock`) never enters this feature's commits
-  (R10).
+- **The pending bump** (`.pre-commit-config.yaml`, `uv.lock`) stays stashed for the whole
+  feature and never enters its commits. It is redone as its own `chore:` after the merge (R10).
 
 **Scale/Scope**:
 - **The application.** About 25 modules change, and 4 are deleted: `pdf_loader.py`,
@@ -103,9 +104,9 @@ Nothing else may get slower: the steps removed did nothing for Markdown.
 | III. Index integrity | The chunk metadata's schema and the chunking settings change, so `METADATA_SCHEMA_VERSION` goes to 2 and the fingerprint moves. An index built before needs an explicit `reindex-all`, which builds a new version and writes nothing into the live one. After the rebuild, `reset-everything` clears the old collections before the first book (R7). | Pass | Pass: `data-model.md`, Index fingerprint. |
 | IV. One service layer | The refusal and its message are the service's (`validate_upload`, through `BookService`), for the tab and the commands alike. The tab's `file_types` only filters the browser's dialog (FR-004). A PDF forced past it is refused by Gradio's own preprocessing, before any handler, so the interface still decides nothing itself, and the service refuses whatever reaches it (R3). | Pass | Pass, with the tab's message corrected in the spec (Corrections during planning). |
 | V. Verified on real models and real books | The ingestion change is checked on the three converted benchmark books and the owner's `01_historia_economica_global.md`: added in the tab and with `add-book`, chunks dumped on both versions of the code, retrieval compared (R12–R14). The prompts change only by a `Pages:` part that a Markdown chunk never had, and `make test-integration` runs them against gpt-oss:20b, qwen3-embedding:0.6b and Qwen3-Reranker-0.6B. The quiz prompts' wording and parsers don't change. | Pass | Pass: quickstart § 3, 5, 6, 8. |
-| VI. Measured, not assumed | No improvement is claimed. The comparison is information (FR-020): the same experiment and default variant, on `main` and on the branch, each in a fresh `benchmarks/workspace`. It is paired by question with `paired_difference` (4,000 resamples, 95%), and a difference counts only if its interval leaves zero out, after reading its questions. Each result records the environment, the dataset's checksum and the books' checksums. No judge or metric is added or changed: the extraction metrics and two page columns are removed. | Pass | Pass: `contracts/benchmark.md`. Both images built from the same lock but this feature (R10). |
-| VII. Every answer traceable | As amended (2.0.1), citations resolve to book, chapter and section, and every place that locates a passage does so. The no-evidence path, summaries citing by lookup, and the quiz's page check are unchanged. A regression would show in `make test-integration`'s citation and abstention tests and in reading the Chat tab, `ask`, a summary and a quiz (SC-008). The generation benchmark's citation accuracy isn't rerun (spec, Assumptions). | Pass | Pass: `contracts/passages.md`. |
-| VIII. Decisions are recorded | Tasks update `README.md` (Library, Following an operation, Index, Retrieval, Questions, Summaries, Quizzes, Benchmarks, Deployment notes, Configuration). They update `docs/decisions.md`: the new Ingestion entries, "What an operation counts", and the closing section "Removed with PDF and EPUB (v1.0.0)". They update `docs/benchmark-results.md`. `docs/decisions.md` was read first for each removed rule (Ingestion, and the Evaluation lessons). The delivered specs aren't edited. | Pass | Pass: R17. The constitution's line naming `c7bb785` as the dataset's last version would become stale, so it needs a PATCH amendment if R19 is confirmed. |
+| VI. Measured, not assumed | No improvement is claimed. The comparison is information (FR-020): the same experiment and default variant, on `main` and on the branch, each in a fresh `benchmarks/workspace`. It is paired by question with `paired_difference` (4,000 resamples, 95%), and a difference counts only if its interval leaves zero out, after reading its questions. Each result records the environment, the dataset's checksum and the books' checksums. No judge or metric is added or changed: the extraction metrics and two page columns are removed. | Pass | Pass: `contracts/benchmark.md`. Both images built from `main`'s lock but this feature (R10). Questions whose evidence resolves nowhere are left out and counted (FR-020). |
+| VII. Every answer traceable | As amended (2.0.1), citations resolve to book, chapter and section, and every place that locates a passage does so. The no-evidence path, summaries citing by lookup, and the quiz's page check are unchanged. A Markdown book's prompts are the same as on `main` but for its title, and no parser changes. So a regression would show in `make test-integration`'s abstention cases, run on the real models, and in SC-008's defined reading: three answers, `ask`, `search`, a summary and a quiz, on two books. The generation benchmark's citation accuracy isn't rerun (spec, Assumptions). The quiz is removed by the next feature, so its changed inputs aren't proved again. | Pass | Pass: `contracts/passages.md`. |
+| VIII. Decisions are recorded | Tasks update `README.md` (Library, Following an operation, Index, Retrieval, Questions, Summaries, Quizzes, Benchmarks, Deployment notes, Configuration). They update `docs/decisions.md`: the new Ingestion entries, "What an operation counts", and the closing section "Removed with PDF and EPUB (v1.0.0)". They update `docs/benchmark-results.md`. `docs/decisions.md` was read first for each removed rule (Ingestion, and the Evaluation lessons). The delivered specs aren't edited. | Pass | Pass: R17. The constitution's line naming `c7bb785` as the dataset's last version goes stale, so a PATCH amendment through `/speckit-constitution`, started by the owner, comes before the pull request (R19). |
 
 No violation: Complexity Tracking stays empty.
 
@@ -124,7 +125,7 @@ specs/005-markdown-only/
 │   ├── books.md         # accepted files, messages, what is read, the tab, the commands, progress
 │   ├── passages.md      # where a passage is: prompt header, citations, search, quiz, rows
 │   └── benchmark.md     # the dataset's books and their check, commands, the two devtools
-├── benchmarks/          # if R19 is confirmed: the validated dataset and the experiments
+├── benchmarks/          # the validated dataset and markdown_books.yaml (R19)
 ├── checklists/
 │   └── requirements.md
 └── tasks.md             # /speckit-tasks
