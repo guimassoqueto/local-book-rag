@@ -107,8 +107,9 @@ chapters and chunks with the same file added on `main`. Then try a PDF and an EP
    (SC-002).
 2. **Given** a `.pdf` or an `.epub`, **When** the owner adds it, or replaces a book with it, from
    the tab or the command line, **Then** it is refused before anything is stored or journaled,
-   with a message that names the format and says to convert the book to Markdown first, and the
-   book being replaced stays as it was.
+   with a message that names the format and says to convert the book to Markdown first (in the
+   tab, Gradio's message naming the accepted types, beside the tab's note on converting), and
+   the book being replaced stays as it was.
 3. **Given** a file of any other type, **When** the owner adds it, **Then** it is refused as
    today, with the accepted types listed, which are now `.md` and `.markdown`.
 4. **Given** the Library tab, **When** the owner opens either file picker, **Then** it offers
@@ -144,9 +145,9 @@ Run `make test`, `make test-integration` and `doctor`.
 1. **Given** the new image, **When** its installed packages are listed, **Then** Docling,
    PyMuPDF and EbookLib aren't among them, nor anything installed only for them. What other
    features use, such as the reranker's GPU stack, stays.
-2. **Given** a `config/ingestion.yaml` that still has a `pdf` section,
-   `normalization.remove_repeated_margins` or `chunking.preserve.page_numbers`, **When** the app
-   starts, **Then** it stops with an error that names the key, as for any unknown key.
+2. **Given** a `config/ingestion.yaml` that still has a `pdf` section, a `normalization`
+   section or `chunking.preserve.page_numbers`, **When** the app starts, **Then** it stops with
+   an error that names the key, as for any unknown key.
 3. **Given** the unit and integration tests, **When** they run, **Then** they pass, and none of
    them reads or writes a PDF or an EPUB. Behavior that today's tests check through a PDF or an
    EPUB but that doesn't depend on the format, such as the library's lifecycle, the journal,
@@ -201,8 +202,8 @@ original books.
   case, as today.
 - **A PDF or EPUB renamed to `.md`** is refused as binary data or as not UTF-8, as any Markdown
   file is today, and nothing is stored.
-- **A Markdown file without headings** is accepted, as today. It becomes a single chapter, "Full
-  text", which leaves summaries and quizzes by chapter with one chapter to choose.
+- **A Markdown file without headings** is accepted, as today. It becomes a single chapter, titled
+  with the book's title, which leaves summaries and quizzes by chapter with one chapter to choose.
 - **A title or author in the front matter, or a single top-level heading**, no longer names the
   book: the title is the file name and the author stays empty. The front matter is still removed
   from the text, and its `language` (or `lang`) still sets the language. Without it, the
@@ -255,6 +256,31 @@ original books.
   taught it, in a closing section "Removed with PDF and EPUB (v1.0.0)". Lessons that still
   apply anywhere stay where they are.
 
+### Corrections during planning, 2026-11-19
+
+- **In the tab, a PDF or EPUB is refused by Gradio, not by the service.** The pickers offer only
+  Markdown (FR-004). Gradio's own check refuses a file forced past them, dropped or chosen with
+  "all files", before the service runs, and its message names the accepted types. So the advice
+  to convert first is in a note under "Add a book". FR-002's message is what the commands get,
+  and anything else that reaches the service (`research.md`, R3).
+- **A Markdown file without headings is one chapter titled with the book's title**, its file
+  name. It isn't titled "Full text": the pipeline has always given the structure a title, so on
+  `main` too that chapter took the book's title (R1).
+- **`normalization` goes whole.** `remove_repeated_margins` was its only key, so a configuration
+  that still has a `normalization` section stops the app, and the error names `normalization`
+  (R6).
+- **The benchmark books' checksums are checked by `benchmark` and `validate-benchmark`.** Today
+  only `fetch-benchmark-books` checks them, so the check moves where the work starts (R11).
+  Chapter names in the questions and key points that the conversion changed are corrected too,
+  under FR-019's rule.
+- **The converted books are needed before this branch's first `make up`**, not only at the
+  benchmark's tasks. Proving the chunks unchanged (SC-002) reads them on `main`'s code, which the
+  rebuild replaces (R12).
+- **SC-005 leaves out more history.** The constitution's Why sections, which tell the Docling and
+  *Think Python* failures behind principles V and VI. The bug and assessment records under
+  `.specify/`, which are history like the specs. And `uv.lock`, which is generated and is checked
+  on its own for the removed packages.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -266,7 +292,9 @@ original books.
   `add-book` and `replace-book` commands.
 - **FR-002**: A `.pdf` or `.epub` file MUST be refused before anything is stored or journaled.
   The message names the format and says to convert the book to Markdown first, and may name
-  MarkItDown as an example. Replacing a book with one leaves the book as it was.
+  MarkItDown as an example. Replacing a book with one leaves the book as it was. In the Library
+  tab, Gradio refuses such a file before the service, with its own message naming the accepted
+  types, and a note under "Add a book" gives the advice to convert (Corrections during planning).
 - **FR-003**: A file with any other extension MUST be refused as today, with the accepted
   extensions listed.
 - **FR-004**: The Library tab's file pickers MUST offer only `.md` and `.markdown` files. Their
@@ -348,8 +376,8 @@ original books.
   EPUB.
 - **FR-018**: The benchmark dataset's three books MUST be Markdown files that the owner converts
   with the same MarkItDown setup as their own books. For each book, the dataset MUST record:
-  - the Markdown file's name and checksum, which the benchmark checks before it runs, as it
-    checks the originals today;
+  - the Markdown file's name and checksum, which `benchmark` and `validate-benchmark` check
+    before they read a book, as `fetch-benchmark-books` checked the originals;
   - for provenance, the original's URL and checksum, and the conversion used (MarkItDown's
     version and the plugins, as the owner names them).
 
@@ -436,9 +464,11 @@ original books.
   index and the library's files are as they were before the attempt.
 - **SC-004**: The image no longer contains Docling, PyMuPDF or EbookLib, and is smaller than
   `main`'s. The image sizes of both are recorded in the plan's results.
-- **SC-005**: Outside `docs/decisions.md`, `docs/benchmark-results.md` and `specs/`, the
-  repository mentions PDF, EPUB, OCR, Docling, PyMuPDF or EbookLib only where it says that books
-  are converted to Markdown outside the application, or that those formats are refused.
+- **SC-005**: Outside `docs/decisions.md`, `docs/benchmark-results.md`, `specs/`, the
+  constitution's Why sections, the bug and assessment records under `.specify/`, and `uv.lock`,
+  the repository mentions PDF, EPUB, OCR, Docling, PyMuPDF or EbookLib only where it says that
+  books are converted to Markdown outside the application, or that those formats are refused.
+  `uv.lock` names none of the removed packages.
 - **SC-006**: `make test` and `make test-integration` pass, and `doctor` reports no failure on
   the running stack.
 - **SC-007**: `validate-benchmark` passes on the Markdown dataset with all 75 answerable
@@ -459,9 +489,9 @@ original books.
 - **MarkItDown's output is read as it is.** No rule is added for its quirks. If the dataset's
   books show any (headings it doesn't mark, for example), they are reported as follow-ups and not
   fixed in this feature, which keeps Markdown reading as it is (FR-005).
-- **The owner provides the three converted books** before the benchmark's tasks, and the
-  conversion record that goes with them (FR-018). The plan's tasks wait for them there, and
-  nothing before those tasks needs them.
+- **The owner provides the three converted books** before this branch's first `make up`, and
+  the conversion record that goes with them (FR-018). Proving the chunks unchanged reads them on
+  `main`'s code, which that rebuild replaces. The code and the unit tests don't need them.
 - **Only the retrieval experiment is measured**, because it needs no judge and covers what a
   different text changes first: which passages are found. The generation, summarization and quiz
   benchmarks can be run again later on the Markdown dataset. Their earlier results stay as they

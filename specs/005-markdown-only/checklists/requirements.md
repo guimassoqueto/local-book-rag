@@ -38,3 +38,6 @@
 - The two markers, pages and the benchmark books' conversion, were answered by the owner on
   2026-11-19 (spec, Clarifications, Session 2026-11-19 (specify)) and became FR-014 to FR-016 and
   FR-018.
+- The plan's corrections of 2026-11-19 (spec, Corrections during planning) changed FR-002 for the
+  tab, the edge case of a file without headings, User Story 2's scenario 2, FR-018's check, SC-005
+  and one assumption. Every item above still passes.
