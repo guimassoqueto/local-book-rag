@@ -446,8 +446,19 @@ The rest the agent settled.
   with the same MarkItDown setup as their own books. For each book, the dataset MUST record:
   - the Markdown file's name and checksum, which `benchmark` and `validate-benchmark` check
     before they read a book, as `fetch-benchmark-books` checked the originals;
-  - for provenance, the original's URL and checksum, and the conversion used: MarkItDown's
-    version, each plugin's name and version, and any options, as the owner gives them.
+  - for provenance, the original's URL and checksum, and the conversion used. That is what
+    reproduces the file: MarkItDown's version, and its commit when installed from source; each
+    plugin's name, version and commit; Python's version; and the command.
+
+  The owner will add plugins and take newer MarkItDown versions for their own books, which the
+  library takes as they come. The benchmark's books stay at their recorded conversion
+  meanwhile. Refreshing them makes a new version of the dataset:
+  - convert again;
+  - record the new conversion and checksums;
+  - validate and correct the quotes again (FR-019).
+
+  Results on two versions of the dataset aren't compared as if nothing had changed: a comparison
+  across them is paired like FR-020's, and says so.
 
   `fetch-benchmark-books` MUST be removed, because the application can't read the files it
   downloads. The header comment of `books.yaml` MUST say that rebuilding the books takes the same
@@ -500,7 +511,8 @@ The rest the agent settled.
   and what is refused.
   Its citations, passages and the `search` command MUST be described without pages. It MUST NOT
   describe PDF, EPUB, OCR or Docling as part of the system. The benchmark's section MUST say how
-  its books are made (FR-018), in place of `fetch-benchmark-books`. It MUST say that a book's
+  its books are made (FR-018), in place of `fetch-benchmark-books`, and how to refresh them after
+  a new MarkItDown version or plugin. It MUST say that a book's
   title comes from its file's name, so a book copied into the container keeps its name on the
   way.
 - **FR-023**: `docs/decisions.md` MUST record the decision and its reason, and that it departs
@@ -611,7 +623,9 @@ The rest the agent settled.
 - **MarkItDown's output is read as it is.** No rule is added for its quirks. If the dataset's
   books show any (headings it doesn't mark, for example), they are reported as follow-ups and not
   fixed in this feature, which keeps Markdown reading as it is (FR-005).
-- **What the owner provides, and when.**
+- **What the owner provides, and when.** On 2026-11-19 the owner had the agent convert the three
+  books with the owner's own setup (`research.md`, R11), so the first item is done, unless Think
+  Python is converted again (R11, Finding).
   - **Before the image is rebuilt with this branch's code**: the three converted books in
     `benchmarks/books` on the host, under names the owner chooses, which `books.yaml` records.
     With them comes the conversion record: MarkItDown's version, each plugin's name and version,

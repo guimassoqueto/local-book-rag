@@ -304,6 +304,45 @@ the original chapter's opening (FR-019). `docs/benchmark-results.md` records how
 chapter names changed, each replaced chapter, and any quote that couldn't be corrected, with the
 reason.
 
+**The conversion, 2026-11-19.** At the owner's request, the agent converted the three books with
+the owner's setup, the one their `mkd` alias runs (`~/.bash_aliases`). The originals are the
+dataset's own files, whose checksums match `books.yaml`.
+- **The setup.**
+  - MarkItDown 0.1.9, installed from source: `microsoft/markitdown` at `ed17895`.
+  - Python 3.14.7, with pdfminer.six 20260107.
+  - One plugin, `markitdown-pdf-headings` 0.1.0, the owner's:
+    `guimassoqueto/markitdown-pdf-headings` at `7e90266`. It handles PDFs only, so the EPUBs go
+    through MarkItDown's built-in EPUB converter.
+- **The command.** `markitdown --use-plugins BOOK > BOOK.md`: standard output, which ends the
+  file with a newline that `-o` doesn't write. The owner's
+  `01_historia_economica_global.md` was made this way, and converting its PDF again gives it byte
+  for byte.
+- **Deterministic.** Converting each book twice gave identical files.
+
+| Book | Markdown sha256 | Headings (H1/H2/H3/H4+) | Today's reader finds |
+| ---- | --------------- | ----------------------- | -------------------- |
+| `think-python.md` | `3ad77653…` | 46/217/21/10 | 46 chapters, about 20 of them Python comments (Finding) |
+| `quincas-borba.md` | `ae3e75a1…` | 1/3/1/206 | 206 chapters: the "CAPITULO" ones, plus Gutenberg's header and license |
+| `on-liberty.md` | `5588535e…` | 1/10/4/0 | 11 chapters: Courtney's introduction in three parts, Mill's five, Gutenberg's header and license |
+| `01_historia_economica_global.md` | `8f15a169…` | 15/30/1/0 | 15 chapters, as the spec's Context says |
+
+**What the dataset needs.** Measured with today's reader, before any correction:
+- **Quotes.** 275 of the 280 evidence quotes are found exactly. The 5 that aren't are all in Think
+  Python.
+- **Chapter names.** Every chapter name in the questions and the key points exists.
+- **Chapter-specific questions.** Their quotes all sit in their chapter in Quincas Borba and On
+  Liberty. In Think Python, `think_python_chapter_specific_05` ("Debugging") has none of its 3
+  there.
+
+**Finding: Think Python's code becomes headings.** The plugin writes code as plain paragraphs, and
+`think-python.md` has no fenced block. So a Python comment at the start of a line, such as
+`# inside class Time:`, is a level-1 Markdown heading, and splits the chapter it is in. About 20 of
+the 46 chapters are such comments, and one splits "Debugging", which is why that question's quotes
+left it. The code's indentation is lost too. The app adds no rule for a conversion's quirks (spec,
+Assumptions). The fix belongs in the plugin: fence code blocks, or escape a leading `#` in them,
+and then convert Think Python again. Until the owner decides, the dataset's Think Python book is
+this conversion, and FR-019's rule for split chapters would apply.
+
 **Rationale.** Checking the books where the work starts keeps the guarantee that
 `fetch-benchmark-books` gave: no question is measured against a text it wasn't validated on.
 Provenance stays, without the application downloading files it can no longer read.
