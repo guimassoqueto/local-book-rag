@@ -57,6 +57,28 @@ Beyond the readers, some parts of the application exist only for PDF and EPUB:
   metadata stores `page_start` and `page_end`. With Markdown only, every one of these would stay
   empty, so they go (FR-014).
 
+The owner gave a sample of their conversion: *História econômica global* converted from its PDF
+(1,686 lines, 49,779 words). Read by today's Markdown reader, cleaning and structure steps on
+2026-11-19, with no model involved, it gives:
+
+- **The structure**: 15 chapters, the numbered "Capítulo 1" to "Capítulo 9" with their 2 to 7
+  sections each, and the acknowledgements, epilogue, references, further reading, list of
+  illustrations and list of tables. The file has 15 level-1 headings, 30 level-2 headings and
+  1 level-3 heading, and every one of them is a real heading.
+- **The language**: Portuguese, detected from the text.
+- **No title and no author.** The file has no front matter, and with 15 top-level headings none
+  of them is the title, so the book would be titled after its file name,
+  `01_historia_economica_global`, with no author.
+- **No pages, page numbers or running heads**, and no words broken at line ends. The book's
+  title appears once in the text.
+- **No tables and no images.** The list of tables is a paragraph whose entries run into each
+  other.
+- **The publisher's advertisements are still there.** At the end, a level-3 heading "Table of
+  Contents" holds the book's table of contents run into one line, followed by advertisements for
+  other books ("Compre agora e leia"). They would go into the last chapter, "Lista de tabelas".
+  The same back matter is behind an open bug in today's ingestion (`docs/benchmark-results.md`,
+  Known limitations).
+
 Removing a format can't strand a book. Any change to the code or the configuration empties the
 library at the next `make up`, because nothing lives outside the containers (constitution,
 Principle II). So no stored PDF or EPUB can outlive this change.
@@ -66,10 +88,11 @@ Principle II). So no stored PDF or EPUB can outlive this change.
 ### User Story 1 - Adding books as Markdown, and only as Markdown (Priority: P1)
 
 The owner converts a book with MarkItDown and adds the `.md` file in the Library tab, or with
-`add-book`. It goes in as a Markdown book does today: same chapters, sections, chunks, title,
-author and language. Replacing a book works the same way. If the owner picks a PDF or an EPUB by
-mistake, it is refused before anything is stored, with a message saying to convert the book to
-Markdown first. The tab's file pickers offer only Markdown files.
+`add-book`. It goes in as a Markdown book does today, with the same chapters, sections, chunks
+and language. Its title is its file name, and it has no author. Replacing a book works the same
+way. If the owner picks a PDF or an EPUB by mistake, it is refused before anything is stored,
+with a message saying to convert the book to Markdown first. The tab's file pickers offer only
+Markdown files.
 
 **Why this priority**: This is the change the owner asked for, and the rest follows from it.
 
@@ -92,6 +115,9 @@ chapters and chunks with the same file added on `main`. Then try a PDF and an EP
    only `.md` and `.markdown` files, and its label names Markdown alone.
 5. **Given** a book in the library, **When** the owner processes it again from its original or
    reindexes the library, **Then** it works as today, since every original is Markdown.
+6. **Given** a Markdown file named `01_historia_economica_global.md`, with or without a title
+   and author in its front matter or a single top-level heading, **When** the owner adds it,
+   **Then** the book is titled `01_historia_economica_global` and its author is empty.
 
 ---
 
@@ -138,8 +164,8 @@ Run `make test`, `make test-integration` and `doctor`.
 
 The benchmark dataset's three books become Markdown files converted the way the owner converts
 their own books. `validate-benchmark` finds every evidence quote in them, and the retrieval
-benchmark runs on them in a fresh workspace. Its results are recorded next to the last ones,
-measured on the PDF and EPUBs, so that the owner can see what the conversion changed. The
+benchmark runs on them in a fresh workspace. Its results are compared, question by question,
+with a run on the original PDF and EPUBs, so that the owner can see what the conversion changed. The
 extraction experiment goes, because what it measured was the PDF extractors and the originals'
 tables of contents.
 
@@ -148,8 +174,8 @@ of models or retrieval strategies depends on it. Removing the formats comes firs
 then, the benchmark still runs on the old code.
 
 **Independent Test**: Run `validate-benchmark` on the Markdown dataset, then the retrieval
-experiment on a fresh `benchmarks/workspace`, and read the report next to the PDF and EPUB
-results in `docs/benchmark-results.md`.
+experiment on a fresh `benchmarks/workspace`, and read its paired comparison with the run on the
+original books.
 
 **Acceptance Scenarios**:
 
@@ -159,9 +185,10 @@ results in `docs/benchmark-results.md`.
 2. **Given** the Markdown dataset and a fresh workspace, **When** the retrieval experiment runs,
    **Then** it completes, and its result records the dataset's checksum, which now covers the
    Markdown books.
-3. **Given** the retrieval results on Markdown, **When** they are recorded, **Then**
-   `docs/benchmark-results.md` shows them next to the last PDF and EPUB results, for information,
-   and says that the books, not the system, changed between the two.
+3. **Given** a retrieval run on `main` with the original books and one on this branch with the
+   Markdown books, **When** they are compared, **Then** `docs/benchmark-results.md` shows both,
+   with the paired interval of each metric, for information, and says that the books changed
+   between the two, along with the code that read them.
 4. **Given** an experiment of the removed `extraction` kind, **When** it is run, **Then** it is
    refused as an unknown kind, and the extraction results recorded so far stay in
    `docs/benchmark-results.md` as history, marked as measured on PDF and EPUB.
@@ -176,9 +203,14 @@ results in `docs/benchmark-results.md`.
   file is today, and nothing is stored.
 - **A Markdown file without headings** is accepted, as today. It becomes a single chapter, "Full
   text", which leaves summaries and quizzes by chapter with one chapter to choose.
-- **A Markdown file without front matter** takes its title from its only top-level heading, or
-  else from the file name. Its language is detected from the text and its author is unknown, as
-  today.
+- **A title or author in the front matter, or a single top-level heading**, no longer names the
+  book: the title is the file name and the author stays empty. The front matter is still removed
+  from the text, and its `language` (or `lang`) still sets the language. Without it, the
+  language is detected from the text, as today.
+- **Two files with the same name and different content** are two books with the same title,
+  told apart by their IDs.
+- **Replacing a book with a file of another name** changes the book's title to the new name,
+  since the title comes from the file.
 - **Images in the Markdown**, including inline `data:` images, add no text to the book. A file
   over the upload limit (512 MB) is refused, as today.
 - **The same book converted twice with different plugins** gives two files with different
@@ -203,6 +235,26 @@ results in `docs/benchmark-results.md`.
   URL and checksum and the conversion used, which is MarkItDown's version and the plugins.
   `fetch-benchmark-books` is removed, since the application can't read what it downloads.
 
+### Session 2026-11-19
+
+- Q: How should the retrieval results on the Markdown books be compared with those on the
+  original PDF and EPUBs? → A: The owner left the choice to the agent and gave a sample
+  conversion (Context). Paired, with two fresh runs: the default retrieval variant on `main`'s
+  code with the original books, before the container is rebuilt, and on this branch with the
+  Markdown books. The two are compared question by question with the paired bootstrap. The
+  totals already recorded have no rows per question, so they can't be paired.
+- Q: When a Markdown book has no front matter, as in the owner's sample, where should its title
+  and author come from? → A: The book's title is always its file name, and its author is never
+  read. Book information stays minimal until plugins that supply it are found. The catalog's
+  author field stays, and stays empty.
+- Q: Should this change be released as a breaking change (v0.4.0 to v1.0.0) or as a regular
+  feature (v0.5.0)? → A: As a breaking change: the pull request's title is `feat!:`, with a
+  `BREAKING CHANGE` footer listing what was removed, which releases v1.0.0.
+- Q: In `docs/decisions.md`, what should happen to the decisions that only explained the PDF and
+  EPUB readers? → A: Each is shortened to one line, with the decision and the failure that
+  taught it, in a closing section "Removed with PDF and EPUB (v1.0.0)". Lessons that still
+  apply anywhere stay where they are.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -219,16 +271,21 @@ results in `docs/benchmark-results.md`.
   extensions listed.
 - **FR-004**: The Library tab's file pickers MUST offer only `.md` and `.markdown` files. Their
   labels, the commands' help and the error messages MUST name Markdown as the only format.
-- **FR-005**: Reading a Markdown book MUST stay as it is today:
+- **FR-005**: Reading a Markdown book MUST stay as it is today, except for its title and author:
   - **the checks**: the size limit, an empty file, binary data, and UTF-8;
-  - **the metadata**: title, author and language from front matter, or a single top-level
-    heading as the title, or the file name;
+  - **the title**: always the name of the file the book arrived as, without its extension, as
+    given and not reformatted. A title or author in the front matter, or a single top-level
+    heading, MUST NOT set it.
+  - **the author**: never read, and left empty in the catalog, whose field stays for a later
+    feature. Wherever an author is shown or passed on today, it is empty.
+  - **the front matter**: still removed from the text, and its `language` (or `lang`) still
+    sets the book's language;
   - **the structure**: headings as structure, the rules that find chapters and sections, the
     cleaning that applies to any text (Unicode normalization, ligatures, invisible characters,
     whitespace), language detection and chunking.
 
   The same file with the same configuration MUST give the same chapters, sections and chunk
-  texts, in the same order, as on `main` (SC-002).
+  texts, in the same order, as on `main` (SC-002). Only the title and the author may differ.
 - **FR-006**: Identifying a book by its checksum, the library lock, the journal and recovery
   MUST work as today.
 
@@ -255,8 +312,8 @@ results in `docs/benchmark-results.md`.
 - **FR-012**: `doctor` MUST NOT mention Docling. Its GPU check names only what still uses the
   GPU in the application, the reranker.
 - **FR-013**: Everything else MUST be left as it was: questions, summaries, quizzes, retrieval,
-  the library's operations and their confirmations. Pages are the one exception (FR-014 to
-  FR-016).
+  the library's operations and their confirmations. The exceptions are a book's title and author
+  (FR-005) and pages (FR-014 to FR-016).
 
 #### Pages
 
@@ -303,36 +360,59 @@ results in `docs/benchmark-results.md`.
   `validate-benchmark`. A quote the conversion changed MUST be corrected to the Markdown text,
   holding the same evidence for the same answer. A question is never dropped to make the
   validation pass. If a quote can't be corrected, `docs/benchmark-results.md` says which, and why.
-- **FR-020**: The retrieval experiment's default variant MUST be run on the Markdown dataset in
-  a fresh `benchmarks/workspace`. Its result MUST be recorded in `docs/benchmark-results.md` next
-  to the last results measured on PDF and EPUB, as information and not as a verdict, since the
-  owner has already decided the format. A difference whose paired interval excludes zero MUST be
-  named, along with the questions behind it.
+- **FR-020**: The retrieval experiment's default variant MUST be run twice, each in a fresh
+  `benchmarks/workspace`:
+  - on `main`'s code with the original PDF and EPUBs, before the container is rebuilt with this
+    branch;
+  - on this branch with the Markdown books.
+
+  The two runs MUST be compared question by question, paired by question ID, with the project's
+  paired bootstrap (4,000 resamples, 95%). Each run judges relevance against its own books'
+  evidence quotes. Both runs and their comparison MUST be recorded in
+  `docs/benchmark-results.md`, as information and not as a verdict, since the owner has already
+  decided the format. A difference whose interval excludes zero MUST be named, along with the
+  questions behind it, after reading what those questions retrieved.
 - **FR-021**: A benchmark result MUST record the dataset's checksum as today. Since the dataset
   now names Markdown files, the checksum covers the books the questions were validated against.
 
 #### Records
 
 - **FR-022**: `README.md` MUST describe a library of Markdown books: how to add one, how to
-  prepare one (converted outside the application, front matter recommended for the title, author
-  and language, headings for chapters and sections), what is read from it, and what is refused.
+  prepare one (converted outside the application, named as the book should be titled, headings
+  for chapters and sections, and optional front matter for the language), what is read from it,
+  and what is refused.
   Its citations, passages and the `search` command MUST be described without pages. It MUST NOT
   describe PDF, EPUB, OCR or Docling as part of the system. The benchmark's section MUST say how
   its books are made (FR-018), in place of `fetch-benchmark-books`.
 - **FR-023**: `docs/decisions.md` MUST record the decision and its reason, and that it departs
   from the first version's spec. It also records why pages were dropped rather than read from
-  markers in the Markdown, and why the benchmark's books record how they were converted. Its
-  decisions that explain only the removed readers, such as running heads, outline matching and
-  the Docling comparison, MUST no longer read as part of the current system. A lesson that still
-  applies, such as a metric hiding a loss, stays.
+  markers in the Markdown, and why the benchmark's books record how they were converted.
+  Decisions that explain only the removed readers MUST move to a closing section, "Removed with
+  PDF and EPUB (v1.0.0)", shortened to one line each: the decision and the failure that taught
+  it. Examples are running heads recognized by page numbers, outline headings never taken for
+  running heads, outline entries each claiming one heading, and the Docling comparison. A lesson
+  that still applies anywhere stays where it is, such as a metric hiding a loss.
 - **FR-024**: Principle VII of the constitution MUST be amended through `/speckit-constitution`
   before the plan, so that citations resolve to the book, chapter and section, without pages
   (FR-014).
+- **FR-025**: The pull request's title MUST be a breaking `feat!:`, and its description MUST end
+  with a `BREAKING CHANGE` footer that the squash commit keeps. The footer lists what was
+  removed:
+  - PDF and EPUB input, OCR and Docling;
+  - pages in citations, passages and quiz pointers, and the `search` page range;
+  - the book's title from front matter or a heading, and its author;
+  - `fetch-benchmark-books` and the `extraction` experiment kind;
+  - the removed settings, which stop the app at startup if they are still there (`pdf`,
+    `normalization.remove_repeated_margins` and `chunking.preserve.page_numbers`).
+
+  The release is v1.0.0.
 
 ### Key Entities
 
 - **Book original**: the Markdown file the owner adds, identified by its checksum and stored as
   it arrived. It is the only kind of original the library holds.
+- **Book**: its title is its original's file name without the extension, and its author is
+  empty. Everything else is as today.
 - **Benchmark book**: one of the dataset's three books. It is now a Markdown file with its
   checksum, plus where it came from: the original's URL and checksum, and the conversion
   (FR-018).
@@ -349,7 +429,8 @@ results in `docs/benchmark-results.md`.
 - **SC-002**: For the three converted benchmark books and every Markdown file used in the tests,
   the chapters, sections and chunk texts are identical, in the same order, between `main` and
   this branch, under the default configuration. Page fields are left out of the comparison: on
-  `main` they are empty for Markdown, and here they no longer exist (FR-014).
+  `main` they are empty for Markdown, and here they no longer exist (FR-014). So are the title
+  and the author (FR-005).
 - **SC-003**: A PDF and an EPUB are refused in each of the four ways in (tab add, tab replace,
   `add-book`, `replace-book`), each within a second. Afterwards, the catalog, the journal, the
   index and the library's files are as they were before the attempt.
@@ -361,7 +442,7 @@ results in `docs/benchmark-results.md`.
 - **SC-006**: `make test` and `make test-integration` pass, and `doctor` reports no failure on
   the running stack.
 - **SC-007**: `validate-benchmark` passes on the Markdown dataset with all 75 answerable
-  questions kept, and the retrieval run of FR-020 is recorded with its comparison.
+  questions kept, and both retrieval runs of FR-020 are recorded with their paired comparison.
 - **SC-008**: On the running stack, after `make test-integration`'s questions, summaries and
   quizzes, no answer, summary, quiz pointer or passage shown carries a page, and every citation
   still resolves to its book, chapter and section.
@@ -385,8 +466,10 @@ results in `docs/benchmark-results.md`.
   different text changes first: which passages are found. The generation, summarization and quiz
   benchmarks can be run again later on the Markdown dataset. Their earlier results stay as they
   are, measured on PDF and EPUB.
-- **The removal is a breaking change.** Anyone who adds PDFs or EPUBs loses that ability, so the
-  pull request's title is expected to be `feat!:`, which the release workflow treats as a major
-  release.
+- **The quiz names the book by its file name.** The quiz's prompts give the model the book's
+  title and, when known, its author. Their check for questions that can be answered without
+  reading also does. Both will now get the file name and no author. That is already what the
+  owner's books get today, because their conversions have no front matter, and the prompts'
+  wording doesn't change.
 - **The specs of delivered features are history.** `specs/001` to `specs/004` mention PDF and
   EPUB and are not edited (Principle VIII).
