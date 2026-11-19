@@ -12,9 +12,12 @@ from app.errors import (
     UnsupportedLanguageError,
 )
 from app.retrieval.base import RetrievalFilters
-from app.storage.catalog import BookStatus
+from app.storage.catalog import BookCatalog, BookStatus
+from app.storage.chroma import ChromaServer
+from app.storage.repositories import OriginalDocuments, ProcessedDocuments, SummaryDocuments
+from app.utils.progress import Outcome, Progress
 from tests.fakes import FakeEmbedder
-from tests.library import Library, other_text, upload
+from tests.library import Library, library_state, other_text, progress_log, trace_journal, upload
 
 
 @pytest.fixture
@@ -445,3 +448,259 @@ def test_a_refused_reset_never_happens_later_on_its_own(library, tmp_path, monke
 
     assert restarted.books.list_books() == [book]
     assert restarted.store().count_revision(book.book_id, book.revision) == book.chunk_count
+
+
+# The progress of reindexing the library (specs/004-library-progress, US2)
+
+MEANWHILE = "Questions keep working on the current index meanwhile."
+
+
+def top_stages(views):
+    keys = []
+    for view in views:
+        if view.stage is not None and (not keys or keys[-1] != view.stage.key):
+            keys.append(view.stage.key)
+    return keys
+
+
+def last(views, key):
+    return [view.stage for view in views if view.stage is not None and view.stage.key == key][-1]
+
+
+def test_a_reindex_shows_each_book_with_its_steps(library, tmp_path):
+    first, second = add_two(library, tmp_path)
+    heard = []
+
+    with progress_log() as log:
+        library.library.reindex_all(progress=Progress(sink=heard.append))
+
+    assert top_stages(heard) == ["books", "switch"]
+    books = last(heard, "books")
+    assert (books.done, books.total, books.unit, books.time_left) == (2, 2, "books", None)
+    assert {view.stage.note for view in heard if view.stage and view.stage.key == "books" and view.stage.note} == {
+        first.title,
+        second.title,
+    }
+    assert {view.step.key for view in heard if view.step} == {"extract", "prepare", "embed", "save"}
+    assert {(view.step.position, view.step.stages) for view in heard if view.step and view.step.key == "embed"} == {
+        (3, 4)
+    }
+    steps = [record.fields for record in log.records if getattr(record, "fields", {}).get("within") == "books"]
+    assert {fields["item"] for fields in steps} == {first.book_id, second.book_id} and len(steps) == 8
+    assert all(view.meanwhile == MEANWHILE for view in heard)
+    assert log.undeclared() == []
+
+
+def test_originals_brought_back_are_shown_done_first(library, tmp_path):
+    add_two(library, tmp_path)
+    library.resets.reset_index("RESET INDEX")
+    heard = []
+
+    library.library.reindex_all(progress=Progress(sink=heard.append))
+
+    assert top_stages(heard) == ["adopt", "books", "switch"]
+    adopt = last(heard, "adopt")
+    assert (adopt.done, adopt.total, adopt.unit) == (2, 2, "originals")
+
+
+def test_saved_summaries_are_counted_without_a_time_left(library, tmp_path):
+    book = library.add(tmp_path)
+    library.summarizer.save(library.summarizer.summarize(book.book_id, 1, "brief"))
+    heard = []
+
+    with progress_log() as log:
+        library.library.reindex_all(regenerate_summaries=True, progress=Progress(sink=heard.append))
+
+    assert top_stages(heard) == ["books", "switch", "summaries"]
+    summaries = last(heard, "summaries")
+    assert (summaries.done, summaries.total, summaries.unit, summaries.time_left) == (1, 1, "summaries", None)
+    assert log.undeclared() == []
+
+
+def test_no_summary_left_to_write_reads_zero_of_zero(library, tmp_path, monkeypatch):
+    book = library.add(tmp_path)
+    library.summarizer.save(library.summarizer.summarize(book.book_id, 2, "brief"))
+    monkeypatch.setattr(library.catalog, "chapters", lambda book_id: [(1, "One")])
+    heard = []
+
+    library.library.reindex_all(regenerate_summaries=True, progress=Progress(sink=heard.append))
+
+    assert (last(heard, "summaries").done, last(heard, "summaries").total) == (0, 0)
+
+
+def test_a_summary_that_fails_doesnt_stop_the_count(library, tmp_path, monkeypatch):
+    book = library.add(tmp_path)
+    library.summarizer.save(library.summarizer.summarize(book.book_id, 1, "brief"))
+
+    def fail(*args, **kwargs):
+        raise GenerationError("The model finished without an answer.")
+
+    monkeypatch.setattr(library.summarizer, "summarize", fail)
+    heard = []
+
+    library.library.reindex_all(regenerate_summaries=True, progress=Progress(sink=heard.append))
+
+    assert (last(heard, "summaries").done, last(heard, "summaries").total) == (1, 1)
+
+
+def test_progress_changes_nothing_a_reindex_does(settings, tmp_path):
+    without, with_ = Library(settings, tmp_path / "a"), Library(settings, tmp_path / "b")
+    for library, directory in ((without, tmp_path / "in_a"), (with_, tmp_path / "in_b")):
+        directory.mkdir()
+        add_two(library, directory)
+        library.resets.reset_index("RESET INDEX")
+    calls_without, calls_with = trace_journal(without), trace_journal(with_)
+
+    without.library.reindex_all()
+    with_.library.reindex_all(progress=Progress())
+
+    assert library_state(without) == library_state(with_)
+    assert calls_without == calls_with and calls_with
+
+
+def test_a_book_that_worked_and_fails_names_the_book_and_the_step(settings, tmp_path, monkeypatch):
+    without, with_ = Library(settings, tmp_path / "a"), Library(settings, tmp_path / "b")
+    books = {}
+    for library, directory in ((without, tmp_path / "in_a"), (with_, tmp_path / "in_b")):
+        directory.mkdir()
+        books[library] = library.add(directory)
+
+        def fail(*args, **kwargs):
+            raise ServiceUnavailableError("Ollama is down")
+
+        monkeypatch.setattr(library.embedder, "embed_documents", fail)
+    progress = Progress()
+
+    with pytest.raises(ServiceUnavailableError):
+        without.library.reindex_all()
+    with pytest.raises(ServiceUnavailableError):
+        with_.library.reindex_all(progress=progress)
+
+    book = books[with_]
+    assert library_state(without) == library_state(with_)
+    assert progress.snapshot().outcome == Outcome(
+        succeeded=False,
+        stage="Indexing the books",
+        step="Embedding the chunks",
+        item=f"{book.book_id}, {book.title}",
+        error="Ollama is down",
+    )
+
+
+def test_a_book_with_nothing_to_lose_that_fails_doesnt_stop_the_count(settings, tmp_path):
+    embedder = FakeEmbedder()
+    library = Library(settings, tmp_path / "data", embedder)
+    library.add(tmp_path, "one.md")
+    embedder.failure = ServiceUnavailableError("down")
+    with pytest.raises(ServiceUnavailableError):
+        library.add(tmp_path, "two.md", other_text("the failing book"))
+    embedder.failure = None
+    original = embedder.embed_documents
+
+    def fail_only_on_that_book(texts, on_batch=None):
+        if any("the failing book" in text for text in texts):
+            raise ServiceUnavailableError("still failing")
+        return original(texts, on_batch)
+
+    embedder.embed_documents = fail_only_on_that_book
+    heard = []
+
+    report = library.library.reindex_all(progress=Progress(sink=heard.append))
+
+    assert report.failed and (last(heard, "books").done, last(heard, "books").total) == (2, 2)
+    assert heard[-1].outcome.succeeded
+
+
+def test_an_empty_library_shows_no_progress(library):
+    progress = Progress()
+
+    with pytest.raises(NothingToReindexError):
+        library.library.reindex_all(progress=progress)
+
+    assert progress.snapshot() is None
+
+
+# The progress of the resets (specs/004-library-progress, US3)
+
+RESETS = {
+    "reset_index": ("RESET INDEX", ["collections", "processed", "summaries", "sources", "catalog"]),
+    "reset_everything": ("DELETE EVERYTHING", ["collections", "processed", "summaries", "originals", "catalog"]),
+}
+RESET_FAILURES = {
+    "collections": (ChromaServer, "delete_collections", "Deleting the index"),
+    "processed": (ProcessedDocuments, "delete_all", "Deleting the processed documents"),
+    "summaries": (SummaryDocuments, "delete_all", "Deleting the summaries"),
+    "sources": (OriginalDocuments, "record", "Keeping a record of the originals"),
+    "originals": (OriginalDocuments, "delete_all", "Deleting the originals"),
+    "catalog": (BookCatalog, "clear", "Clearing the catalog"),
+}
+
+
+def broken(*args, **kwargs):
+    raise RuntimeError("broken")
+
+
+@pytest.mark.parametrize("name", RESETS)
+def test_a_reset_shows_its_steps_by_name_without_a_count(library, tmp_path, name):
+    add_two(library, tmp_path)
+    phrase, steps = RESETS[name]
+    heard = []
+
+    with progress_log() as log:
+        getattr(library.resets, name)(phrase, progress=Progress(sink=heard.append))
+
+    assert top_stages(heard) == steps
+    assert all(view.stage.total is None for view in heard if view.stage)
+    assert heard[-1].outcome.succeeded and log.undeclared() == []
+
+
+@pytest.mark.parametrize("name", RESETS)
+def test_progress_changes_nothing_a_reset_does(settings, tmp_path, name):
+    without, with_ = Library(settings, tmp_path / "a"), Library(settings, tmp_path / "b")
+    for library, directory in ((without, tmp_path / "in_a"), (with_, tmp_path / "in_b")):
+        directory.mkdir()
+        add_two(library, directory)
+    calls_without, calls_with = trace_journal(without), trace_journal(with_)
+    phrase, _ = RESETS[name]
+
+    getattr(without.resets, name)(phrase)
+    getattr(with_.resets, name)(phrase, progress=Progress())
+
+    assert library_state(without) == library_state(with_)
+    assert calls_without == calls_with and calls_with
+
+
+@pytest.mark.parametrize(("name", "step"), [(name, step) for name, (_, steps) in RESETS.items() for step in steps])
+def test_a_reset_failing_at_each_step_leaves_and_recovers_what_it_would_without_progress(
+    settings, tmp_path, monkeypatch, name, step
+):
+    without, with_ = Library(settings, tmp_path / "a"), Library(settings, tmp_path / "b")
+    for library, directory in ((without, tmp_path / "in_a"), (with_, tmp_path / "in_b")):
+        directory.mkdir()
+        add_two(library, directory)
+    phrase, _ = RESETS[name]
+    owner, method, label = RESET_FAILURES[step]
+    progress = Progress()
+
+    with monkeypatch.context() as patched:
+        patched.setattr(owner, method, broken)
+        with pytest.raises(RuntimeError):
+            getattr(without.resets, name)(phrase)
+        with pytest.raises(RuntimeError):
+            getattr(with_.resets, name)(phrase, progress=progress)
+
+    assert library_state(without) == library_state(with_)
+    assert progress.snapshot().outcome.stage == label
+    Library(settings, tmp_path / "a").library.recover()
+    Library(settings, tmp_path / "b").library.recover()
+    assert library_state(without) == library_state(with_)
+
+
+@pytest.mark.parametrize("name", RESETS)
+def test_a_reset_with_the_wrong_phrase_shows_no_progress(library, tmp_path, name):
+    progress = Progress()
+
+    with pytest.raises(ConfirmationRequiredError):
+        getattr(library.resets, name)("yes", progress=progress)
+
+    assert progress.snapshot() is None

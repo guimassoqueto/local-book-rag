@@ -4,13 +4,14 @@ from pathlib import Path
 
 from app.errors import EmptyDocumentError, InvalidDocumentError
 from app.ingestion.base import Block, BlockKind, DocumentFormat, ExtractedDocument
+from app.utils.progress import Stage
 
 
 class DoclingLoader:
     def __init__(self, ocr: bool) -> None:
         self._ocr = ocr
 
-    def load(self, path: Path) -> ExtractedDocument:
+    def load(self, path: Path, stage: Stage | None = None) -> ExtractedDocument:
         # Imported here: Docling pulls in torch, and most books never need it.
         from docling.datamodel.base_models import InputFormat
         from docling.datamodel.pipeline_options import HeadingHierarchyOptions, PdfPipelineOptions

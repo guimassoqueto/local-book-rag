@@ -1,5 +1,7 @@
 """Turns results into what the interface shows. Nothing here touches Gradio or a service."""
 
+import html
+import math
 from collections.abc import Sequence
 
 from app.generation.base import GenerationStats, Message
@@ -8,10 +10,12 @@ from app.generation.question_answering import Answer
 from app.generation.summarization import ChapterSummary
 from app.ingestion.chunker import Chunk
 from app.retrieval.base import Passage
+from app.services.library_service import ReindexReport
 from app.services.quiz_service import Question, QuizReady, Result
 from app.storage.catalog import Book, IndexRecord
 from app.utils.gpu import GpuStatus
 from app.utils.ollama_runtime import LoadedModel
+from app.utils.progress import ProgressView, StageView
 
 ALL_CHAPTERS = -1
 
@@ -293,3 +297,197 @@ def quiz_result_markdown(result: Result) -> str:
         lines += ["", "**Chapters to reread**", "", "| Chapter | Questions | Missed |", "| --- | --- | --- |"]
         lines += [f"| {tally.chapter_title} | {tally.questions} | {tally.missed} |" for tally in result.ranking]
     return "\n".join(lines)
+
+
+# The progress of library operations (specs/004-library-progress). The services report the stages,
+# counts and times left; these only write them in the forms of FR-002.
+
+# Scoped to the progress area by Gradio. A JavaScript template string: no dollar-brace in here.
+PROGRESS_CSS = """
+.progress { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; }
+.progress .head { display: flex; justify-content: space-between; gap: 12px; }
+.progress .elapsed { font-variant-numeric: tabular-nums; opacity: 0.8; }
+.progress .detail, .progress .meanwhile { opacity: 0.8; font-size: 0.95em; }
+.progress progress { width: 100%; height: 10px; }
+.progress.failed { color: var(--error-text-color, #b91c1c); }
+"""
+
+
+def elapsed_text(seconds: float) -> str:
+    """0:38, or 1:02:05 past an hour."""
+    whole = int(seconds)
+    hours, rest = divmod(whole, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
+
+
+def time_left_text(seconds: float) -> str:
+    """Under a minute, rounded up to 5 s; from a minute on, to the nearest minute; "almost done" at zero."""
+    if seconds <= 0:
+        return "almost done"
+    if seconds < 60:
+        return f"about {max(5, math.ceil(seconds / 5) * 5)} s left"
+    return f"about {round(seconds / 60)} min left"
+
+
+def _position(stage: StageView, kind: str) -> str | None:
+    return f"{kind} {stage.position} of {stage.stages}" if stage.position is not None else None
+
+
+def _count_text(stage: StageView) -> str | None:
+    if stage.total is None or stage.done is None:
+        return None
+    return f"{stage.done} of {stage.total} {stage.unit}" if stage.unit else f"{stage.done} of {stage.total}"
+
+
+def _stage_parts(stage: StageView, kind: str) -> list[str]:
+    """The stage as the commands write it: position, label, count, time left, note."""
+    parts = [part for part in (_position(stage, kind), stage.label, _count_text(stage)) if part]
+    if stage.time_left is not None:
+        parts.append(time_left_text(stage.time_left))
+    if stage.note:
+        parts.append(stage.note)
+    return parts
+
+
+def _head(view: ProgressView) -> str:
+    return f"{view.operation}, {view.subject}" if view.subject else view.operation
+
+
+def _lower_first(label: str) -> str:
+    return label[:1].lower() + label[1:]
+
+
+def progress_text(view: ProgressView) -> str:
+    """One line for the commands' error stream."""
+    prefix = f"[{elapsed_text(view.elapsed)}] {_head(view)}"
+    if view.outcome is not None:
+        if view.outcome.succeeded:
+            return f"{prefix}: done"
+        return f"{prefix}: failed{_where(view)}"
+    if view.stage is None:
+        return f"{prefix}: starting"
+    line = f"{prefix}: " + ", ".join(_stage_parts(view.stage, "stage"))
+    if view.step is not None:
+        line += ": " + ", ".join(_stage_parts(view.step, "step"))
+    return line
+
+
+def _where(view: ProgressView) -> str:
+    """Where a failed operation stopped: " while embedding the chunks", and the book of a reindex."""
+    outcome = view.outcome
+    if outcome is None or outcome.stage is None:
+        return ""
+    where = f" while {_lower_first(outcome.stage)}"
+    if outcome.item:
+        where += f", at {outcome.item}"
+    if outcome.step:
+        where += f", while {_lower_first(outcome.step)}"
+    return where
+
+
+def failed_line(view: ProgressView) -> str:
+    """Failed after 0:15, while embedding the chunks: Ollama is down."""
+    where = _where(view)
+    error = view.outcome.error if view.outcome else None
+    return f"Failed after {elapsed_text(view.elapsed)}{',' + where if where else ''}: {error}"
+
+
+def _bar(stage: StageView) -> str:
+    if stage.total is None or stage.done is None:
+        return "<progress></progress>"
+    if stage.total == 0:
+        return '<progress value="1" max="1"></progress>'
+    return f'<progress value="{stage.done}" max="{stage.total}"></progress>'
+
+
+def _stage_html(stage: StageView, kind: str) -> str:
+    """A stage, or a step: its name and position, its bar, and its count, time left and note."""
+    title = " — ".join(part for part in (stage.label, _position(stage, kind)) if part)
+    detail = [part for part in (_count_text(stage),) if part]
+    if stage.time_left is not None:
+        detail.append(time_left_text(stage.time_left))
+    if stage.note:
+        detail.append(stage.note)
+    lines = [f'<div class="line">{html.escape(title)}</div>', _bar(stage)]
+    if detail:
+        lines.append(f'<div class="detail">{html.escape(" · ".join(detail))}</div>')
+    return "".join(lines)
+
+
+def progress_html(view: ProgressView | None) -> str:
+    """The progress area while an operation runs, or its failure once it has failed. Empty before it begins."""
+    if view is None:
+        return ""
+    if view.outcome is not None and not view.outcome.succeeded:
+        return outcome_html(failed_line(view), succeeded=False)
+    head = html.escape(view.operation) + (f" · {html.escape(view.subject)}" if view.subject else "")
+    parts = [
+        f'<div class="head"><strong>{head}</strong><span class="elapsed">{elapsed_text(view.elapsed)}</span></div>'
+    ]
+    if view.stage is not None:
+        parts.append(_stage_html(view.stage, "stage"))
+    if view.step is not None:
+        parts.append(_stage_html(view.step, "step"))
+    if view.stage is None:
+        parts.append("<progress></progress>")
+    if view.meanwhile:
+        parts.append(f'<div class="meanwhile">{html.escape(view.meanwhile)}</div>')
+    return f'<div class="progress">{"".join(parts)}</div>'
+
+
+def starting_html(label: str) -> str:
+    """What the area shows from the click until the operation's progress begins."""
+    return f'<div class="progress"><div class="line">{html.escape(label)}: starting</div><progress></progress></div>'
+
+
+def outcome_html(line: str, succeeded: bool) -> str:
+    """The line the area keeps once the operation has ended."""
+    classes = "progress" if succeeded else "progress failed"
+    return f'<div class="{classes}"><div class="line">{html.escape(line)}</div></div>'
+
+
+def added_line(book: Book, elapsed: float) -> str:
+    return (
+        f"Added in {elapsed_text(elapsed)}. {book.book_id}: {book.title}, "
+        f"with {book.chapter_count} chapters and {book.chunk_count} chunks."
+    )
+
+
+def replaced_line(book: Book, elapsed: float) -> str:
+    return f"Replaced in {elapsed_text(elapsed)}. {book.book_id} is now {book.title}, with {book.chunk_count} chunks."
+
+
+def reprocessed_line(book: Book, elapsed: float) -> str:
+    return f"Processed again in {elapsed_text(elapsed)}. {book.book_id}: {book.chunk_count} chunks."
+
+
+def removed_line(book_id: str, archived: bool, elapsed: float) -> str:
+    original = "its original is in the archive" if archived else "its original was deleted"
+    return f"Removed in {elapsed_text(elapsed)}. {book_id} is gone; {original}."
+
+
+def reindexed_line(report: ReindexReport, elapsed: float) -> str:
+    notes = [
+        f"Reindexed in {elapsed_text(elapsed)}.",
+        f"Index v{report.index_version} is active: {report.books} books, {report.chunks} chunks.",
+    ]
+    if report.adopted:
+        notes.append(f"Brought back from their originals: {', '.join(report.adopted)}.")
+    if report.failed:
+        notes.append(f"Still failing: {', '.join(report.failed)}.")
+    if report.summaries_failed:
+        failed = len(report.summaries_failed)
+        notes.append(f"{failed} {'summary' if failed == 1 else 'summaries'} not written.")
+    return " ".join(notes)
+
+
+def index_reset_line(elapsed: float) -> str:
+    return (
+        f"Reset in {elapsed_text(elapsed)}. The index is gone and the originals are kept. "
+        "Reindex the library to rebuild it."
+    )
+
+
+def everything_reset_line(elapsed: float) -> str:
+    return f"Reset in {elapsed_text(elapsed)}. The library is empty."

@@ -12,16 +12,27 @@ from app.ingestion.chunker import Chunk
 from app.ingestion.pipeline import ProcessedDocument
 from app.ingestion.validation import safe_filename, validate_upload
 from app.services.index_service import IndexService
-from app.services.ingestion_service import IngestionService
-from app.services.library_data import LibraryData
+from app.services.ingestion_service import INGEST_STEPS, IngestionService
+from app.services.library_data import LibraryData, removal_steps
 from app.services.recovery_service import ADD_BOOK, REMOVE_BOOK, REPLACE_BOOK, LibraryGuard
 from app.storage.catalog import Book, BookStatus, BookUpdate, IndexRecord, utc_now
 from app.utils.hashing import file_checksum
 from app.utils.logging import get_logger, log_event, operation
+from app.utils.progress import Progress, StageSpec
 
 logger = get_logger("services.books")
 
 _FIRST_REVISION = 1
+
+# What the Library tab and the commands show of each operation (specs/004-library-progress).
+ADDING = "Adding a book"
+REPLACING = "Replacing a book"
+REPROCESSING = "Processing a book again"
+REMOVING = "Removing a book"
+_SWAP = StageSpec("swap", "Swapping in the new version")
+_ADD_STAGES = (StageSpec("store", "Storing the file"), *INGEST_STEPS)
+_REPLACE_STAGES = (StageSpec("store", "Storing the replacement"), *INGEST_STEPS, _SWAP)
+_REPROCESS_STAGES = (*INGEST_STEPS, _SWAP)
 
 
 @dataclass(frozen=True)
@@ -86,12 +97,13 @@ class BookService:
         book = self._catalog.get(book_id)
         return self._data.processed.load_chunks(book_id, book.revision)
 
-    def add_book(self, upload: Path, filename: str) -> Book:
+    def add_book(self, upload: Path, filename: str, progress: Progress | None = None) -> Book:
         """Add a document to the library, leaving every other book as it was.
 
         Args:
             upload: where the upload is on disk.
             filename: the name it arrived with.
+            progress: told of each stage, once the checks that can refuse the file have passed.
 
         Returns:
             The new book.
@@ -104,6 +116,7 @@ class BookService:
                 failed validation; a failure after it leaves a FAILED book, whose derived
                 data is removed. Uploading the file again retries it.
         """
+        progress = progress or Progress()
         with self._guard.exclusive():
             document = self._read_upload(upload, filename)
             existing = self._catalog.find_by_checksum(document.checksum)
@@ -117,13 +130,18 @@ class BookService:
                     self._data.delete_book(existing.book_id, archive=False)
 
             book_id = self._catalog.next_book_id()
-            with operation(logger, ADD_BOOK, book_id=book_id), self._journal(ADD_BOOK, book_id) as journal:
-                original = self._data.originals.store(document.path, book_id, document.format, _FIRST_REVISION)
-                book = self._new_book(book_id, document, original)
-                self._catalog.add(book)
-                self._data.record_source(book)
+            with (
+                operation(logger, ADD_BOOK, book_id=book_id),
+                self._journal(ADD_BOOK, book_id) as journal,
+                progress.operation(ADDING, _ADD_STAGES, subject=book_id),
+            ):
+                with progress.stage("store"):
+                    original = self._data.originals.store(document.path, book_id, document.format, _FIRST_REVISION)
+                    book = self._new_book(book_id, document, original)
+                    self._catalog.add(book)
+                    self._data.record_source(book)
                 try:
-                    processed = self._ingest(book, original, _FIRST_REVISION, index)
+                    processed = self._ingest(book, original, _FIRST_REVISION, index, progress)
                 except Exception as exc:
                     self._catalog.update(book_id, status=BookStatus.FAILED, status_detail=str(exc))
                     self._data.discard_revision(book_id, _FIRST_REVISION)
@@ -132,7 +150,7 @@ class BookService:
                 log_event(logger, "book added", chunks=len(processed.chunks))
                 return self._catalog.apply(indexed_update(book, _FIRST_REVISION, processed, index))
 
-    def replace_book(self, book_id: str, upload: Path, filename: str) -> Book:
+    def replace_book(self, book_id: str, upload: Path, filename: str, progress: Progress | None = None) -> Book:
         """Swap a book for a new document, keeping its ID.
 
         The replacement is indexed next to the book as a new revision, which stays out of
@@ -145,6 +163,7 @@ class BookService:
             LibraryBusyError: another operation is running.
             BookRagError: the replacement failed. The book is as it was.
         """
+        progress = progress or Progress()
         with self._guard.exclusive():
             book = self._catalog.get(book_id)
             document = self._read_upload(upload, filename)
@@ -157,23 +176,26 @@ class BookService:
             with (
                 operation(logger, REPLACE_BOOK, book_id=book_id),
                 self._swap_journal(book, revision, staged_path) as journal,
+                progress.operation(REPLACING, _REPLACE_STAGES, subject=book_id),
             ):
-                staged = self._data.originals.store(document.path, book_id, document.format, revision)
-                replacement = _replaced(book, document, staged)
-                processed = self._index_revision(book, replacement, revision, index, staged, journal)
+                with progress.stage("store"):
+                    staged = self._data.originals.store(document.path, book_id, document.format, revision)
+                    replacement = _replaced(book, document, staged)
+                processed = self._index_revision(book, replacement, revision, index, staged, journal, progress)
                 extra = {
                     "original_filename": document.name,
                     "original_path": str(staged),
                     "checksum": document.checksum,
                     "format": document.format.value,
                 }
-                updated = self._catalog.apply(indexed_update(book, revision, processed, index, **extra))
-                self._data.record_source(updated)
-                self._data.drop_replaced_revision(book.book_id, book.revision, book.original_path)
-                self._data.summaries.delete(book_id)  # they describe the text that just went away
+                with progress.stage("swap"):
+                    updated = self._catalog.apply(indexed_update(book, revision, processed, index, **extra))
+                    self._data.record_source(updated)
+                    self._data.drop_replaced_revision(book.book_id, book.revision, book.original_path)
+                    self._data.summaries.delete(book_id)  # they describe the text that just went away
                 return updated
 
-    def reindex_book(self, book_id: str) -> Book:
+    def reindex_book(self, book_id: str, progress: Progress | None = None) -> Book:
         """Process a book again from its original, as a new revision of the active index.
 
         This retries a failed book. Changing what the whole index is made of takes reindex_all.
@@ -184,6 +206,7 @@ class BookService:
             LibraryBusyError: another operation is running.
             BookRagError: reindexing failed. The book is as it was.
         """
+        progress = progress or Progress()
         with self._guard.exclusive():
             book = self._catalog.get(book_id)
             original = Path(book.original_path)
@@ -195,19 +218,24 @@ class BookService:
             with (
                 operation(logger, "reindex_book", book_id=book_id),
                 self._swap_journal(book, revision, None) as journal,
+                progress.operation(REPROCESSING, _REPROCESS_STAGES, subject=book_id),
             ):
-                processed = self._index_revision(book, book, revision, index, None, journal)
-                updated = self._catalog.apply(indexed_update(book, revision, processed, index))
-                self._data.drop_replaced_revision(book.book_id, book.revision, None)
+                processed = self._index_revision(book, book, revision, index, None, journal, progress)
+                with progress.stage("swap"):
+                    updated = self._catalog.apply(indexed_update(book, revision, processed, index))
+                    self._data.drop_replaced_revision(book.book_id, book.revision, None)
                 return updated
 
-    def remove_book(self, book_id: str, confirmation: str, archive_original: bool = False) -> None:
+    def remove_book(
+        self, book_id: str, confirmation: str, archive_original: bool = False, progress: Progress | None = None
+    ) -> None:
         """Remove a book and everything derived from it, leaving every other book as it was.
 
         Args:
             book_id: the book.
             confirmation: has to repeat the book's ID.
             archive_original: keep the original in data/archive instead of deleting it.
+            progress: told of each step, once the confirmation and the book have been checked.
 
         Raises:
             ConfirmationRequiredError: the confirmation doesn't match.
@@ -215,12 +243,16 @@ class BookService:
         """
         if confirmation != book_id:
             raise ConfirmationRequiredError(f"Removing a book needs its ID as confirmation: {book_id}.")
+        progress = progress or Progress()
         with self._guard.exclusive():
             self._catalog.get(book_id)
             with operation(logger, REMOVE_BOOK, book_id=book_id):
-                with self._journal(REMOVE_BOOK, book_id, archive=archive_original):
+                with (
+                    self._journal(REMOVE_BOOK, book_id, archive=archive_original),
+                    progress.operation(REMOVING, removal_steps(archive_original), subject=book_id),
+                ):
                     self._catalog.update(book_id, status=BookStatus.REMOVING)
-                    self._data.delete_book(book_id, archive_original)
+                    self._data.delete_book(book_id, archive_original, progress)
 
     def _read_upload(self, upload: Path, filename: str) -> _Upload:
         document_format = validate_upload(upload, filename, self._max_upload_bytes)
@@ -247,7 +279,9 @@ class BookService:
             indexed_at=None,
         )
 
-    def _ingest(self, book: Book, path: Path, revision: int, index: IndexRecord) -> ProcessedDocument:
+    def _ingest(
+        self, book: Book, path: Path, revision: int, index: IndexRecord, progress: Progress
+    ) -> ProcessedDocument:
         return self._ingestion.ingest(
             path,
             DocumentFormat(book.format),
@@ -256,15 +290,23 @@ class BookService:
             Path(book.original_filename).stem,
             index,
             self._indexes.store(index),
+            progress,
         )
 
     def _index_revision(
-        self, book: Book, source: Book, revision: int, index: IndexRecord, staged: Path | None, journal: int
+        self,
+        book: Book,
+        source: Book,
+        revision: int,
+        index: IndexRecord,
+        staged: Path | None,
+        journal: int,
+        progress: Progress,
     ) -> ProcessedDocument:
         """Index a new revision next to the live one, undoing it completely if anything fails."""
         self._catalog.update(book.book_id, status=BookStatus.REINDEXING)
         try:
-            return self._ingest(source, Path(source.original_path), revision, index)
+            return self._ingest(source, Path(source.original_path), revision, index, progress)
         except Exception:
             self._catalog.update(book.book_id, status=book.status)
             self._data.discard_revision(book.book_id, revision, str(staged) if staged else None)

@@ -12,6 +12,7 @@ from ebooklib import epub
 from app.errors import EmptyDocumentError, InvalidDocumentError
 from app.ingestion.base import Block, BlockKind, DocumentFormat, ExtractedDocument, comparable_text
 from app.ingestion.html_blocks import html_to_blocks
+from app.utils.progress import Stage
 
 _NEAR_HEADING_WINDOW = 4  # blocks after a TOC target in which its printed heading may appear
 
@@ -25,7 +26,7 @@ class TocEntry:
 
 
 class EpubLoader:
-    def load(self, path: Path) -> ExtractedDocument:
+    def load(self, path: Path, stage: Stage | None = None) -> ExtractedDocument:
         book = _read(path)
         entries = flatten_toc(book.toc)
         by_file: dict[str, list[TocEntry]] = defaultdict(list)

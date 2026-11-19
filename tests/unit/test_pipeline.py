@@ -95,3 +95,24 @@ def test_extracted_document_is_kept_apart_from_the_normalized_one(pipeline, tmp_
 
     assert isinstance(result.extracted, ExtractedDocument)
     assert result.extracted is not result.normalized
+
+
+# The stages of extraction and preparation (specs/004-library-progress)
+
+
+def test_the_pipeline_reports_extraction_then_preparation(pipeline, tmp_path):
+    from app.services.ingestion_service import INGEST_STEPS
+    from app.utils.progress import Progress
+
+    path = tmp_path / "book.md"
+    path.write_text(f"# One\n\n{ENGLISH}\n\n# Two\n\n{ENGLISH}\n", encoding="utf-8")
+    heard = []
+    progress = Progress(sink=heard.append)
+
+    with progress.operation("Adding a book", INGEST_STEPS):
+        with_progress = pipeline.process(path, DocumentFormat.MARKDOWN, "book_001", "t", progress=progress)
+
+    stages = [view.stage for view in heard if view.stage is not None]
+    assert list(dict.fromkeys(stage.key for stage in stages)) == ["extract", "prepare"]
+    assert all(stage.total is None for stage in stages if stage.key == "extract")  # Markdown has no pages
+    assert with_progress == pipeline.process(path, DocumentFormat.MARKDOWN, "book_001", "t")

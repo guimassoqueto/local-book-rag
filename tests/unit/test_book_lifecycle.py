@@ -12,11 +12,16 @@ from app.errors import (
     ReindexRequiredError,
     ServiceUnavailableError,
 )
+from app.ingestion.markdown_loader import MarkdownLoader
 from app.retrieval.base import RetrievalFilters
-from app.storage.catalog import BookStatus
+from app.storage.catalog import BookCatalog, BookStatus
+from app.storage.chroma import ChunkStore
+from app.storage.repositories import OriginalDocuments, ProcessedDocuments, SummaryDocuments
+from app.utils.progress import Progress
 from tests.documents import write_pdf
 from tests.fakes import FakeEmbedder
-from tests.library import Library, other_text, upload
+from tests.library import MARKDOWN as MARKDOWN_TEXT
+from tests.library import Library, library_state, other_text, progress_log, trace_journal, upload
 
 
 @pytest.fixture
@@ -306,3 +311,273 @@ def test_the_lock_is_released_after_a_failure(library, tmp_path):
     library.books.remove_book(book.book_id, confirmation=book.book_id)
 
     assert library.books.list_books() == []
+
+
+# The progress of adding, replacing and processing a book again (specs/004-library-progress, US1)
+
+ADD = ["store", "extract", "prepare", "embed", "save"]
+REPLACE = ["store", "extract", "prepare", "embed", "save", "swap"]
+REPROCESS = ["extract", "prepare", "embed", "save", "swap"]
+
+
+def top_stages(views):
+    """The top-level stages in the order they were shown."""
+    keys = []
+    for view in views:
+        if view.stage is not None and (not keys or keys[-1] != view.stage.key):
+            keys.append(view.stage.key)
+    return keys
+
+
+def adding(library, tmp_path, progress=None, text=MARKDOWN_TEXT):
+    path = upload(tmp_path, "book.md", text)
+    kwargs = {"progress": progress} if progress is not None else {}
+    return library.books.add_book(path, "book.md", **kwargs)
+
+
+def replacing(library, tmp_path, progress=None):
+    book = library.add(tmp_path)
+    kwargs = {"progress": progress} if progress is not None else {}
+    return library.books.replace_book(book.book_id, replacement(tmp_path), "new.md", **kwargs)
+
+
+def reprocessing(library, tmp_path, progress=None):
+    book = library.add(tmp_path)
+    kwargs = {"progress": progress} if progress is not None else {}
+    return library.books.reindex_book(book.book_id, **kwargs)
+
+
+OPERATIONS = {"add": (adding, ADD), "replace": (replacing, REPLACE), "reprocess": (reprocessing, REPROCESS)}
+
+
+@pytest.mark.parametrize("name", OPERATIONS)
+def test_each_operation_reports_its_stages_in_order(settings, tmp_path, name):
+    operation, expected = OPERATIONS[name]
+    library = Library(settings, tmp_path / "data")
+    heard = []
+    progress = Progress(sink=heard.append)
+
+    with progress_log() as log:
+        book = operation(library, tmp_path, progress)
+
+    assert top_stages(heard) == expected
+    positions = {view.stage.key: (view.stage.position, view.stage.stages) for view in heard if view.stage}
+    assert positions == {key: (index, len(expected)) for index, key in enumerate(expected, start=1)}
+    embedded = [view.stage for view in heard if view.stage and view.stage.key == "embed" and view.stage.total]
+    assert embedded[-1].done == embedded[-1].total == book.chunk_count
+    assert progress.snapshot().outcome.succeeded and progress.snapshot().subject == book.book_id
+    assert log.undeclared() == []
+
+
+@pytest.mark.parametrize("name", OPERATIONS)
+def test_progress_changes_nothing_an_operation_does(settings, tmp_path, name):
+    operation, _ = OPERATIONS[name]
+    without, with_ = Library(settings, tmp_path / "a"), Library(settings, tmp_path / "b")
+    calls_without, calls_with = trace_journal(without), trace_journal(with_)
+    (tmp_path / "in_a").mkdir(), (tmp_path / "in_b").mkdir()
+
+    first = operation(without, tmp_path / "in_a")
+    second = operation(with_, tmp_path / "in_b", Progress())
+
+    assert library_state(without) == library_state(with_)
+    assert calls_without == calls_with and calls_with
+    assert (first.book_id, first.revision, first.chunk_count) == (second.book_id, second.revision, second.chunk_count)
+
+
+class Broken(Exception):
+    pass
+
+
+def fail(*args, **kwargs):
+    raise Broken("broken")
+
+
+FAILURES = {
+    "store": lambda monkeypatch, library: monkeypatch.setattr(OriginalDocuments, "store", fail),
+    "extract": lambda monkeypatch, library: monkeypatch.setattr(MarkdownLoader, "load", fail),
+    "embed": lambda monkeypatch, library: setattr(library.embedder, "failure", Broken("broken")),
+    "save": lambda monkeypatch, library: monkeypatch.setattr(ChunkStore, "add", fail),
+    "swap": lambda monkeypatch, library: monkeypatch.setattr(BookCatalog, "apply", fail),
+}
+LABELS = {
+    "store": "Storing the file",
+    "extract": "Extracting the text",
+    "prepare": "Preparing the chunks",
+    "embed": "Embedding the chunks",
+    "save": "Saving to the index",
+    "swap": "Swapping in the new version",
+}
+CASES = [("add", stage) for stage in ADD] + [("replace", "store"), ("replace", "embed"), ("replace", "swap")]
+CASES += [("reprocess", "extract"), ("reprocess", "save"), ("reprocess", "swap")]
+
+
+def failing(name, stage, library, directory, monkeypatch, progress=None):
+    """Run an operation whose stage fails. The setup before it runs unbroken."""
+    operation, _ = OPERATIONS[name]
+    if name == "add":
+        if stage == "prepare":
+            return operation(library, directory, progress, text="# One\n\n# Two\n")
+        FAILURES[stage](monkeypatch, library)
+        return operation(library, directory, progress)
+    book = library.add(directory)
+    if stage == "prepare":
+        raise AssertionError("not a case")
+    FAILURES[stage](monkeypatch, library)
+    kwargs = {"progress": progress} if progress is not None else {}
+    if name == "replace":
+        return library.books.replace_book(book.book_id, replacement(directory), "new.md", **kwargs)
+    return library.books.reindex_book(book.book_id, **kwargs)
+
+
+@pytest.mark.parametrize(("name", "stage"), CASES)
+def test_a_failure_in_each_stage_leaves_what_it_leaves_without_progress(settings, tmp_path, monkeypatch, name, stage):
+    without, with_ = Library(settings, tmp_path / "a"), Library(settings, tmp_path / "b")
+    (tmp_path / "in_a").mkdir(), (tmp_path / "in_b").mkdir()
+    calls_without, calls_with = trace_journal(without), trace_journal(with_)
+    progress = Progress()
+
+    with monkeypatch.context() as patched, pytest.raises(Exception) as first:
+        failing(name, stage, without, tmp_path / "in_a", patched)
+    with monkeypatch.context() as patched, pytest.raises(Exception) as second:
+        failing(name, stage, with_, tmp_path / "in_b", patched, progress)
+
+    assert type(first.value) is type(second.value) and str(first.value) == str(second.value)
+    assert library_state(without) == library_state(with_)
+    assert calls_without == calls_with
+    label = "Storing the replacement" if (name, stage) == ("replace", "store") else LABELS[stage]
+    assert progress.snapshot().outcome.stage == label and not progress.snapshot().outcome.succeeded
+
+
+def test_a_refused_addition_shows_no_progress(library, tmp_path):
+    library.add(tmp_path)
+    progress = Progress()
+
+    with pytest.raises(DuplicateBookError):
+        library.books.add_book(upload(tmp_path, "again.md"), "again.md", progress=progress)
+
+    assert progress.snapshot() is None
+
+
+def test_an_addition_refused_while_another_operation_runs_shows_no_progress(library, tmp_path):
+    progress = Progress()
+
+    with library.guard.exclusive(), pytest.raises(LibraryBusyError):
+        other_process = Library(library.settings, library.root)
+        other_process.books.add_book(upload(tmp_path, "one.md"), "one.md", progress=progress)
+
+    assert progress.snapshot() is None
+
+
+def test_an_addition_refused_for_a_reindex_shows_no_progress(library, tmp_path):
+    library.add(tmp_path)
+    changed = library.with_settings("chunking", target_size=123)
+    progress = Progress()
+
+    with pytest.raises(ReindexRequiredError):
+        changed.books.add_book(upload(tmp_path, "two.md", other_text("two")), "two.md", progress=progress)
+
+    assert progress.snapshot() is None
+
+
+def test_retrying_a_failed_file_starts_with_storing_it(settings, tmp_path):
+    embedder = FakeEmbedder(failure=ServiceUnavailableError("Ollama is down"))
+    library = Library(settings, tmp_path / "data", embedder)
+    with pytest.raises(ServiceUnavailableError):
+        library.add(tmp_path)
+    embedder.failure = None
+    heard = []
+
+    library.books.add_book(upload(tmp_path, "one.md"), "one.md", progress=Progress(sink=heard.append))
+
+    assert top_stages(heard) == ADD
+
+
+# The progress of removing a book (specs/004-library-progress, US3)
+
+REMOVAL = ["vectors", "processed", "summaries", "original", "catalog"]
+REMOVAL_FAILURES = {
+    "vectors": (ChunkStore, "delete_book"),
+    "processed": (ProcessedDocuments, "delete"),
+    "summaries": (SummaryDocuments, "delete"),
+    "original": (OriginalDocuments, "delete"),
+    "catalog": (BookCatalog, "delete"),
+}
+
+
+@pytest.mark.parametrize(
+    ("archive", "original"), [(False, "Deleting its original"), (True, "Moving its original to the archive")]
+)
+def test_a_removal_shows_its_steps_by_name_without_a_count(library, tmp_path, archive, original):
+    book = library.add(tmp_path)
+    heard = []
+
+    with progress_log() as log:
+        library.books.remove_book(book.book_id, book.book_id, archive, progress=Progress(sink=heard.append))
+
+    assert top_stages(heard) == REMOVAL
+    labels = {view.stage.key: view.stage.label for view in heard if view.stage}
+    assert labels["original"] == original and labels["vectors"] == "Deleting its chunks from the index"
+    assert all(view.stage.total is None for view in heard if view.stage)
+    assert heard[-1].outcome.succeeded and heard[-1].subject == book.book_id
+    assert log.undeclared() == []
+
+
+def test_progress_changes_nothing_a_removal_does(settings, tmp_path):
+    without, with_ = Library(settings, tmp_path / "a"), Library(settings, tmp_path / "b")
+    books = {}
+    for library, directory in ((without, tmp_path / "in_a"), (with_, tmp_path / "in_b")):
+        directory.mkdir()
+        books[library] = library.add(directory)
+        library.add(directory, "two.md", other_text("two"))
+    calls_without, calls_with = trace_journal(without), trace_journal(with_)
+
+    without.books.remove_book(books[without].book_id, books[without].book_id, True)
+    with_.books.remove_book(books[with_].book_id, books[with_].book_id, True, progress=Progress())
+
+    assert library_state(without) == library_state(with_)
+    assert calls_without == calls_with and calls_with
+
+
+@pytest.mark.parametrize("step", REMOVAL)
+def test_a_removal_failing_at_each_step_leaves_and_recovers_what_it_would_without_progress(
+    settings, tmp_path, monkeypatch, step
+):
+    without, with_ = Library(settings, tmp_path / "a"), Library(settings, tmp_path / "b")
+    books = {}
+    for library, directory in ((without, tmp_path / "in_a"), (with_, tmp_path / "in_b")):
+        directory.mkdir()
+        books[library] = library.add(directory)
+    progress = Progress()
+    owner, method = REMOVAL_FAILURES[step]
+
+    with monkeypatch.context() as patched:
+        patched.setattr(owner, method, fail)
+        with pytest.raises(Broken):
+            without.books.remove_book(books[without].book_id, books[without].book_id)
+        with pytest.raises(Broken):
+            with_.books.remove_book(books[with_].book_id, books[with_].book_id, progress=progress)
+
+    assert library_state(without) == library_state(with_)
+    assert progress.snapshot().outcome.stage == LABELS_REMOVAL[step]
+    Library(settings, tmp_path / "a").library.recover()
+    Library(settings, tmp_path / "b").library.recover()
+    assert library_state(without) == library_state(with_)
+
+
+LABELS_REMOVAL = {
+    "vectors": "Deleting its chunks from the index",
+    "processed": "Deleting its processed documents",
+    "summaries": "Deleting its summaries",
+    "original": "Deleting its original",
+    "catalog": "Removing it from the catalog",
+}
+
+
+def test_a_removal_with_the_wrong_confirmation_shows_no_progress(library, tmp_path):
+    book = library.add(tmp_path)
+    progress = Progress()
+
+    with pytest.raises(ConfirmationRequiredError):
+        library.books.remove_book(book.book_id, "yes", progress=progress)
+
+    assert progress.snapshot() is None

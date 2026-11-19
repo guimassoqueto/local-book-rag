@@ -9,13 +9,14 @@ import yaml
 from app.errors import EmptyDocumentError
 from app.ingestion.base import Block, BlockKind, DocumentFormat, ExtractedDocument
 from app.ingestion.html_blocks import html_to_blocks
+from app.utils.progress import Stage
 
 _EXTENSIONS = ["tables", "fenced_code", "sane_lists"]
 _FRONT_MATTER_FENCE = "---"
 
 
 class MarkdownLoader:
-    def load(self, path: Path) -> ExtractedDocument:
+    def load(self, path: Path, stage: Stage | None = None) -> ExtractedDocument:
         metadata, body = _split_front_matter(path.read_text(encoding="utf-8"))
         blocks, _ = html_to_blocks(markdown.markdown(body, extensions=_EXTENSIONS))
         if not blocks:

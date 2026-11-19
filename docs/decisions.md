@@ -403,6 +403,59 @@ doesn't start at all.
 cleanup has to finish the job, while one before the swap has to undo it, and the revision in the
 catalog is what tells them apart.
 
+**What an operation counts follows how long its stages take** (specs/004-library-progress). Timed on
+the four benchmark books: a PDF's extraction is the longest stage of an addition, at 0.07 to
+0.09 s a page and a steady pace (*Think Python* 22 s, *História econômica global* 15 s), so its
+pages are counted. Chunks are embedded at 0.2 to 0.3 s a batch of 16, so they are counted too. An
+EPUB's extraction took a tenth of a second or less, so it shows no count: a count of its files
+would be gone before it could be read. A removal and the resets took 0.05 to 0.10 s, so they
+show their steps by name, without a count. Books took 3.1 to 39 s each, and a saved summary about
+104 s with gpt-oss, varying with its chapter's length, so a reindex counts them without a time
+left: the pace of those done says little about those left.
+
+**The time left is the weighted median of a stage's pace,** shown once the stage has run 3 s and
+done a tenth of its items, and counting down between advances. In one run, one of *Think Python*'s
+27 batches took 8.4 s against 0.2 to 0.3 s for the others. A mean carries such a stall to the end
+of the stage, three times off halfway through when it comes early; a median doesn't move. A
+time left for the whole operation, from paces kept across operations, was left out: the stage
+lines in the log are where it would start from.
+
+**The operation runs in a thread of its own, and the tab polls its progress.** Gradio's progress
+bar draws over an event's outputs, and the Library tab's events had none, so its
+`progress(0, desc=…)` calls most likely showed nowhere; it also estimates the whole operation from
+the event's earlier runs, and disappears when the event ends. The service can't be a generator
+instead: the library lock belongs to the thread that took it, and `operation()`'s log context
+can't be reset across the worker threads that run a Gradio generator's steps, which the quiz
+found first. So the handler starts the call in a daemon thread, as Gradio's own worker threads
+are, and renders `Progress.snapshot()` every half second. A page closed midway only stops the
+polling: the operation runs to its end.
+
+**Nothing in the progress raises into an operation.** `add_book` turns any exception from
+ingestion into a failed book, so a display that broke would fail the book. A sink that raises is
+logged and dropped, and a stage that wasn't declared, or a count past its total, is a warning. A
+unit test runs every operation with a `Progress` and fails on such a warning, and compares each
+operation, and each stage failing in turn, with the same one run without progress: the same
+files, rows, vectors, collections and journal calls.
+
+**The seven buttons are disabled by an event of their own, and enabled on success and on
+failure.** Gradio's `then` doesn't run after an error, the same reason the list of books
+refreshes on both. The operation's event keeps its `api_name`, so `gradio_client` calls it as
+before; its outputs gain the progress area.
+
+**Removing the earlier failed attempt of a file is not a stage of its addition.** It runs in a
+journal entry of its own, before the addition's operation begins, where its stage line couldn't
+carry the operation's execution ID. It takes moments.
+
+**The commands print their progress to the error stream.** `reindex-all` printed its "Indexing …"
+lines to standard output; they moved, so standard output holds each command's result only.
+
+**Measured against `main` on the four benchmark books** (three runs each,
+`library_progress_20261112T174811290268Z` and `…T181157104518Z`): the extracted, normalized and chunk
+files came out byte for byte the same; no operation got slower beyond its spread, adding *Think
+Python* taking 27.47 s against 28.27 and a reindex 53.37 against 54.69; 417 of 421 times left were
+within half and double the time actually left; and every operation's stages added up to it within
+0.036 s.
+
 ## Evaluation
 
 **Relevance is stored as evidence quotes, not chunk IDs.** The spec asks for "relevant source

@@ -1,5 +1,12 @@
 """A whole library over real files, a real catalog and an embedded ChromaDB, with fake models."""
 
+import dataclasses
+import json
+import logging
+import re
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 import chromadb
 
 from app.config.settings import Settings
@@ -88,3 +95,90 @@ def upload(directory, name="book.md", text=MARKDOWN):
 def other_text(label):
     """A different document, so that its checksum differs."""
     return MARKDOWN + f"\n\nOne more paragraph, about {label}, to tell this book from the others.\n"
+
+
+# The progress of library operations (specs/004-library-progress): comparing an operation run with
+# progress and without it.
+
+
+class ProgressLog(logging.Handler):
+    """The progress logger's records. The application's logger stops propagating once configured."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.INFO)
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+    def messages(self) -> list[str]:
+        return [record.getMessage() for record in self.records]
+
+    def undeclared(self) -> list[str]:
+        return [
+            getattr(record, "fields", {}).get("stage") for record in self.records if "undeclared" in record.getMessage()
+        ]
+
+
+@contextmanager
+def progress_log() -> Iterator[ProgressLog]:
+    logger = logging.getLogger("book_rag.progress")
+    handler, level = ProgressLog(), logger.level
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        yield handler
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(level)
+
+
+def trace_journal(library: "Library") -> list[tuple]:
+    """Record every journal entry opened and closed, with the library's root path written as <root>."""
+    calls: list[tuple] = []
+    catalog = library.catalog
+    begin, end = catalog.begin_operation, catalog.end_operation
+    root = str(library.root)
+
+    def begin_operation(kind, book_id=None, **details):
+        calls.append(("begin", kind, book_id, json.loads(json.dumps(details, default=str).replace(root, "<root>"))))
+        return begin(kind, book_id, **details)
+
+    def end_operation(operation_id):
+        calls.append(("end",))
+        return end(operation_id)
+
+    catalog.begin_operation = begin_operation
+    catalog.end_operation = end_operation
+    return calls
+
+
+def library_state(library: "Library") -> dict:
+    """What the library holds: its books, its files, its vectors and its open journal entries."""
+    root = library.root
+    files = {
+        str(path.relative_to(root)): _comparable(path.read_bytes(), root)
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and not {"chroma", "metadata"} & set(path.relative_to(root).parts)
+    }
+    books = []
+    for book in library.catalog.list_books():
+        row = {key: value for key, value in dataclasses.asdict(book).items() if key not in ("created_at", "indexed_at")}
+        books.append(json.loads(json.dumps(row, default=str).replace(str(root), "<root>")))
+    collections = sorted(getattr(item, "name", item) for item in library.server.client.list_collections())
+    index = library.catalog.active_index()
+    vectors: dict | str = {}
+    if index is not None and index.collection not in collections:
+        vectors = "the active collection is gone"  # a reset that failed halfway can leave the catalog naming it
+    elif index is not None:
+        store = library.indexes.store(index)
+        books_now = library.catalog.list_books()
+        vectors = {book.book_id: store.count_revision(book.book_id, book.revision) for book in books_now}
+    journal = [(operation.kind, operation.book_id) for operation in library.catalog.open_operations()]
+    return {"books": books, "files": files, "vectors": vectors, "collections": collections, "journal": journal}
+
+
+def _comparable(content: bytes, root) -> bytes:
+    """A file as two libraries in different places, at different times, would both write it."""
+    content = content.replace(str(root).encode(), b"<root>")
+    return re.sub(rb'"created_at": "[^"]*"', b'"created_at": "<time>"', content)

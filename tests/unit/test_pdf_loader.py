@@ -269,3 +269,50 @@ def test_password_protected_pdfs_are_rejected(tmp_path):
 
     with pytest.raises(InvalidDocumentError, match="password"):
         PdfLoader(CONFIG).load(path)
+
+
+# The extraction's count (specs/004-library-progress, research.md R11)
+
+
+class SpyStage:
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    def count(self, total):
+        self.calls.append(("count", total))
+
+    def advance(self, items=1):
+        self.calls.append(("advance", items))
+
+    def note(self, text):
+        self.calls.append(("note", text))
+
+    def item(self, item_id, note=None):
+        self.calls.append(("item", item_id, note))
+
+    def uncount(self, note):
+        self.calls.append(("uncount", note))
+
+
+def test_the_pages_are_counted_to_their_total(tmp_path):
+    path = write_pdf(tmp_path / "b.pdf", [[(BODY, 11)], [(BODY, 11)], [(BODY, 11)]])
+    stage = SpyStage()
+
+    with_stage = PdfLoader(CONFIG).load(path, stage)
+
+    assert stage.calls == [("count", 3), ("advance", 1), ("advance", 1), ("advance", 1)]
+    assert with_stage == PdfLoader(CONFIG).load(path)
+
+
+def test_a_scanned_pdf_counts_its_pages_then_drops_the_count_for_ocr(tmp_path):
+    class FakeOcr:
+        def load(self, path: Path, stage=None) -> ExtractedDocument:
+            return ExtractedDocument(DocumentFormat.PDF, ())
+
+    path = write_image_pdf(tmp_path / "b.pdf", pages=3)
+    stage = SpyStage()
+
+    PdfLoader(CONFIG, ocr_loader=FakeOcr()).load(path, stage)
+
+    assert stage.calls[:4] == [("count", 3), ("advance", 1), ("advance", 1), ("advance", 1)]
+    assert stage.calls[4][0] == "uncount" and "OCR" in stage.calls[4][1]

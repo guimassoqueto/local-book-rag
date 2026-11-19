@@ -10,6 +10,11 @@ from app.ingestion.chunker import Chunk, Chunker
 from app.ingestion.language import detect_language, normalize_language
 from app.ingestion.normalizer import Normalizer
 from app.ingestion.structure_extractor import BookStructure, build_structure
+from app.utils.progress import Progress
+
+# The stages this pipeline reports, which an operation declares (app/services/ingestion_service.py).
+EXTRACT = "extract"
+PREPARE = "prepare"
 
 
 @dataclass(frozen=True)
@@ -39,7 +44,12 @@ class IngestionPipeline:
         self._supported_languages = supported_languages
 
     def process(
-        self, path: Path, document_format: DocumentFormat, book_id: str, fallback_title: str
+        self,
+        path: Path,
+        document_format: DocumentFormat,
+        book_id: str,
+        fallback_title: str,
+        progress: Progress | None = None,
     ) -> ProcessedDocument:
         """Extract, normalize, structure and chunk a document.
 
@@ -48,19 +58,24 @@ class IngestionPipeline:
             document_format: its validated format.
             book_id: the ID its chunks are stamped with.
             fallback_title: the title to use when the document doesn't state one.
+            progress: told of extraction and preparation. Without one, or outside an operation,
+                nothing is reported.
 
         Raises:
             BookRagError: the document cannot be processed. The subclass says why.
         """
-        extracted = self._loaders[document_format].load(path)
-        normalized = self._normalizer.normalize(extracted)
-        if not any(block.kind is not BlockKind.HEADING for block in normalized.blocks):
-            raise EmptyDocumentError(f"{path.name} holds no text after cleaning.")
+        progress = progress or Progress()
+        with progress.stage(EXTRACT) as stage:
+            extracted = self._loaders[document_format].load(path, stage)
+        with progress.stage(PREPARE):
+            normalized = self._normalizer.normalize(extracted)
+            if not any(block.kind is not BlockKind.HEADING for block in normalized.blocks):
+                raise EmptyDocumentError(f"{path.name} holds no text after cleaning.")
 
-        language = self._language_of(normalized, path)
-        title = normalized.title or fallback_title
-        structure = build_structure(replace(normalized, title=title, language=language))
-        chunks = self._chunker.chunk(book_id, title, structure)
+            language = self._language_of(normalized, path)
+            title = normalized.title or fallback_title
+            structure = build_structure(replace(normalized, title=title, language=language))
+            chunks = self._chunker.chunk(book_id, title, structure)
         return ProcessedDocument(extracted, normalized, structure, tuple(chunks), title, normalized.author, language)
 
     def _language_of(self, document: ExtractedDocument, path: Path) -> str:

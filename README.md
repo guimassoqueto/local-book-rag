@@ -110,7 +110,7 @@ The Gradio interface at <http://localhost:7860> has five tabs:
 
 | Tab           | What it does                                                                        |
 | ------------- | ----------------------------------------------------------------------------------- |
-| Library       | Upload, replace, remove and reindex books, and reset. Shows each book's status      |
+| Library       | Upload, replace, remove and reindex books, and reset. Shows each book's status, and the progress of each operation |
 | Chat          | Ask about one book, one chapter or several books, and inspect the retrieved passages |
 | Summarization | Summarize a chapter in any of the types, and save the result                        |
 | Quiz          | A graded multiple-choice quiz on a chapter or the whole book, with the passage to reread for each question missed |
@@ -203,6 +203,40 @@ How changes stay safe:
 Index versions are never reused, even after `reset-everything`, because a running server
 identifies an index by its version and must not mistake a new one for the one it has cached.
 The catalog keeps the count, so a new app container starts it over (see Running).
+
+### Following an operation
+
+The Library tab shows the progress of its seven operations in an area under the index status:
+
+- **The operation**, its book, and the time since it began, as 0:38.
+- **The stage it is in**, with its position: "Extracting the text — stage 2 of 5". A bar fills where
+  the stage is counted: a PDF's pages as its text is read, the chunks as they are embedded, and,
+  in a reindex, the books and the saved summaries. Where it isn't counted, the bar moves without
+  filling: the extraction of an EPUB or a Markdown file, OCR, preparing the chunks, saving them,
+  the steps of a removal and of the resets.
+- **The time left** in a stage of pages or chunks, once it has run 3 seconds and done a tenth of its
+  items: "about 15 s left", or "about 2 min left". Books and summaries are counted without one,
+  since they differ too much in size for those done to say much about those left.
+- **For a reindex**, the book being indexed, with its own step, and a line saying that questions
+  keep working on the current index meanwhile.
+
+From the click until its first stage, the area says the operation is starting, and the seven
+buttons stay disabled until it ends. Then the area keeps one line: what the operation did, or the
+stage it failed in and why, with the book and its step for a reindex. An operation refused before
+it began, such as a duplicate, a wrong confirmation or a busy library, shows no stage. The
+progress belongs to the page that started the operation: another page, or the same one reloaded,
+doesn't see it, and has a new operation refused as busy until it ends. An operation can't be
+stopped midway.
+
+The commands print the same stages to the error stream: a line as each stage starts, a count line
+at most every 2 seconds, and `done` or `failed while …` at the end. Standard output keeps their
+result, so `reindex-all` prints only its report there.
+
+Each stage also leaves a line in the app's log, `logs/app.jsonl`, when it ends: `stage finished`
+or `stage failed`, with `stage`, `done`, `total` and `unit` when it was counted,
+`duration_seconds`, `ocr` when extraction went to OCR, and `within` and `item` (the book's ID)
+for a step of a reindex. Every line carries the operation's execution ID, and none carries a
+title, a file name or text from a book.
 
 ## Index
 
