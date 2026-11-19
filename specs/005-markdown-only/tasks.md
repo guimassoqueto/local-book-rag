@@ -381,7 +381,7 @@ records.
   - **Validate.** Copy the folder into the container, and run `validate-benchmark`.
   - **Correct each quote and chapter name it lists** to the Markdown text, holding the same evidence, at most 30 words. Expected first: `think_python_factual_05` takes `lexi-con`, and `think_python_chapter_specific_01` takes `n − 1` (research.md R11). Copy the folder in and validate again, until nothing is listed, with all 75 answerable questions kept.
   - **Record** each change, before and after, in Notes.
-- [ ] T049 Run the retrieval experiment on the Markdown books (FR-020, quickstart.md § 7).
+- [X] T049 Run the retrieval experiment on the Markdown books (FR-020, quickstart.md § 7).
   - **First, the commit.** Ask the owner to commit the implementation (Path Conventions: commits happen only when the owner asks), so that `--commit "$(git rev-parse --short HEAD)"` names a commit someone can check out, as constitution VI asks. If the owner declines, pass `git describe --always --dirty`, and record `git diff HEAD | sha256sum` in Notes beside it.
   - Start from a fresh workspace (`rm -rf /app/benchmarks/workspace`). Run it in the background.
   - Copy the results out, and run `uv run python devtools/compare_runs.py <T006's directory> <this one> --labels originals markdown`.
@@ -433,14 +433,14 @@ records.
   - **Updated in place:** "What an operation counts", since extraction isn't counted, and the line naming `c7bb785` as the dataset's place.
   - **Moved** to a closing section, "Removed with PDF and EPUB (v1.0.0)", one line each with the failure that taught it: running heads by page numbers; table-of-contents entries claiming one heading; outline headings never taken for running heads; Docling with OCR.
   - **Kept** under Evaluation: *Think Python*'s coverage lesson, beside the Docling comparison.
-- [ ] T055 [P] Update `docs/benchmark-results.md`:
+- [X] T055 [P] Update `docs/benchmark-results.md`:
   - mark the Extraction section as measured on PDF and EPUB before v1.0.0 (FR-017);
   - add a section on the Markdown books: the conversion, T048's corrections, and both runs with their paired comparison and the reading of T049, as information (FR-020);
   - under Known limitations, note that the quiz experiments still name the PDF until the quiz is removed;
   - point Reproducing to the converted books and to where the dataset is recorded.
 - [X] T056 Record the validated dataset (research.md R19): copy `benchmarks/datasets/books.yaml`, `questions.jsonl` and `chapter_key_points.jsonl` into `specs/005-markdown-only/benchmarks/datasets/`, and `benchmarks/experiments/markdown_books.yaml` into `specs/005-markdown-only/benchmarks/experiments/`. Check that `git diff --no-index` against `git show c7bb785:benchmarks/datasets/questions.jsonl` shows only T048's changes.
 - [X] T057 Search the repository (SC-005, quickstart.md § 9). Run its `git grep` with the listed exclusions, and the pages search over `README.md`, `app/main.py` and `app/interface`. Only refusal and conversion mentions are left, plus the quiz's page rule. The search leaves out the whole constitution, where only principle VI's Why names Docling, which SC-005 exempts. `git grep -n -i -E 'docling|pymupdf|ebooklib|pypdfium|rapidocr' uv.lock` finds nothing. Fix what is left.
-- [ ] T058 Final check:
+- [X] T058 Final check:
   - `make lint-check` and `make test` pass;
   - quickstart.md is reread against what was done, and corrected where it differs;
   - every checklist item is still `[x]`;
@@ -678,3 +678,49 @@ Task: "T026 Pages, OCR, extraction and Docling out of the interface, command, be
 - **The owner's walkthrough** (T052, 2026-11-19): "I tested in browser. Perfectly fine." The steps
   were the pickers and the note, the four books added through the tab, their titles, authors and
   chapters, the PDF and EPUB dropped on the pickers, three Chat answers, and a quiz's pointers.
+- **The run on the Markdown books** (T049):
+  - **The commit.** The owner agreed to commit ("Lets proceed"): `864a446` "feat!: accept only
+    Markdown books". The dataset's copy in `specs/005-markdown-only/benchmarks/` had to be added
+    with `git add -f`, since `.gitignore`'s `benchmarks/` matches any folder of that name.
+  - **The plugin's commit.** The conversion record named `f10b81b`, which by then was on no branch.
+    The owner's plugin `main` holds the same code as `9b867af`, pushed, so the record names
+    `9b867af` now (`f37a5bb`), which changed the dataset's checksum.
+  - **Two runs.** The run was made on `864a446`, then again on `f37a5bb` in a fresh workspace,
+    and both gave identical rows. The official one is
+    `benchmarks/results/markdown_books_20261119T200845175135Z`: 75 rows, `dataset_sha256`
+    `cd57a42a6369…`, the recorded dataset's.
+  - **The comparison.** `devtools/compare_runs.py` against T006's run left none out, and found
+    no interval leaving zero out. Recall@10 +0.010 (+0.000 to +0.026) and MRR −0.013 (−0.033 to
+    +0.000) only touch it. Nine questions moved, seven of them *Think Python*'s, and *Quincas
+    Borba* was identical. The output is `benchmarks/results/compare_originals_markdown.md`, and
+    the reading is in `docs/benchmark-results.md`, "The Markdown books".
+- **The records** (T055): `docs/benchmark-results.md` has its intro updated, Extraction marked as
+  history, the new section "The Markdown books", a Known limitation for the quiz experiments, and
+  Reproducing on the converted books.
+- **The final check** (T058):
+  - **Tests.** `make lint-check` is clean, and `make test` gives 1270 passed and 72 deselected.
+  - **The quickstart was reread and corrected.** § 1's search now looks for the removed readers'
+    names, since the removed-settings tests name `pymupdf`. § 6 runs the commands first, then a
+    reset, then the tab, and notes SC-003's timing.
+  - **The rest.** Every checklist item is still `[x]`. The constitution is 2.0.2 and names
+    `specs/005-markdown-only/benchmarks/`, which is filled. The conversion record names the
+    plugin's pushed `9b867af`. The bump is still in `stash@{0}`.
+  - **For converge:** SC-003's "within a second" holds for the service call (43 ms), not for a
+    command's wall-clock time (about 2.8 s, the startup every command pays).
+- **The pull request's draft** (opened only when the owner asks):
+  - **Title:** `feat!: accept only Markdown books`
+  - **Body:** what changed (Markdown only, pages gone, title from the file name, the benchmark on
+    the Markdown books), how it was checked (SC-002 identical chunks, image 625 MB smaller, unit
+    and integration tests, the owner's walkthrough, the paired retrieval comparison), ending with:
+
+    ```text
+    BREAKING CHANGE: the library reads Markdown books only (.md, .markdown). Removed: PDF and EPUB
+    input, OCR and Docling; pages in citations, passages and quiz pointers, and search's
+    --page-start and --page-end; a book's title from front matter or a heading, and its author;
+    fetch-benchmark-books and the extraction experiment kind; the settings pdf, normalization and
+    chunking.preserve.page_numbers, which now stop the app at startup; the relevant_pages and pages
+    columns of benchmark results. The dataset's books.yaml names Markdown files, with the
+    original's url under original and a conversion record.
+    ```
+  - **After the merge:** the stashed dependency bump is redone as its own `chore:` with
+    `make update`, and `stash@{0}` is dropped.

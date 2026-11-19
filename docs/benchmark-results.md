@@ -461,6 +461,61 @@ which the reader now refuses.
 Development cases choose a wording and decide nothing. The owner left the proof on test cases
 (FR-026, FR-027) to a later feature, so the check ships switched off, and SC-003 stands at 0.739.
 
+## The Markdown books
+
+On 2026-11-19 the library became Markdown-only (`specs/005-markdown-only`, v1.0.0). The dataset's
+three books became the owner's conversions, made with MarkItDown and their PDF plugin, as
+`books.yaml` records. Its questions carried over almost whole:
+- **Two evidence quotes** were corrected to the Markdown text: `lexi-con`, which the PDF breaks
+  and which appears nowhere else, and `n − 1`.
+- **No chapter name changed**, and all 90 questions were kept.
+- **The plugin was fixed first.** Its first conversion of *Think Python* turned Python comments
+  into headings, and kept running heads and syllable hyphens (`docs/decisions.md`, Ingestion).
+
+The retrieval experiment's default configuration (hybrid search, RRF, the Qwen3 reranker on the
+CPU) ran twice, each in a fresh workspace:
+- **On `main`'s code**, `6b187f0`, with the original PDF and EPUBs.
+- **On the branch**, `f37a5bb`, with the Markdown books.
+
+`devtools/compare_runs.py` paired the two by question, 75 pairs, none left out: every question's
+evidence resolved to chunks in both runs. This is information, not a verdict, since the owner had
+already decided the format. The books changed between the two runs along with the code that read
+them, so a difference belongs to both.
+
+| Metric | Originals | Markdown | Difference (95% interval) |
+| --- | --- | --- | --- |
+| Recall@5 | 0.891 | 0.899 | +0.008 (−0.011 to +0.032) |
+| Recall@10 | 0.943 | 0.953 | +0.010 (+0.000 to +0.026) |
+| MRR | 0.961 | 0.948 | −0.013 (−0.033 to +0.000) |
+| nDCG@10 | 0.878 | 0.882 | +0.004 (−0.006 to +0.013) |
+| Context precision | 0.914 | 0.911 | −0.004 (−0.023 to +0.013) |
+| Context recall | 0.891 | 0.899 | +0.008 (−0.011 to +0.032) |
+
+No interval leaves zero out, so there is no difference to name. Recall@10's and MRR's intervals
+only touch it.
+
+By book:
+- ***Quincas Borba*** gave the same numbers on every question, from 454 chunks to 455.
+- ***Think Python***, whose conversion changed most, went from 425 chunks to 369. Recall@5 went
+  from 0.935 to 0.977, while MRR went from 0.980 to 0.940.
+- ***On Liberty*** went from 176 chunks to 177, and its Recall@5 from 0.861 to 0.844.
+
+Nine questions moved, seven of them *Think Python*'s:
+- **Recall.** Two of its multi-section questions found all their evidence in the first five,
+  from 0.400 and 0.571 to 1.000.
+- **MRR.** Two questions found their first evidence second instead of first, so their MRR went
+  from 1.0 to 0.5.
+- **On Liberty.** `on_liberty_conceptual_01` lost Recall@5, from 1.000 to 0.571: its evidence
+  moved from chunks 12–14 to 13–15, one chunk later, as a boundary shifted.
+
+The branch's run was made twice, on `864a446` and `f37a5bb`, which differ only in the conversion
+record's plugin commit. Both gave identical rows: retrieval is deterministic.
+
+The results are `benchmarks/results/markdown_books_20261119T191912080372Z` (originals) and
+`markdown_books_20261119T200845175135Z` (Markdown), outside the repository. The originals' run
+records dataset `767e4cceb315…`, the Markdown run `cd57a42a6369…`, which is the dataset in
+`specs/005-markdown-only/benchmarks/`.
+
 ## Recommendations
 
 The defaults stay as they are. These are what the results suggest changing, and what each change
