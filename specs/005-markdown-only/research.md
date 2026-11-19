@@ -314,11 +314,11 @@ agent then reproduced all four files and measured them again.
   - MarkItDown 0.1.9, installed from source: `microsoft/markitdown` at `ed17895`.
   - Python 3.14.7, with pdfminer.six 20260107.
   - One plugin, `markitdown-pdf-headings` 0.2.0, the owner's:
-    `guimassoqueto/markitdown-pdf-headings` at `f10b81b`. That commit is on the local branch
-    `think-python-fixes`, neither merged nor pushed as of 2026-11-19, so it has to stay reachable
-    for the record to hold (merged as it is, or the record updated to the commit that replaces
-    it). The plugin handles PDFs only, so the EPUBs go through MarkItDown's built-in EPUB
-    converter.
+    `guimassoqueto/markitdown-pdf-headings` at `9b867af`, the tip of its `main`, pushed. The books
+    were converted with `f10b81b` installed, from a local branch since merged under new hashes:
+    `9b867af` holds exactly the same code (`git diff f10b81b 9b867af` is empty), and is the one
+    the record names, since `f10b81b` is on no branch. The plugin handles PDFs only, so the EPUBs
+    go through MarkItDown's built-in EPUB converter.
 - **The command.** `markitdown --use-plugins BOOK > BOOK.md`: standard output, which ends the
   file with a newline that `-o` doesn't write. That is how the owner converts.
 - **Deterministic.** Converting each book again gave identical files.

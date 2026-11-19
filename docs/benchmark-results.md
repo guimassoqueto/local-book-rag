@@ -1,10 +1,12 @@
 # Benchmark results
 
-What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 11. The result files are
-no longer kept, and the experiments and their dataset are no longer in the repository: their last
-versions are in commit `c7bb785`. So this page is the record of the runs. Every number in it comes
-from those files, and `book-rag benchmark-report` showed each run with the paired comparisons
-quoted below.
+What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 11, and on 2026-11-19
+for the Markdown books. The result files are no longer kept, and `benchmarks/` isn't in the
+repository: the experiments' last versions are in commit `c7bb785`, and the dataset's, whose books
+became Markdown in v1.0.0, in `specs/005-markdown-only/benchmarks/`. So this page is the record of
+the runs. Until "The Markdown books", every run read the original PDF and EPUBs. Every number in
+it comes from those files, and `book-rag benchmark-report` showed each run with the paired
+comparisons quoted below.
 
 The setup was an RTX 5060 Ti with 16 GB, a Ryzen 9 9950X3D, 60 GB of RAM and Ollama 0.40.15.
 Models ran at the quantizations Ollama serves: MXFP4 for gpt-oss:20b, Q4_K_M for the others. The
@@ -36,6 +38,9 @@ on 2026-11-09, and the default LLM's confirmation on `f6f53a8`, the same day.
   and summaries.
 
 ## Extraction
+
+Measured on the original PDF and EPUBs, before v1.0.0. The library reads Markdown only since then,
+and the `extraction` kind went with the readers it compared (specs/005-markdown-only).
 
 | Extractor | Book | TOC entries | TOC coverage | Chapters | Chunks | Pages covered |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -506,7 +511,12 @@ would cost.
   leia") came in as part of its last chapter, "Lista de tabelas". gpt-oss wrote quiz questions from
   3 of the 5 advertisements, and one reached a 20-question whole-book quiz (SC-006 of
   `specs/003-chapter-quiz`). Chat can retrieve them as well. Ingestion is to set them apart, in a
-  fix of its own, which will need a reindex.
+  fix of its own, which will need a reindex. The owner's Markdown conversion keeps them too, after
+  a "Table of Contents" heading at the end of the book.
+- **The quiz experiments still name the PDF.** Their local book, in
+  `specs/003-chapter-quiz/benchmarks/`, is the PDF of *História econômica global*, which the library
+  no longer reads, and their known cases quote that PDF's text. They weren't run on the Markdown
+  books.
 
 ## Changes these benchmarks led to
 
@@ -541,17 +551,22 @@ application as well as in the benchmarks. `docs/decisions.md` has the detail of 
 
 ## Reproducing
 
-The dataset and the experiments come from commit `c7bb785`, and the app container has to be given
-them: no folder of the host is mounted in it. The results stay in the container until copied out.
+The experiments come from commit `c7bb785`, and the dataset from
+`specs/005-markdown-only/benchmarks/`. Its three books are Markdown conversions, rebuilt from their
+originals with the conversion `books.yaml` records, and checked against their checksums before
+anything runs (README, Benchmarks). The app container has to be given them: no folder of the host
+is mounted in it. The results stay in the container until copied out.
 
 ```bash
-git archive c7bb785 benchmarks | tar -x
+git archive c7bb785 benchmarks/experiments | tar -x
+rm benchmarks/experiments/extraction.yaml
+cp -r specs/005-markdown-only/benchmarks/. benchmarks/
+# the three Markdown books into benchmarks/books, as books.yaml names them
 docker compose cp -a benchmarks app:/app/
 docker compose exec app book-rag pull-models --all          # every candidate model
-docker compose exec app book-rag fetch-benchmark-books      # checked against their checksums
-docker compose exec app book-rag validate-benchmark
+docker compose exec app book-rag validate-benchmark         # checks the books' checksums first
 
-make benchmark EXPERIMENT=extraction       # about a minute
+make benchmark EXPERIMENT=markdown_books   # about 6 minutes, the default configuration
 make benchmark EXPERIMENT=retrieval        # about 7 minutes, indexing four workspaces
 make benchmark EXPERIMENT=historical_spelling  # about 2 minutes
 make benchmark EXPERIMENT=performance      # about 3 minutes

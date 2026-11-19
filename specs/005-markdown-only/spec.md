@@ -625,7 +625,7 @@ The rest the agent settled.
   fixed in this feature, which keeps Markdown reading as it is (FR-005).
 - **What the owner provides, and when.** On 2026-11-19 the owner had the agent convert the three
   books with the owner's own setup, and had their PDF plugin fixed for Think Python, so the first
-  item is done (`research.md`, R11). The record holds if the plugin's commit stays reachable.
+  item is done (`research.md`, R11). The record names the plugin's commit on its pushed `main`.
   - **Before the image is rebuilt with this branch's code**: the three converted books in
     `benchmarks/books` on the host, under names the owner chooses, which `books.yaml` records.
     With them comes the conversion record: MarkItDown's version, each plugin's name and version,

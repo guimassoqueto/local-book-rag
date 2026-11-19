@@ -42,7 +42,7 @@ Expected:
 None of the remaining tests writes a PDF or an EPUB (SC-006, User Story 2 scenario 3):
 
 ```bash
-git grep -n -i -E 'write_pdf|write_epub|pymupdf|ebooklib|docling' -- tests devtools app   # nothing
+git grep -n -E 'write_pdf|write_epub|PdfLoader|EpubLoader|DoclingLoader|import fitz' -- tests devtools app   # nothing
 ```
 
 ## 2. The gate: the converted books
@@ -150,7 +150,32 @@ Expected: no "DIFFERS" line. One would fail SC-002: `diff` the two files to see 
 
 ## 6. Adding books, and refusing PDFs and EPUBs
 
-In the browser, on the Library tab:
+From the commands first. Each file keeps its name on the way in, since the name is the title
+(`contracts/books.md`):
+
+```bash
+for f in 01_historia_economica_global.md think-python.md quincas-borba.md on-liberty.md think-python.pdf on-liberty.epub; do
+  docker compose cp "benchmarks/books/$f" app:/tmp/
+done
+for f in 01_historia_economica_global.md on-liberty.md quincas-borba.md think-python.md; do
+  docker compose exec app book-rag add-book "/tmp/$f"                       # titled by the file's stem
+done
+docker compose exec app book-rag add-book /tmp/think-python.pdf               # refused: PDF, convert first
+docker compose exec app book-rag replace-book book_001 /tmp/on-liberty.epub   # refused: EPUB, convert first
+docker compose exec app book-rag list-books                                   # as before both
+```
+
+Expected (SC-001, SC-003):
+- **The books** are added without an error, each titled by its file's stem.
+- **Each refusal** prints the convert-first message and exits 1, `list-books` shows the same books,
+  revisions and statuses, and the log shows no operation started for either.
+- **The timing.** The refusal itself takes milliseconds in the service. The command's wall-clock
+  time, about 2.8 s on the owner's machine, is the startup that every command pays: `list-books`
+  takes as long. So SC-003's "within a second" holds for the service call, not for a command's
+  wall-clock time (tasks.md, Notes, T051).
+
+Then `reset-everything`: the same files added again through the tab would be refused as
+duplicates. In the browser, on the Library tab:
 1. **The pickers.** Open each one: the dialog offers only `.md` and `.markdown`. The note under
    "Add a book" says that books are Markdown and how to convert one.
 2. **Adding.** Add each of the three converted books and the História Markdown. Each is indexed,
@@ -159,21 +184,6 @@ In the browser, on the Library tab:
 3. **Refusals in the tab.** Drop `think-python.pdf` on "Add a book", and `on-liberty.epub` on
    "Change a book" with a book chosen. Each is refused at once, by Gradio's message naming the
    accepted types (`research.md`, R3), and the book list doesn't change.
-
-From the commands, where the file keeps its name on the way in (`contracts/books.md`):
-
-```bash
-docker compose cp benchmarks/books/think-python.pdf app:/tmp/
-docker compose cp benchmarks/books/on-liberty.epub app:/tmp/
-docker compose exec app book-rag add-book /tmp/think-python.pdf               # refused: PDF, convert first
-docker compose exec app book-rag replace-book book_001 /tmp/on-liberty.epub   # refused: EPUB, convert first
-docker compose exec app book-rag list-books                                   # as before both
-```
-
-Expected (SC-003):
-- each refusal comes within a second;
-- `list-books` shows the same books, revisions and statuses;
-- the log shows no operation started for either.
 
 ## 7. The benchmark on the Markdown books
 

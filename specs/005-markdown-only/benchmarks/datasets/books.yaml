@@ -17,7 +17,7 @@ books:
       sha256: 6b3ba37e0343c339983cf2ff5402f2a10b6799e7a3d891daaed24889b9e343c0
     conversion: &conversion >-
       MarkItDown 0.1.9 (microsoft/markitdown at ed17895), on Python 3.14.7, with the plugin
-      markitdown-pdf-headings 0.2.0 (guimassoqueto/markitdown-pdf-headings at f10b81b), which
+      markitdown-pdf-headings 0.2.0 (guimassoqueto/markitdown-pdf-headings at 9b867af), which
       handles PDFs only (EPUBs go through MarkItDown's built-in converter). Command:
       markitdown --use-plugins BOOK > BOOK.md
     license: Public domain, from Project Gutenberg
