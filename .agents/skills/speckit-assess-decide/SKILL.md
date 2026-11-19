@@ -5,6 +5,7 @@ compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
   author: spec-kit-core
   source: assess:commands/speckit.assess.decide.md
+  version: 1.0.2
 ---
 
 # Decide: Go, Clarify, or Kill
