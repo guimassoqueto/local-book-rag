@@ -20,7 +20,9 @@ and must fail before the implementation, except where a task says it changes onl
 Setup, which need `main`'s image and so come before any change under `app/` (research.md R10, R12,
 R13). The stories build on each other:
 - **US1** refuses PDF and EPUB, and titles books by their file names.
-- **US2** removes what US1 made unreachable, and pages.
+- **US2** removes what US1 made unreachable, and pages. It also removes the `extraction`
+  experiment kind (T033), which the spec places in US3 (scenario 4, FR-017): its module imports
+  PyMuPDF, which T035 removes.
 - **US3** moves the benchmark to the Markdown books.
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -147,8 +149,8 @@ In this phase, `make test`; on the real stack, T047 and T051.
 - [ ] T013 [P] [US1] Rewrite `tests/unit/test_validation.py` (contracts/books.md, Accepted files):
   - **Accepted:** `.md`, `.markdown` and `BOOK.MD`.
   - **`.pdf` refused** with exactly "This is a PDF. Books are Markdown files: convert it to Markdown first, with MarkItDown for example, and add the .md file."; `.epub` the same, with "This is an EPUB.".
-  - **Other types refused:** `.docx` with "Unsupported file type '.docx'. Books are Markdown files: .markdown, .md.". A file named only `.md` is refused as an unsupported type.
-  - **Unchanged:** the empty file, the size limit, the missing path, binary data, non-UTF-8, and the name cleaning (`safe_filename`). A PDF's bytes saved as `book.md` are refused as binary data.
+  - **Other types refused:** `.docx` with "Unsupported file type '.docx'. Books are Markdown files: .markdown, .md.". A file named only `.md` has no extension, and is refused as an unsupported type with today's message, `Unsupported file type ''`, accepted as it is.
+  - **Unchanged:** the empty file, the size limit, the missing path, binary data, non-UTF-8, and the name cleaning (`safe_filename`). A stand-in for a PDF saved as `book.md`, bytes starting with `%PDF-` and holding a null byte, is refused as binary data. No test writes a real PDF or EPUB (User Story 2 scenario 3).
   - **Deleted:** the PDF signature and EPUB ZIP tests (lines 42 to 72).
 - [ ] T014 [P] [US1] In `tests/unit/test_markdown_loader.py` and `tests/unit/test_pipeline.py` (FR-005, research.md R1). Keep every expected chapter, section and chunk text as it is (SC-002).
   - Replace `test_a_single_top_heading_is_the_title`, `test_front_matter_gives_the_metadata` and `test_a_book_without_a_title_uses_the_fallback` with tests that:
@@ -287,7 +289,7 @@ repository search of T037. On the real stack, T046 and T047.
 - [ ] T032 [US2] Progress without pages or OCR (FR-011, research.md R8):
   - **`app/services/ingestion_service.py`**: `INGEST_STEPS`' extraction becomes `StageSpec(EXTRACT, "Extracting the text")`.
   - **`app/utils/progress.py`**: `Stage.uncount`, `Progress._uncount`, the state's `ocr` and the `ocr` log field go, and the module docstring no longer says that a loader counts pages.
-- [ ] T033 [US2] Remove the extraction kind (FR-017, research.md R15):
+- [ ] T033 [US2] Remove the extraction kind (FR-017, research.md R15). This carries out User Story 3's scenario 4, done here because `extraction_metrics.py` imports PyMuPDF, which T035 removes:
   - in `app/evaluation/benchmark.py`, `"extraction"` leaves `Experiment.kind`, and `_run_extraction`, `_EXTRACTION_METRICS`, its `match` arm and the `extraction_scores` import go;
   - `app/evaluation/extraction_metrics.py` and `tests/unit/test_extraction_metrics.py` are deleted.
 - [ ] T034 [US2] Remove the remaining mentions (FR-012):
@@ -351,7 +353,7 @@ run (T048, T049).
 - [ ] T044 [US3] In `app/main.py`, remove the `fetch-benchmark-books` subcommand and its handler, so that T041 passes.
 - [ ] T045 [US3] Write `devtools/compare_runs.py`, so that T040 passes (contracts/benchmark.md, research.md R13). It has a module docstring saying what it compares and how to run it, and these arguments: two results directories and `--labels BASELINE CHANGED`.
   - It merges both runs' rows under the new labels, and recomputes the summaries with `app.evaluation.benchmark.summarize`, by category and by book too.
-  - It renders them with `app.evaluation.report.render(merged, baseline=<BASELINE>)`.
+  - It renders them with `app.evaluation.report.render(merged, baseline=<BASELINE>)`. The merged results take the changed run's `environment`, `complete` and `sample_limit`, and an `experiment` named "<name>: <BASELINE> vs <CHANGED>", with the changed run's description and kind.
   - Before that rendering, it writes each run's environment line, then the questions left out, by ID.
   - After it, it writes the table of the questions that moved.
 
@@ -380,24 +382,27 @@ records.
   - **Correct each quote and chapter name it lists** to the Markdown text, holding the same evidence, at most 30 words. Expected first: `think_python_factual_05` takes `lexi-con`, and `think_python_chapter_specific_01` takes `n − 1` (research.md R11). Copy the folder in and validate again, until nothing is listed, with all 75 answerable questions kept.
   - **Record** each change, before and after, in Notes.
 - [ ] T049 Run the retrieval experiment on the Markdown books (FR-020, quickstart.md § 7).
-  - Start from a fresh workspace (`rm -rf /app/benchmarks/workspace`) and pass `--commit "$(git describe --always --dirty)"`. Run it in the background.
+  - **First, the commit.** Ask the owner to commit the implementation (Path Conventions: commits happen only when the owner asks), so that `--commit "$(git rev-parse --short HEAD)"` names a commit someone can check out, as constitution VI asks. If the owner declines, pass `git describe --always --dirty`, and record `git diff HEAD | sha256sum` in Notes beside it.
+  - Start from a fresh workspace (`rm -rf /app/benchmarks/workspace`). Run it in the background.
   - Copy the results out, and run `uv run python devtools/compare_runs.py <T006's directory> <this one> --labels originals markdown`.
   - For each difference whose interval leaves zero out, read the questions behind it in both runs' `rows.csv`: was the evidence found in each run, and what was retrieved instead?
   - Record the comparison and the reading in Notes.
 - [ ] T050 Run `make test-integration` against the stack's models (SC-006). Record passed and skipped in Notes.
 - [ ] T051 Check the commands on the real stack (SC-001, SC-003, SC-008, contracts/books.md):
-  - **Adding.** Copy the four Markdown books into `/tmp` under their own names, and add each with `add-book`. `list-books` shows each titled by its stem, with an empty author, and its chapters match its headings when read against the file.
+  - **Adding.** Copy the four Markdown books into `/tmp` under their own names, and add each with `add-book`. Each is added without an error, and `list-books` shows it titled by its stem (SC-001). The author and the chapters are read in the tab, in T052.
   - **Refusing.** Copy `think-python.pdf` and `on-liberty.epub` to `/tmp`. `add-book /tmp/think-python.pdf` and `replace-book book_001 /tmp/on-liberty.epub` are each refused within a second, with the convert-first message. `list-books` is unchanged, and the log shows no operation started for either.
   - **Gone.** `fetch-benchmark-books` is refused.
-  - **Reading (SC-008).** On *História econômica global* and *On Liberty*: one `ask` and one `search`, a saved chapter summary (`book-rag summarize … --save`, as `book-rag summarize --help` gives it), and a chapter quiz's pointers. None shows a page, and every citation reads book, chapter[, section].
+  - **Reading (SC-008).** On *História econômica global* and *On Liberty*: one `ask` and one `search`, and a saved chapter summary (`book-rag summarize BOOK CHAPTER --save`). None shows a page, and every citation reads book, chapter[, section]. No command makes a quiz, so the quiz is read in T052.
+  - **Emptying the library for T052.** Run `reset-everything --confirm "DELETE EVERYTHING"`, which the owner allows (CHK006). The same files added again through the tab would otherwise be refused as duplicates, since a book is identified by its checksum (principle II).
 
   Record what was read in Notes.
-- [ ] T052 **STOP: the owner's walkthrough in the browser** (quickstart.md § 6, SC-001, SC-003, SC-008), on the stack T051 left. The owner:
+- [ ] T052 **STOP: the owner's walkthrough in the browser** (quickstart.md § 6, SC-001, SC-003, SC-008), on the library T051 emptied. The owner:
   1. opens each picker: the dialog offers only `.md` and `.markdown`, and the note is under "Add a book";
-  2. adds one converted book through the tab;
-  3. drops `think-python.pdf` on "Add a book", and `on-liberty.epub` on "Change a book" with a book chosen: each is refused at once, and the book list doesn't change;
-  4. asks three questions in the Chat tab, on the two books, and reads the sources, the passages and the scores table, which has no Pages column;
-  5. reads a chapter quiz's pointers.
+  2. adds the three converted books and `01_historia_economica_global.md` through the tab. Each gets its file's stem as its title and an empty Author column (SC-001, FR-005);
+  3. reads each converted book's chapters in the Summaries tab against its Markdown headings (SC-001);
+  4. drops `think-python.pdf` on "Add a book", and `on-liberty.epub` on "Change a book" with a book chosen: each is refused at once, and the book list doesn't change (SC-003);
+  5. asks three questions in the Chat tab, on *História econômica global* and *On Liberty*, and reads the sources, the passages and the scores table, which has no Pages column (SC-008);
+  6. prepares a chapter quiz on one of them and reads its passage pointers (SC-008).
 
   Record the owner's findings in Notes. Fix what they find before going on.
 - [ ] T053 [P] Update `README.md` (FR-022, research.md R17). Change these sections:
@@ -434,12 +439,12 @@ records.
   - under Known limitations, note that the quiz experiments still name the PDF until the quiz is removed;
   - point Reproducing to the converted books and to where the dataset is recorded.
 - [ ] T056 Record the validated dataset (research.md R19): copy `benchmarks/datasets/books.yaml`, `questions.jsonl` and `chapter_key_points.jsonl` into `specs/005-markdown-only/benchmarks/datasets/`, and `benchmarks/experiments/markdown_books.yaml` into `specs/005-markdown-only/benchmarks/experiments/`. Check that `git diff --no-index` against `git show c7bb785:benchmarks/datasets/questions.jsonl` shows only T048's changes.
-- [ ] T057 Search the repository (SC-005, quickstart.md § 9). Run its `git grep` with the listed exclusions, and the pages search over `README.md`, `app/main.py` and `app/interface`. Only refusal and conversion mentions are left, plus the quiz's page rule. `git grep -n -i -E 'docling|pymupdf|ebooklib|pypdfium|rapidocr' uv.lock` finds nothing. Fix what is left.
-- [ ] T058 **STOP: the constitution's amendment** (research.md R19). The owner runs `/speckit-constitution`, for a PATCH that names `specs/005-markdown-only/benchmarks/` where the Development Workflow names `c7bb785` as the dataset's last version. Wait for it, and check that `git diff` touches only `.specify/memory/constitution.md`.
-- [ ] T059 Final check:
+- [ ] T057 Search the repository (SC-005, quickstart.md § 9). Run its `git grep` with the listed exclusions, and the pages search over `README.md`, `app/main.py` and `app/interface`. Only refusal and conversion mentions are left, plus the quiz's page rule. The search leaves out the whole constitution, where only principle VI's Why names Docling, which SC-005 exempts. `git grep -n -i -E 'docling|pymupdf|ebooklib|pypdfium|rapidocr' uv.lock` finds nothing. Fix what is left.
+- [ ] T058 Final check:
   - `make lint-check` and `make test` pass;
   - quickstart.md is reread against what was done, and corrected where it differs;
   - every checklist item is still `[x]`;
+  - the constitution is 2.0.2, whose Development Workflow names `specs/005-markdown-only/benchmarks/`, which T056 filled (amended before implementing, `c723ea4`, after the analysis's C1);
   - the plugin's commit `f10b81b` is still reachable, or the conversion record names the commit that replaced it (research.md R11).
 
   Draft the pull request in Notes:
@@ -463,7 +468,7 @@ records.
 - **US1 (Phase 3)**: after Phase 2.
 - **US2 (Phase 4)**: after US1. T027 removes `DocumentFormat` members that US1's T017 stops using.
 - **US3 (Phase 5)**: after US2. T042 and T043 can start after Phase 2, but `make test` at its checkpoint needs US2's removals.
-- **Polish (Phase 6)**: after US3, in order T046 → T047 → T048 → T049, then T050 to T052. T053 to T055 can go in parallel once T049 is recorded, then T056 → T057 → T058 → T059.
+- **Polish (Phase 6)**: after US3, in order T046 → T047 → T048 → T049, then T050 to T052. T053 to T055 can go in parallel once T049 is recorded, then T056 → T057 → T058.
 
 ### Within Each User Story
 
@@ -523,7 +528,7 @@ Task: "T026 Pages, OCR, extraction and Docling out of the interface, command, be
 5. **Polish**, on the real stack:
    - the rebuild, the identical chunks and the dataset;
    - the comparison, the integration tests and the commands;
-   - the owner's walkthrough, the records, the amendment and the pull request's draft.
+   - the owner's walkthrough, the records and the pull request's draft.
 
 ---
 
