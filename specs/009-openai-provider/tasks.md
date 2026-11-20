@@ -289,7 +289,7 @@ stack, which delete the library.
   - a summary saved and kept by `reindex-all`;
   - the key nowhere;
   - an experiment and a judge naming an OpenAI model refused.
-- [ ] T039 The owner checks the tabs in the browser (quickstart § 8):
+- [X] T039 The owner checks the tabs in the browser (quickstart § 8):
   - the choice's order;
   - a mixed sequence's notice;
   - an answer streaming from `gpt-6.2-sol`;

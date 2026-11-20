@@ -685,14 +685,22 @@ adds to them, and what a reader of this spec alone needs to check.
 
 ## Results of the implementation, 2026-11-20
 
-The implementation is on `feat/openai-provider`, uncommitted. The owner put their OpenAI key and
+The implementation is on `feat/openai-provider`, rebased onto `main` at `7889b60` (v0.8.1, the fix
+of `.specify/bugs/catalog-first-start-race`). The owner put their OpenAI key and
 `OPENAI_MODELS=gpt-6-luna,gpt-6.1-terra,gpt-6.2-sol` in `.env`, beside Claude's settings. The
 checks on the real models ran from the host first (`quickstart.md` § 2). The checks on the stack
 ran on the running stack, with the owner's *História* as `book_001`, by the owner's choice: the new
 `app/` and `config/` were copied into the app container and the app restarted, which kept the
-library, and OpenAI's settings were passed to each command (`docker compose exec -e`). The tabs
-don't offer OpenAI until a `make up` recreates the container with the settings, so the owner's
-check in the browser (T039), and the parts of the criteria that it covers, wait for that.
+library, and OpenAI's settings were passed to each command (`docker compose exec -e`). The owner
+then recreated the stack from the branch with `make up`, which put the settings in the app
+container and emptied the library, added *História* again, and checked the tabs in the browser
+(T039, `quickstart.md` § 8): it passed. That `make up` met the catalog race, fixed apart.
+
+- **The tabs, in the browser (T039): pass.** The model choice listed the local model, Claude's
+  models, then OpenAI's; a Claude model with an OpenAI fallback gave a notice naming both providers
+  in order; an answer from `gpt-6.2-sol` streamed; the Research tab named `gpt-6.2-sol (OpenAI)`
+  with its tokens, timings and reasoning, and "Check again" checked OpenAI; the Summarization
+  tab's notice named OpenAI and the chapter's text.
 
 - **SC-001: pass.** In the container without OpenAI's settings, `doctor` printed its rows and
   Claude's as before. The unit tests show `ask` printing as before with neither provider's
@@ -736,11 +744,13 @@ check in the browser (T039), and the parts of the criteria that it covers, wait 
   comments and `docs/decisions.md`; well under 1.11, so the window caps about 64K of OpenAI's
   tokens.
 - **SC-010: pass.** After the session, failures and a wrong key included, `grep` found neither key
-  in the container's logs or library. The page's source is part of the owner's browser check.
+  in the container's logs or library. The page's source wasn't saved and searched; the interface
+  neither asks for a key nor shows one (FR-004), which the unit tests of the tabs cover.
 - **SC-011: pass.** `git diff main --stat` lists none of `app/services/`, `app/interface/` or
   `app/main.py`, nor `tests/unit/test_anthropic_provider.py`.
-- **SC-012: pass.** `make lint-check` is clean, and `make test` ran 1,320 unit tests, all passing,
-  a saved OpenAI summary's record among them (Phase 8, T041).
+- **SC-012: pass.** `make lint-check` is clean, and `make test` ran 1,323 unit tests after the
+  rebase, all passing: the feature's 1,320, a saved OpenAI summary's record among them (Phase 8,
+  T041), and the catalog fix's 3.
 
 What the real models showed beside the criteria: at effort `low`, OpenAI reported no reasoning
 tokens for the probe's questions, so no summary of the reasoning came back, and the Research tab
@@ -760,6 +770,7 @@ streamed all three models, so the verification refusal wasn't met.
   on all three models.
 - **The fake stream keeps each word's whitespace**, so that a summary's headings and lines survive
   the fake, as they survive OpenAI's own stream.
-- **The stack checks ran without `make up`**, by the owner's choice (above). The app container's
-  `/app/app` and `/app/config` belong to root, so the copy rewrote the files in place
-  (`tar --overwrite`), and every file then matched the working tree.
+- **The stack checks ran without `make up`**, by the owner's choice (above), and the browser check
+  after the owner's own `make up`. The app container's `/app/app` and `/app/config` belong to root,
+  so the copy rewrote the files in place (`tar --overwrite`), and every file then matched the
+  working tree.
