@@ -221,6 +221,17 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
   `BREAKING CHANGE` footer, released as v1.0.0? → A: `feat:`, released as v0.6.0, with no
   footer, the way `specs/005` was merged in the end (FR-018).
 
+### Corrections during planning, 2026-11-19
+
+- FR-004 named one quiz-only error, and there are two: `NothingToAskError`, for a chapter with
+  nothing to ask about, is raised only by the quiz's service too, and goes (`research.md`, R2).
+- FR-007's cache sweep stays. In Gradio 6.32, every upload joins the files that `delete_cache`
+  sweeps, so the copies of uploaded books still need it (R4).
+- FR-011's local books go. Only the quiz's two kinds index them, and only the quiz's experiment
+  files set them (R5).
+- FR-012 also refuses the results of the `extraction` kind, which `specs/005` left renderable.
+  None exists, on the host or in the container (R6).
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -239,7 +250,7 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
   - the LLM provider factory's per-task model and reasoning: every provider is built for the
     configured model and its profile, as Chat's and Summarization's are today;
   - the stricter language check for short texts, which only the question writer calls;
-  - the error for grading a quiz twice.
+  - the errors for grading a quiz twice and for a chapter with nothing to ask about.
 
   What the quiz shares with the rest of the application stays, such as the context's safety
   margin and the response languages.
@@ -252,8 +263,8 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
 - **FR-007**: What came with the quiz and that the rest of the application relies on MUST stay:
   - **the stop on SIGTERM**, which makes a restart take about 1 s instead of 10 s;
   - **the Library tab's operation thread**, whose reason stays recorded without the quiz;
-  - **Gradio's cache sweep**, if Gradio still caches the application's files, such as uploaded
-    books. The plan finds out, and `docs/decisions.md` records the answer either way.
+  - **Gradio's cache sweep**, since Gradio also caches every book uploaded in the Library tab
+    (Corrections during planning). `docs/decisions.md` records why.
 - **FR-008**: A dependency MUST be removed only if the lock shows it was installed for the quiz
   alone. None is known: the quiz's modules import nothing that the rest of the application
   doesn't.
@@ -271,7 +282,7 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
 
 - **FR-011**: The `quiz` and `quiz_check` experiment kinds MUST be removed, with their metrics,
   their report sections, the experiment fields that only they read (quiz targets, the seed, known
-  cases and case sets, and local books unless another kind indexes them), and `benchmark-report`'s
+  cases and case sets, and local books, which no other kind indexes), and `benchmark-report`'s
   reading of `reading.csv`. An experiment of either kind MUST be refused as an unknown kind, as
   any other unknown kind is.
 - **FR-012**: `benchmark-report` MUST refuse a result whose experiment kind isn't one of the four

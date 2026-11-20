@@ -48,3 +48,6 @@
 - Two requirements are conditional, each with its rule stated: FR-007 keeps Gradio's cache sweep
   if Gradio still caches the application's files, and FR-011 removes local books from experiments
   unless a remaining kind indexes them. The plan settles both from the code.
+- Planning, 2026-11-19: both settled and written into the spec, under "Corrections during
+  planning": the cache sweep stays, and local books go. FR-004 gained the second quiz-only
+  error. All items still pass.
