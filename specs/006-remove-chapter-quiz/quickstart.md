@@ -1,0 +1,199 @@
+# Quickstart: checking the quiz's removal
+
+How to show the feature works: first without services, then on the real stack. Order matters
+twice. The comparisons with `main` (§ 3) need a worktree of `main` and no stack. The checks that
+use the host's quiz files (§ 6) come before those files are deleted (§ 7). What each step must
+show comes from the spec's success criteria, and the contracts hold the details.
+
+## 0. Before anything
+
+A fresh shell needs asdf's paths for `uv` and `make`:
+
+```bash
+export ASDF_DATA_DIR="$HOME/.asdf" PATH="$HOME/.asdf/shims:$HOME/.asdf:$PATH"
+```
+
+`git status --short` is clean on `feat/remove-chapter-quiz`, and `uv.lock` is `main`'s: no
+dependency changes (FR-008).
+
+## 1. Unit tests and lint
+
+```bash
+make lint-check
+make test
+```
+
+Expected:
+- **Lint** is clean: no import left unused by the removal (`research.md`, R2).
+- **Every unit test passes**, with the four quiz test files gone and the shared files changed as
+  R10 lists.
+- **The refusals**, each in its test, with `extraction` or made-up names, so that no test names
+  the quiz (SC-001). The quiz's real files are refused on the stack, in § 6:
+  - `test_config.py`: an unknown section under `generation` stops loading, naming it (FR-003);
+  - `test_benchmark.py`: an `extraction` experiment is refused, and the allowed kinds it names
+    are exactly the four (FR-011);
+  - `test_report.py`: an `extraction` result and one of a made-up kind are refused, naming the
+    kind; `test_commands.py`: `benchmark-report` on an `extraction` result fails, with nothing on
+    standard output (FR-012).
+- **What stays**: one provider for `llm.model` in the container (`test_container.py`), the four
+  tabs in order (`test_interface.py`), the cache sweep within the hour and the stop on SIGTERM.
+
+## 2. Nothing left (SC-001)
+
+```bash
+OUTSIDE=(-- . ':!docs/decisions.md' ':!docs/benchmark-results.md' ':!specs/' ':!.specify/assessments/')
+git grep -i -l quiz "${OUTSIDE[@]}"
+git grep -n -E 'NothingToAskError|LocalBook|_WHOLE_BOOK|_MIN_REPLY_CONFIDENCE|confident_reply_language|lettered_options|REFUSAL_KINDS|known_cases|case_set|local_books' "${OUTSIDE[@]}"
+git grep -i -n quiz -- docs/decisions.md docs/benchmark-results.md
+```
+
+Expected: the first two print nothing: neither the word nor the quiz-only names that lack it
+(`research.md`, R2 and R5). The third finds, in `docs/decisions.md`, only the section "Removed:
+the chapter quiz (v0.6.0)", and in `docs/benchmark-results.md` only the quiz's section, with its
+removal line, and nothing in Known limitations (FR-015, FR-016). The dataset's "não quiz fitar"
+is under `specs/`, and the books aren't in the repository.
+
+## 3. The same as `main` (SC-002, SC-006, US3)
+
+**The diff.**
+
+```bash
+git diff main...HEAD --name-only
+git diff main...HEAD -U0 -- app/generation/prompts.py | grep '^+[^+]'
+```
+
+The three dots compare with where the branch left `main`, so a later merge into `main` doesn't
+count. Expected:
+- `--name-only` lists only the files of `plan.md`'s Project Structure, `README.md`,
+  `docs/decisions.md`, `docs/benchmark-results.md` and `specs/006-remove-chapter-quiz/`. A file
+  outside that list stops the check until the plan names it (SC-006, R9).
+- The `grep` prints nothing: `prompts.py` only lost lines.
+
+**The prompts and a report, built on both trees.** A throwaway script, kept in the session's
+scratchpad and never committed (R8), prints:
+- `app.__file__`, to show which tree it loaded;
+- one SHA-256 per prompt, for fixed inputs, an English and a Portuguese question and passage:
+  - the answer and its abstention check, in the question's language and in a named one;
+  - the map, collapse, final and verification steps, for `brief`, `standard`, `comprehensive` and
+    `analytical`, in the book's language and in a named one;
+  - the summary judge's two prompts;
+- the SHA-256 of `render()` on a retrieval result from the host's `benchmarks/results/`
+  (`markdown_books_*`), the only kind it holds, without and with `--baseline`'s comparison.
+
+It runs on a worktree of where the branch left `main`, before any change (tasks.md, T003), and on
+the branch after the changes (T037), with the branch's `.venv`. Each run starts in its own tree,
+so that it reads that tree's `config/`: `main`'s code requires the `quiz` section. `PYTHONPATH`
+puts each tree's `app` before the editable install's:
+
+```bash
+REPO="$PWD"
+git worktree add "$SCRATCH/main-tree" "$(git merge-base main HEAD)"
+(cd "$SCRATCH/main-tree" && PYTHONPATH="$SCRATCH/main-tree" "$REPO/.venv/bin/python" "$SCRATCH/same_as_main.py" > "$SCRATCH/main.txt")
+git worktree remove "$SCRATCH/main-tree"
+# later, on the branch:
+PYTHONPATH="$REPO" .venv/bin/python "$SCRATCH/same_as_main.py" > "$SCRATCH/branch.txt"
+diff "$SCRATCH/main.txt" "$SCRATCH/branch.txt"   # only the app.__file__ line differs
+```
+
+Expected: every hash is the same on both. The result is recorded in the spec, under "Results of
+the implementation" (SC-002).
+
+## 4. The rebuild, and what it deletes
+
+`make up` rebuilds the app image and recreates the app container, which deletes its library
+(empty on 2026-11-19: `list-books` showed no book), its logs, and `data/quiz_downloads`. ChromaDB
+and Ollama keep their data, models included (R15). The new catalog numbers its indexes from 1
+again, so `reset-everything` comes first. It deletes the library, empty as it is, and every
+`book_chunks_v*` collection in ChromaDB:
+
+```bash
+make up
+docker compose exec app book-rag reset-everything --confirm "DELETE EVERYTHING"
+docker compose exec app book-rag doctor
+```
+
+Expected: `doctor` reports no failure (SC-003).
+
+## 5. On the running stack (SC-003, SC-004)
+
+```bash
+make test-integration
+time docker compose restart app
+```
+
+Expected: the integration tests pass without `test_quiz.py`. The restart, timed while no library
+operation is in progress, takes under 2 s of wall-clock time (SC-004).
+
+In the browser, at <http://localhost:7860>:
+1. The tabs are Library, Chat, Summarization and Research, and no other.
+2. Add `benchmarks/books/on-liberty.md` in the Library tab. When it is indexed, it is in the Chat
+   and Summarization tabs' lists.
+3. Ask a question about it in the Chat tab. The answer cites its passages by book, chapter and
+   section.
+4. Summarize one of its chapters in the Summarization tab, and save the summary.
+
+## 6. The refusals on the stack (SC-005)
+
+Each with a file copied into the container, which is put back or removed afterwards:
+
+```bash
+# A configuration that still has a quiz section
+docker compose cp app:/app/config/generation.yaml "$SCRATCH/generation.yaml"
+git show main:config/generation.yaml > "$SCRATCH/generation-with-quiz.yaml"
+docker compose cp "$SCRATCH/generation-with-quiz.yaml" app:/app/config/generation.yaml
+docker compose exec app book-rag doctor          # stops: generation.quiz
+docker compose cp "$SCRATCH/generation.yaml" app:/app/config/generation.yaml
+docker compose exec app book-rag doctor          # passes again
+
+# A quiz experiment, and a quiz result. The runner loads the dataset before the experiment.
+docker compose exec app mkdir -p /app/benchmarks/results
+docker compose cp specs/005-markdown-only/benchmarks/. app:/app/benchmarks/
+docker compose cp specs/003-chapter-quiz/benchmarks/quiz.yaml app:/app/benchmarks/experiments/
+docker compose cp specs/003-chapter-quiz/benchmarks/quiz_check.yaml app:/app/benchmarks/experiments/
+docker compose exec app book-rag benchmark benchmarks/experiments/quiz.yaml         # refused
+docker compose exec app book-rag benchmark benchmarks/experiments/quiz_check.yaml   # refused
+docker compose cp benchmarks/results/quiz_20261111T130111197357Z app:/app/benchmarks/results/
+docker compose exec app book-rag benchmark-report benchmarks/results/quiz_20261111T130111197357Z
+docker compose exec app rm -r /app/benchmarks
+```
+
+Expected: `doctor` stops on the copied configuration, naming `generation.quiz`, and passes once
+the file is back. `benchmark` refuses both experiments before opening a workspace, naming the four
+kinds and the fields it doesn't know. `benchmark-report` prints the error of
+`contracts/benchmark.md` and nothing else.
+
+## 7. The host's quiz files (FR-013)
+
+After § 6, and only then:
+
+```bash
+rm benchmarks/experiments/{quiz,quiz_models,quiz_check,key_cases}.yaml
+rm -r benchmarks/results/quiz_2026* benchmarks/results/quiz_models_2026* benchmarks/results/quiz_check_2026*
+ls benchmarks/experiments benchmarks/results
+```
+
+Expected: the experiments left are `default_llm_generation`, `default_llm_summarization`,
+`generation`, `historical_spelling`, `markdown_books`, `performance`, `retrieval` and
+`summarization`. The results left are the retrieval runs (`markdown_books_*`), `chunks-*`,
+`library_progress_*` and `compare_originals_markdown.md`. Git sees no change, since `benchmarks/`
+is ignored.
+
+## 8. The records
+
+- `README.md`: four tabs, no Quizzes section, no quiz kinds, and the `--commit` advice in the
+  Benchmarks section's general part (R11).
+- `docs/decisions.md`: the entries of R12 deleted, reworded and added.
+- `docs/benchmark-results.md`: the quiz's section kept with its removal line, and the Known
+  limitations of R13.
+- § 2's search, run again: still the same.
+
+## 9. Before the merge (FR-018)
+
+```bash
+git log main..HEAD --format='%B' | grep -n -E '^[a-z]+(\(.+\))?!:|^BREAKING[ -]CHANGE'
+git fetch --tags && git describe --tags --abbrev=0 origin/main
+```
+
+Expected: the first prints nothing, since no commit of the branch is breaking. The second prints
+`v0.5.0`, so a `feat:` merge makes v0.6.0, which the records name. If it prints anything else,
+the records are corrected to the version this merge produces before it merges.

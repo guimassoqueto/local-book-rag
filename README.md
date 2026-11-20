@@ -106,14 +106,13 @@ it or `make up` recreates it after a rebuild:
 
 ## Interface
 
-The Gradio interface at <http://localhost:7860> has five tabs:
+The Gradio interface at <http://localhost:7860> has four tabs:
 
 | Tab           | What it does                                                                        |
 | ------------- | ----------------------------------------------------------------------------------- |
 | Library       | Upload, replace, remove and reindex books, and reset. Shows each book's status, and the progress of each operation |
 | Chat          | Ask about one book, one chapter or several books, and inspect the retrieved passages |
 | Summarization | Summarize a chapter in any of the types, and save the result                        |
-| Quiz          | A graded multiple-choice quiz on a chapter or the whole book, with the passage to reread for each question missed |
 | Research      | The latest question from the inside: models, each stage's scores, final context, reasoning, tokens, timings, and GPU memory |
 
 Everything in it goes through the same services as the commands. Destructive actions need
@@ -392,49 +391,6 @@ Statements close to no passage stay uncited and are counted, as the first place 
 for something the model added. The references give each passage's section and quote its
 opening words, because that is how to find it: books have no pages.
 
-## Quizzes
-
-The Quiz tab quizzes you on one chapter or a whole book, for study. Choose the book, the chapter or
-"The whole book", how many questions, and the language. The count starts at one question per 300
-words of the text, between 1 and 20, and can go up to one per passage, at most 50. Questions appear
-one by one as they are ready, about 3 s each, and can be answered while the rest arrive; Stop ends
-a preparation. Submit grades the quiz: each question missed shows your answer, the right one, why,
-and the passage it came from, with its chapter and section. A whole-book quiz also ranks the
-chapters by questions missed. The result downloads as Markdown.
-
-The model writes one question from one passage at a time, and never sees a letter: the application
-owns what the model was seen doing badly when asked for a whole quiz at once
-(`.specify/assessments/chapter-quiz/`).
-
-- **Which passages.** One chapter is cut into as many contiguous strata as questions, one passage
-  drawn from each, so that the start, middle and end all get questions. The whole book is divided
-  by the chapters' share of its words.
-- **Which letter is right.** A balanced set: each letter is the key as often as any other.
-- **The order.** Random, and never the order of the text.
-- **Replies that can't be used.** A reply that can't be read, or a question not in form, is written
-  again, up to three times, then another passage of the same stretch is used. Refused are: blank
-  fields, anything but four wrong answers, repeated options, an option that refers to the others
-  ("all of the above"), a question or option that points to where its answer is ("segundo o
-  trecho", a page, a section, or the chapter in a whole-book quiz), and another language than the
-  one asked for. The passage reaches the model without a number or a section, so the
-  question has nothing to point at.
-- **Nothing to ask.** The model skips a passage that says nothing about the book's subject, such as
-  references, lists of illustrations or acknowledgements, and another passage is used. A chapter
-  whose first two passages tried are both skipped is left out, and in a whole-book quiz its
-  questions go to the other chapters.
-
-Nothing is kept: the quiz and its result live in the browser session, and a new quiz or a restart
-discards them. The download's file is written by the service into `data/quiz_downloads`, which is
-emptied whenever a quiz is prepared and at each start, and Gradio's own copy is removed on a restart
-and within the hour.
-
-`generation.quiz` in `config/generation.yaml` holds the settings, including the key check: a second
-reading of each question against its passage, by the writer's model or another, which rejects a
-key the passage doesn't state, a wrong key, or a second defensible answer. It is switched off: it
-can be on by default only once it passes the rule in `specs/003-chapter-quiz` (FR-027), on test
-cases, with the `quiz_check` experiment below, and that proof is left to a later change. Switched
-on by hand, each question takes a second reading, at `medium` reasoning.
-
 ## Benchmarks
 
 Comparing configurations under controlled conditions is the point of this project, so the
@@ -461,6 +417,13 @@ make benchmark EXPERIMENT=generation LIMIT=2                # a sample, per book
 docker compose cp app:/app/benchmarks/results benchmarks/   # the results, out of the container
 ```
 
+The container holds no `.git`, so a result records the code's commit only when it is passed with
+`--commit`, which `make benchmark` doesn't do:
+
+```bash
+docker compose exec app book-rag benchmark benchmarks/experiments/retrieval.yaml --commit "$(git describe --always --dirty)"
+```
+
 The experiments in that commit:
 
 | Experiment      | Compares                                                               | Measures                                                                                  |
@@ -475,38 +438,6 @@ experiment with one variant, the default configuration. It ran on two versions o
 the books, and `devtools/compare_runs.py` pairs two such runs question by question, which
 `benchmark-report --baseline` can't do across runs.
 
-Two more kinds measure the Quiz tab. Their experiment files are in `specs/003-chapter-quiz/benchmarks/`:
-
-| Experiment   | Compares                                                       | Measures                                                                       |
-| ------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `quiz`       | Writer models and prompt rounds, on six chapters, with a fixed seed | Letter spread, the key as the longest or shortest option, where questions come from, refusals and skips, delivery, times, closed-book answers, and the reading's marks |
-| `quiz_check` | Key-check wordings and models, on known cases                  | Flawed cases caught and sound ones rejected, against the writer answering with the passage, and the rule that decides the check's default |
-
-A `quiz` experiment can list `local_books`: the owner's copy of a book that isn't public, copied by
-hand into `benchmarks/books` and checked against its checksum before anything runs. The ones in
-`specs/003-chapter-quiz/benchmarks/` still name the PDF of *História econômica global*, which the
-library no longer reads: point them at its Markdown conversion, with its checksum, before a run.
-Pass the code's commit with `--commit`, since the container holds no `.git`:
-
-```bash
-cp specs/003-chapter-quiz/benchmarks/*.yaml benchmarks/experiments/   # then edit their local_books
-docker compose cp -a benchmarks app:/app/
-docker compose exec app book-rag benchmark benchmarks/experiments/quiz.yaml --commit "$(git describe --always --dirty)"
-```
-
-A `quiz` run also writes `reading.csv`: every question with its options, key, explanation and
-passage, and empty `mark`, `reasons` and `note` columns. Mark each row `sound` or `flawed`, with
-reasons for a flawed one (`wrong_key`, `key_not_stated`, `two_defensible`,
-`explanation_beyond_passage`, `option_depends_on_others`, `nothing_to_ask`), and note
-`refers_to_passage` on a question that points to where its answer is. `benchmark-report` then adds
-the share of sound keys over the marked rows. The file holds the books' text, so it stays with the
-results, out of the repository.
-
-`quiz_check` runs on `specs/003-chapter-quiz/key_cases.yaml`, read from beside the experiment: known
-questions, labeled by reading, each locating its passage by a quote of at most 30 words, so that
-no passage text is stored. Development cases choose the check's wording; only test cases, from runs
-no wording was tried on, decide whether it ships switched on.
-
 Results go to `benchmarks/results/<experiment>_<time>/`: `summary.csv`, `rows.csv` with every
 question, answer and summary, and `results.json`, which also records what a result means nothing
 without: the digest and quantization of each model, the Ollama and package versions, the hardware,
@@ -519,7 +450,9 @@ docker compose exec app book-rag benchmark-report benchmarks/results/<run> --bas
 
 shows a run as Markdown tables, with each variant compared to the baseline, question by question
 or chapter by chapter. The dataset is small, and this paired bootstrap tells which differences are
-more than noise. The full runs, and what they suggest, are in `docs/benchmark-results.md`.
+more than noise. A result of a kind the benchmark doesn't run, such as an old `extraction` run, is
+refused rather than rendered in part. The full runs, and what they suggest, are in
+`docs/benchmark-results.md`.
 
 An experiment is a YAML file: variants that are the normal configuration plus overrides, checked
 by the same validation as `config/`. It runs in `benchmarks/workspace`, on separate files and
@@ -592,7 +525,7 @@ first look.
 | `config/models.yaml`      | The LLM, embedding model and reranker                   |
 | `config/ingestion.yaml`   | Languages and chunking                                  |
 | `config/retrieval.yaml`   | Retrieval strategy and its parameters                   |
-| `config/generation.yaml`  | Temperature and token limits per task, and the quiz     |
+| `config/generation.yaml`  | Temperature and token limits per task                   |
 
 Unknown keys are errors, so a typo stops the app at startup instead of being ignored.
 Addresses and directories come from the environment; their defaults are the Compose

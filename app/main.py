@@ -274,15 +274,12 @@ def _benchmark(container: Container, arguments: argparse.Namespace) -> None:
 
 
 def _benchmark_report(_: Container, arguments: argparse.Namespace) -> None:
-    from app.evaluation.quiz_metrics import read_reading  # needs nothing the other commands load
-    from app.evaluation.report import render
+    from app.evaluation.report import render  # needs nothing the other commands load
 
     path = arguments.results / "results.json"
     if not path.is_file():
         sys.exit(f"error: {arguments.results} holds no results.json")
-    reading_path = arguments.results / "reading.csv"  # a quiz run's, with the marks it holds
-    reading = read_reading(reading_path) if reading_path.is_file() else None
-    print(render(json.loads(path.read_text(encoding="utf-8")), arguments.baseline, reading), end="")
+    print(render(json.loads(path.read_text(encoding="utf-8")), arguments.baseline), end="")
 
 
 def _search(container: Container, arguments: argparse.Namespace) -> None:
