@@ -6,9 +6,9 @@ strategies can be compared under controlled conditions without touching the appl
 code.
 
 Everything runs on local infrastructure through Docker Compose, and the local model answers by
-default. Answers and chapter summaries can also come from a cloud model, Claude for now, once its
-API key is set and when you pick it for a request (see Cloud models). Nothing else leaves the
-machine.
+default. Answers and chapter summaries can also come from a cloud model, Claude or one of OpenAI's
+GPT models, once its provider's API key is set and when you pick it for a request (see Cloud
+models). Nothing else leaves the machine.
 
 ## Requirements
 
@@ -340,6 +340,7 @@ docker compose exec app book-rag ask "Quais são os argumentos?" --book book_001
 docker compose exec app book-rag ask "Compare how they treat trade." --book book_001 --book book_002
 docker compose exec app book-rag ask "What is the harm principle?" --language Portuguese
 docker compose exec app book-rag ask "What is the harm principle?" --model claude-sonnet-5-5
+docker compose exec app book-rag ask "What is the harm principle?" --model gpt-6.2-sol --fallback claude-sonnet-5-5
 ```
 
 Answers come from the retrieved passages, with numbered citations that resolve to the book,
@@ -415,69 +416,108 @@ them as they were, lists them, and calls no cloud model (see Cloud models).
 
 ## Cloud models
 
-Answers and chapter summaries can come from Claude, through Anthropic's API, beside the local
-model. Two settings in `.env` turn it on, and both are needed:
+Answers and chapter summaries can come from Claude, through Anthropic's API, or from OpenAI's
+models, through OpenAI's API, beside the local model. Each provider takes two settings in `.env`,
+and both are needed:
 
 ```dotenv
 ANTHROPIC_API_KEY=sk-ant-...
 ANTHROPIC_MODELS=claude-sonnet-5-5,claude-opus-5-5
+OPENAI_API_KEY=sk-...
+OPENAI_MODELS=gpt-6-luna,gpt-6.1-terra,gpt-6.2-sol
 ```
 
-`ANTHROPIC_MODELS` is the list of models the tabs and the commands offer, in that order. With one
-setting alone, nothing is offered, the log says which one is missing, and so does `doctor`.
-**Setting or changing either takes `make up`, which recreates the app container and empties the
-library** (see Running): add the books again afterwards, after `reset-everything`.
+Each `*_MODELS` is the list of models the tabs and the commands offer, in that order, Claude's
+before OpenAI's. With one setting of a provider alone, none of its models is offered, the log says
+which one is missing, and so does `doctor`; each provider's settings decide its own models alone. A
+name that both providers offer, or that is also the local model's, stops the app at startup, since
+a request naming it couldn't say where it goes. **Setting or changing any of them takes `make up`,
+which recreates the app container and empties the library** (see Running): add the books again
+afterwards, after `reset-everything`.
+
+**OpenAI's key and models.** The key is an API key from platform.openai.com, whose organization
+pays per token. A ChatGPT subscription isn't one, although ChatGPT Pro and Business plans can
+claim monthly API credits for an API organization their owner also owns, which its key then
+spends. `OPENAI_MODELS` holds models that reason, GPT-5 and later: OpenAI's profile sends each
+request a reasoning effort, which a model that doesn't reason refuses, failing every request it
+gets. OpenAI streams some models only to a verified organization (Settings, Organization, General,
+on platform.openai.com); such a model fails at once, saying so, and is never asked again without
+streaming.
 
 **What goes where.** The local model stays the default, on every page load and in every command.
 A cloud model answers only a request that picks it: the Model dropdown in the Chat or the
 Summarization tab, each tab keeping its own choice, or `--model` in `ask` and `summarize`. Before
-anything is sent, a notice says what goes where: for a question, the question and the passages
-found, which are the Research tab's final context; for a summary, the chapter's text, in one step
-or several. Nothing else from the library is sent, and the app contacts Anthropic at no other
-time, except when you ask for a check: `doctor`, or "Check again" in the Research tab, which send
-the key and the allowed models' names and run no inference. Anthropic handles what it is sent
-under its own terms for API data: read its commercial terms,
-<https://www.anthropic.com/legal/commercial-terms>, and its privacy policy,
-<https://www.anthropic.com/legal/privacy>, before setting a key.
+anything is sent, a notice says what goes to which provider: for a question, the question and the
+passages found, which are the Research tab's final context; for a summary, the chapter's text, in
+one step or several. Nothing else from the library is sent, and the app contacts a provider at no
+other time, except when you ask for a check: `doctor`, or "Check again" in the Research tab, which
+send the key and the allowed models' names and run no inference. Each provider handles what it is
+sent under its own terms for API data; read them before setting a key:
+- **Anthropic**: its commercial terms, <https://www.anthropic.com/legal/commercial-terms>, and its
+  privacy policy, <https://www.anthropic.com/legal/privacy>.
+- **OpenAI**: its policies, <https://openai.com/policies/>, and its data controls,
+  <https://developers.openai.com/api/docs/guides/your-data>. Each request asks OpenAI not to store
+  it for later retrieval, enables no tool, such as web search, and carries no identifier of you or
+  the library. OpenAI still keeps abuse-monitoring logs for up to 30 days, and caches the start of
+  a prompt for about 30 minutes to bill a repeat less, which no request can turn off. It trains on
+  API data only if the organization has opted in to share it: check that setting in OpenAI's
+  dashboard, since the app can't change it.
 
 **Fallbacks.** "If it fails, then" in a tab, or `--fallback`, repeated, in a command, lists other
-cloud models to ask in order; the local model ends every sequence, so a request always gets an
-answer unless the local model fails too. A model fails when Anthropic refuses the key, doesn't
-know the model, limits the rate, is down or overloaded, can't be reached, rejects or declines the
-request, sends nothing for 120 seconds, or when the model replies with no text. A rate limit, an
-overload or a lost connection is tried again twice first, a few seconds apart; a silent model never
-is. The next model starts from the beginning: the Chat tab removes the text the failed one wrote,
-and `ask` says on standard error that the text above is discarded. Each failure is said as it
-happens, and again with the answer or the summary. A reply cut off by its token limit, and an
-abstention, are answers, not failures.
+cloud models to ask in order, from either provider: Claude Sonnet, then an OpenAI model, for
+example. The local model ends every sequence, so a request always gets an answer unless the local
+model fails too. A model fails when its provider refuses the key, doesn't know the model, limits
+the rate, is down or overloaded, can't be reached, rejects or declines the request, sends nothing
+at all for 120 seconds, or when the model replies with no text; and, for OpenAI, when the account
+is out of credit or over a spending or usage limit, which OpenAI sends with the status of a rate
+limit but the app tells apart. A rate limit, an overload or a lost connection is tried again twice
+first, a few seconds apart; a silent model, or an account that can't pay, never is. The next model
+starts from the beginning: the Chat tab removes the text the failed one wrote, and `ask` says on
+standard error that the text above is discarded. Each failure is said as it happens, and again
+with the answer or the summary. A reply cut off by its token limit, and an abstention, are
+answers, not failures.
 
-**The Research tab** names the model that answered, with its provider, and each that failed first.
-For a cloud model, model loading and prompt processing are unavailable, the generation's speed and
-time are measured by the app, network included, and the reasoning is the summary Anthropic
-returns, or "None came back".
+**The Research tab** names the model that answered, as its provider reported it, with that
+provider, and each that failed first. For a cloud model, model loading and prompt processing are
+unavailable, the generation's speed and time are measured by the app, network included, and the
+reasoning is the summary the provider returns, or "None came back". OpenAI's models, at the effort
+`low` that their profile sets, often don't reason at all on these tasks, so none comes back; a
+summary that does may be written in another language than the answer. If OpenAI refuses to
+summarize a model's reasoning, the request is sent once more without asking for it, and the answer
+stands.
 
-**Settings.** What every Claude model shares is its profile, `cloud_profiles.anthropic` in
-`config/models.yaml`: the window the app works with (64K tokens, far below the models' own, to cap
-what one request sends), the reasoning effort, the room set aside for reasoning, and the timeout.
-The task limits in `config/generation.yaml` apply, with that room added; their temperature
-doesn't, since the current Claude models take no sampling setting. Tokens are counted with
-`o200k_base`, since Claude's tokenizer isn't public, and Claude counts about one and a half times
-as many for the same prompt, more than the safety margin absorbs: the 64K cap is about 100K of
-Claude's own tokens. Nothing is lost to the miscount, since the API refuses a prompt that doesn't
-fit instead of cutting it, and the models' own window is far larger.
+**Settings.** What every model of a provider shares is its profile in `config/models.yaml`,
+`cloud_profiles.anthropic` and `cloud_profiles.openai`: the window the app works with (64K tokens,
+far below the models' own, to cap what one request sends), the reasoning effort, the room set aside
+for reasoning, whether a reply without the marker is read again, and the timeout. An effort that a
+provider doesn't take stops the app at startup, and OpenAI's profile must name one. The task
+limits in `config/generation.yaml` apply, with the reasoning room added; their temperature
+doesn't, since the current Claude and GPT-6 models take no sampling setting. Tokens are counted
+with `o200k_base`:
+- **Claude's** tokenizer isn't public, and Claude counts about one and a half times as many tokens
+  for the same prompt, more than the safety margin absorbs: the 64K cap is about 100K of Claude's
+  own tokens.
+- **OpenAI's** models counted 1.015 to 1.018 times the app's estimate on the integration tests'
+  prompts, the messages' formatting, so the cap is about 64K of OpenAI's own tokens.
 
-**Costs and the key.** Anthropic bills each request, a failed one included. An answer without the
-no-evidence marker costs one more short call, since Claude Haiku 5.5 sometimes abstains in words
-and the profile's `check_abstentions` is on. A cloud summary's report shows the tokens it read and
-generated, and those of each attempt that failed. The key is in the
-app container's environment: anyone who can open the interface, or call its API, can spend it (see
-Deployment notes).
+Nothing is lost to a miscount, since both APIs refuse a prompt that doesn't fit instead of cutting
+it, and the models' own windows are far larger. `doctor` checks that OpenAI knows each allowed
+model, but OpenAI's description of a model holds no window and no settings, so it can't tell
+whether a model takes the profile's effort: the first request finds out.
 
-**Before trusting a model,** run the integration tests on it: with both settings exported in the
-shell, `make test-integration` runs each model of `ANTHROPIC_MODELS` on an excerpt written for the
+**Costs and the key.** Each provider bills each request, a failed one included. An answer from
+Claude without the no-evidence marker costs one more short call, since Claude Haiku 5.5 sometimes
+abstains in words and Anthropic's profile has `check_abstentions` on; OpenAI's is off, since its
+three models wrote the marker every time. A cloud summary's report shows the tokens it read and
+generated, and those of each attempt that failed. The keys are in the app container's
+environment: anyone who can open the interface, or call its API, can spend them (see Deployment
+notes).
+
+**Before trusting a model,** run the integration tests on it: with a provider's settings exported
+in the shell, `make test-integration` runs each model of its list on an excerpt written for the
 test, five questions it answers, three it doesn't, and a summary, and checks how the app reads
-what the model writes. They cost a few cents per model, and are skipped without the settings. A
-model allowed later is trusted once it has passed them.
+what the model writes. They cost a few cents per model, and each provider's are skipped without
+its settings. A model allowed later is trusted once it has passed them.
 
 **What stays local:** embeddings, reranking, benchmarks and their judges. A cloud model has no
 digest and no seed, so its results can't be reproduced, and the index, every search and every
@@ -616,10 +656,13 @@ first look.
 - The app container gets the GPU too, for the reranker when it is configured
   to use it. torch comes from the CUDA 13.4 index: the RTX 5060 Ti is a Blackwell GPU, which
   builds for older CUDA versions cannot drive.
-- `ANTHROPIC_API_KEY`, when set, is in the app container's environment: `docker inspect` and
-  `docker compose config` show it to anyone who can run Docker, and anyone who can open the
-  interface, or call its API, can spend it. Keep `GRADIO_BIND_ADDRESS` on loopback unless everyone
-  who can reach it may. The app writes the key nowhere: not in a log, a saved summary or a result.
+- `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`, when set, are in the app container's environment:
+  `docker inspect` and `docker compose config` show them to anyone who can run Docker, and anyone
+  who can open the interface, or call its API, can spend them. Keep `GRADIO_BIND_ADDRESS` on
+  loopback unless everyone who can reach it may. The app writes the keys nowhere: not in a log, a
+  saved summary or a result, and no message shows any part of one. Only OpenAI's provider uses
+  `OPENAI_API_KEY`: every client of OpenAI's library in the app is given its key and its address,
+  so the benchmarks' judges, which reach Ollama through one, never read it.
 - `config/` is copied into the image, and nothing mounts it. `make up` applies a change by
   rebuilding, which empties the library (see Running). To keep the library, copy the change in
   and restart: `docker compose cp config/. app:/app/config`, then `docker compose restart app`.

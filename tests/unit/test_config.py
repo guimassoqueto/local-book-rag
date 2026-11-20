@@ -231,6 +231,25 @@ def test_a_profile_takes_each_effort_or_none(config_dir, edit_config, reasoning)
     assert load_settings(config_dir).cloud_profiles["anthropic"].reasoning == reasoning
 
 
+@pytest.mark.parametrize("reasoning", ["none", "minimal", "low", "medium", "high", "xhigh", "max"])
+def test_a_profile_takes_every_providers_effort_names(config_dir, edit_config, reasoning):
+    """The names of every provider load; which a provider takes is its kind's rule (specs/009, R6)."""
+    profile = {**ANTHROPIC_PROFILE, "reasoning": reasoning}
+    edit_config("models.yaml", lambda c: c.update(cloud_profiles={"openai": profile}))
+
+    assert load_settings(config_dir).cloud_profiles["openai"].reasoning == reasoning
+
+
+def test_the_shipped_configuration_holds_openais_profile(settings):
+    profile = settings.cloud_profiles["openai"]
+
+    assert profile.tokenizer.kind == "tiktoken" and profile.tokenizer.name == "o200k_base"
+    assert profile.context_size == 65536
+    assert profile.reasoning == "low"
+    assert profile.reasoning_tokens >= 4000
+    assert profile.request_timeout_seconds == 120
+
+
 def test_a_profile_must_leave_room_for_the_prompt(config_dir, edit_config):
     profile = with_profile(context_size=6000)  # the summaries' 3000 plus 4000 for reasoning don't fit
     edit_config("models.yaml", lambda c: c.update(cloud_profiles={"anthropic": profile}))
@@ -272,3 +291,32 @@ def test_the_keys_representation_hides_it():
 
     assert "sk-ant-secret-value" not in repr(read)
     assert "sk-ant-secret-value" not in str(read)
+
+
+# OpenAI's two settings, read as Anthropic's are (specs/009, FR-001, FR-002)
+
+
+def test_openais_settings_are_read_by_its_name():
+    read = read_provider_credentials("openai", {"OPENAI_API_KEY": "sk-test", "OPENAI_MODELS": "gpt-a,gpt-b"})
+
+    assert read.name == "openai"
+    assert read.api_key.get_secret_value() == "sk-test"
+    assert read.models == ("gpt-a", "gpt-b")
+
+
+def test_openais_settings_left_out_or_empty_read_as_missing():
+    assert read_provider_credentials("openai", {}).api_key is None
+    assert read_provider_credentials("openai", {"OPENAI_API_KEY": "", "OPENAI_MODELS": " , "}).models == ()
+    assert read_provider_credentials("openai", {"OPENAI_MODELS": "gpt-a"}).api_key is None
+
+
+def test_openais_model_names_are_stripped_kept_once_in_order_and_compared_as_written():
+    read = read_provider_credentials("openai", {"OPENAI_MODELS": " gpt-b , gpt-a,,gpt-b, GPT-A "})
+
+    assert read.models == ("gpt-b", "gpt-a", "GPT-A")
+
+
+def test_openais_settings_ignore_anthropics():
+    read = read_provider_credentials("openai", {"ANTHROPIC_API_KEY": "sk-ant", "ANTHROPIC_MODELS": "claude-a"})
+
+    assert read.api_key is None and read.models == ()

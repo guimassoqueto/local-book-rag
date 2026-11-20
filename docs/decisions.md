@@ -475,6 +475,93 @@ compares the two.
 constrains the other. Its model descriptions come back as typed objects, which the provider check
 reads for the effort and the adaptive reasoning that the profile sends.
 
+**OpenAI came through the same structure.** `specs/009-openai-provider` added OpenAI's models as
+`specs/008` meant a second provider to come: a provider kind of its own, registered in
+`CLOUD_PROVIDERS` after Anthropic, its profile, `cloud_profiles.openai`, and its two settings,
+`OPENAI_API_KEY` and `OPENAI_MODELS`. No service, tab or command changed: `git diff` lists none
+of `app/services/`, `app/interface/` or `app/main.py`, and a unit test keeps any of them from naming
+OpenAI. The structure needed four changes, each for every provider:
+- **Each kind names the efforts its profile may hold.** `CloudProfile.reasoning` listed
+  Anthropic's names only, and OpenAI has two more, `none` and `minimal`. The profile now takes
+  every provider's names, and the kind says which are its own: a profile with another one stops
+  the app at startup. Anthropic's may still be empty, sending no effort; OpenAI's must name one,
+  or each model would reason at its own default.
+- **A name that two providers offer stops the app.** The choices kept the first provider's model
+  for a name, so a name in both lists would have gone to Anthropic without a word. The same rule
+  refuses a cloud name that is also the local model's, in either list.
+- **"Out of credit" is a reason of its own** (below).
+- **The retry waits moved to one place.** Both providers try a rate limit, an overload or a lost
+  connection again after 2 and 6 seconds, or a shorter `retry-after`, from `app/generation/cloud.py`;
+  Claude's provider tests pass unchanged on it, and so did Claude's integration tests.
+
+**OpenAI's Responses API, streamed, and read raw.** Only the Responses API returns a summary of a
+model's reasoning, which the Research tab shows, and OpenAI steers its reasoning models to it. The
+provider reads the raw event stream rather than the SDK's `responses.stream()` helper, whose
+final response exists only after `response.completed`, while a reply cut off by its limit ends
+with `response.incomplete`, an answer when it has text. A request carries the prompt's messages
+with their own roles and text, `system` included, so that the prompt is the local model's byte for
+byte; the token limit, with the reasoning room added; the effort, and a request for the
+reasoning's summary; `store: false`, so that OpenAI keeps no response for later retrieval; and
+`truncation: "disabled"`, so that a prompt too long fails instead of losing its first messages,
+the instructions among them, as Ollama would cut it. It carries no tool, so a reply can come from
+the passages only, no sampling setting, which the GPT-6 models refuse, and nothing that names the
+user or the library. The client is given the key and OpenAI's address, so `OPENAI_BASE_URL` can't
+send either elsewhere; the benchmarks' judges, which reach Ollama through OpenAI's library too,
+are given Ollama's address and a key of their own, and a unit test checks that every client of the
+library in the app is.
+
+**An account that can't pay is said as such, and not tried again.** OpenAI answers an exhausted
+account with the status of a rate limit, 429, so the error's code decides: `insufficient_quota`,
+`credit_balance_exhausted`, and the spending and usage limits of the organization or the project
+are "out of credit or over a spending or usage limit", never tried again, since waiting doesn't
+fix them. Only a 401 is a refused key: a 403, for a model the project may not use or a country
+OpenAI doesn't serve, is a rejection with OpenAI's code. OpenAI's error messages are never shown,
+since a refused key's message quotes the end of the key. Anthropic's billing error still reads as a
+refused key, since Claude's provider was left as it was; moving it to "out of credit" is a
+follow-up.
+
+**What OpenAI doesn't document is handled, and was never needed.** OpenAI streams some models only
+to a verified organization, without saying which error it gives: the provider recognizes it by
+the parameter it names, `stream`, or by its words, says "OpenAI streams this model only to a
+verified organization", and never asks again without streaming, which would leave the request
+without the bound on a silent model (the owner's choice). The owner's organization streamed all
+three models. Likewise, a request refused for asking a reasoning summary is sent once more without
+it; OpenAI accepted the request on all three.
+
+**Checked on GPT-6 Luna, GPT-6.1 Terra and GPT-6.2 Sol (2026-11-20).** The integration tests ran
+each on the excerpt that Claude's models pass, five questions it answers, three it doesn't, and a
+short summary: all 30 cases passed, beside Claude's three models' 30, in 145 s. A probe asked each
+one answerable and one unanswerable question more. What they write differently:
+- **They cite as the app asks**, `[2]`, and every citation resolved to the passage that answers.
+- **They abstain with the marker, every time,** and then cite the passage that shows what is
+  missing: "[NO-EVIDENCE] The passages say Marta inherited the lighthouse-keeper post from her
+  father, but they do not give his name. [1]". So `check_abstentions` stays off for OpenAI.
+- **They write little, and don't reason.** At effort `low`, OpenAI reported no reasoning tokens
+  for these questions, so no summary of the reasoning came back, and the Research tab says that
+  none did. Answers ran 31 to 57 tokens, where Claude Haiku's ran 99 to 280 and Sonnet's 82 to 186
+  on the same questions; a one-step summary generated 294 to 398.
+- **They start fast**: the first token in 0.7 to 1.0 s, a whole answer in 1.0 to 1.6 s.
+- **They report the name they were asked for**, with no dated snapshot.
+
+**The token estimate is close for OpenAI.** `o200k_base`, the encoding tiktoken gives the GPT-5
+and GPT-4o models, has no entry for GPT-6 yet. On the real models, OpenAI counted 1.015 to 1.018
+times the app's estimate, about 10 tokens a prompt, which is the messages' formatting: well within
+`generation.context.safety_margin`, so `context_size: 65536` caps about 64K of OpenAI's own
+tokens, where Claude's caps about 100K of Claude's.
+
+**OpenAI's profile's values.** `reasoning: low`, which all three take, which OpenAI advises over
+`none` or `minimal`, and which passed every case; `reasoning_tokens: 4000`, which no reply came
+near; `context_size: 65536`, as for Claude, a cap on one request's size and cost, at most about
+$0.13 on `gpt-6.2-sol`; `check_abstentions: false`, since every unanswerable case got the marker;
+and `request_timeout_seconds: 120`, the owner's bound for Claude, with silence meaning that nothing
+at all arrives, not even an event of the stream. No model was dropped from the owner's list.
+
+**OpenAI's SDK came as RAGAS's dependency.** `openai` 3.3.0 was already in `uv.lock` for RAGAS, and
+became a direct dependency without moving. The unit tests' fakes are built from its own types, so
+a release that changes what the provider reads fails `make test` when `make update` brings it.
+`Settings` changed again, with `cloud_profiles.openai` and the efforts' names, so a benchmark run
+records another `configuration_sha256` than one made before.
+
 ## Library lifecycle
 
 **Chunks carry a book revision.** A replacement is indexed next to the live revision and one SQLite

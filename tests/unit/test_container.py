@@ -46,8 +46,9 @@ def test_the_container_builds_one_provider_for_the_configured_model(settings, tm
 # Cloud providers (specs/008-cloud-llm-providers, research.md R1 and R15)
 
 
-def test_anthropic_is_the_one_cloud_provider_kind():
-    assert list(CLOUD_PROVIDERS) == ["anthropic"]
+def test_anthropic_and_openai_are_the_cloud_provider_kinds_in_the_order_offered():
+    """OpenAI joined Anthropic in specs/009-openai-provider; the order is the tabs' (research.md R8)."""
+    assert list(CLOUD_PROVIDERS) == ["anthropic", "openai"]
 
 
 def test_without_an_environment_no_cloud_model_is_offered(settings, tmp_path, client):
@@ -74,14 +75,14 @@ def test_a_profile_for_a_provider_the_app_doesnt_implement_stops_it(settings, tm
         reasoning_tokens=4000,
         request_timeout_seconds=120,
     )
-    unknown = settings.model_copy(update={"cloud_profiles": {"anthropic": profile, "openai": profile}})
+    unknown = settings.model_copy(update={"cloud_profiles": {"anthropic": profile, "gemini": profile}})
 
     with pytest.raises(ConfigurationError) as stopped:
         assemble(unknown, EnvironmentSettings(data_dir=tmp_path))
 
     assert str(stopped.value) == (
-        "cloud_profiles in config/models.yaml names a provider the app doesn't implement: openai "
-        "(implemented: anthropic)"
+        "cloud_profiles in config/models.yaml names a provider the app doesn't implement: gemini "
+        "(implemented: anthropic, openai)"
     )
 
 

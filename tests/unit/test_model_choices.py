@@ -1,9 +1,13 @@
 """The models a request may go to, and the rules of a sequence (specs/008, research.md R6)."""
 
+import logging
+import re
+
 import pytest
 
 from app.config.settings import CloudProfile, TokenizerConfig
-from app.errors import ModelChoiceError
+from app.errors import ConfigurationError, ModelChoiceError
+from app.generation.base import FailureReason
 from app.generation.choices import ModelChoices, ModelOption
 from app.generation.cloud import ProviderCheck
 from app.generation.factory import create_cloud_providers
@@ -194,3 +198,177 @@ def test_a_cloud_models_fallback_options_are_the_other_cloud_models_offered(sett
 @pytest.mark.parametrize("model", ["gpt-oss:20b", None, "fc-x"])
 def test_the_local_model_or_a_name_not_offered_takes_no_fallback_option(settings, model):
     assert make_choices(settings).fallback_options(model) == []
+
+
+# The real kinds together: OpenAI beside Anthropic (specs/009-openai-provider)
+
+BOTH = {
+    "ANTHROPIC_API_KEY": "sk-ant-test",
+    "ANTHROPIC_MODELS": "claude-a,claude-b",
+    "OPENAI_API_KEY": "sk-test",
+    "OPENAI_MODELS": "gpt-a,gpt-b",
+}
+
+
+def real_kinds():
+    from app.container import CLOUD_PROVIDERS
+
+    return CLOUD_PROVIDERS
+
+
+def with_effort(settings, provider, reasoning):
+    profile = settings.cloud_profiles[provider].model_copy(update={"reasoning": reasoning})
+    return settings.model_copy(update={"cloud_profiles": settings.cloud_profiles | {provider: profile}})
+
+
+def test_openais_models_come_after_anthropics_each_in_its_lists_order(settings):
+    choices = ModelChoices(local_llm(), create_cloud_providers(settings, BOTH, real_kinds()))
+
+    assert [(option.name, option.provider_label) for option in choices.offered()] == [
+        ("gpt-oss:20b", "local"),
+        ("claude-a", "Anthropic"),
+        ("claude-b", "Anthropic"),
+        ("gpt-a", "OpenAI"),
+        ("gpt-b", "OpenAI"),
+    ]
+
+
+def test_openai_alone_offers_its_models_after_the_local_one(settings):
+    environ = {"OPENAI_API_KEY": "sk-test", "OPENAI_MODELS": "gpt-a"}
+
+    choices = ModelChoices(local_llm(), create_cloud_providers(settings, environ, real_kinds()))
+
+    assert [option.name for option in choices.offered()] == ["gpt-oss:20b", "gpt-a"]
+
+
+@pytest.mark.parametrize(
+    ("environ", "detail"),
+    [
+        ({"OPENAI_MODELS": "gpt-a"}, "OPENAI_MODELS is set and OPENAI_API_KEY isn't: no model of OpenAI's is offered"),
+        (
+            {"OPENAI_API_KEY": "sk-test"},
+            "OPENAI_API_KEY is set and OPENAI_MODELS isn't: no model of OpenAI's is offered",
+        ),
+    ],
+)
+def test_one_openai_setting_alone_offers_nothing_and_is_a_failing_row(settings, environ, detail):
+    choices = ModelChoices(local_llm(), create_cloud_providers(settings, environ, real_kinds()))
+
+    assert not choices.has_cloud()
+    assert choices.setting_problems() == [ProviderCheck("openai", False, detail)]
+
+
+def test_an_effort_anthropic_doesnt_take_stops_the_setup_configured_or_not(settings):
+    message = (
+        "cloud_profiles.anthropic.reasoning in config/models.yaml is 'minimal', which Anthropic doesn't take "
+        "(it takes: high, low, max, medium, xhigh, or none at all)"
+    )
+
+    with pytest.raises(ConfigurationError, match=re.escape(message)):
+        create_cloud_providers(with_effort(settings, "anthropic", "minimal"), {}, real_kinds())
+
+
+def test_openais_profile_must_name_an_effort(settings):
+    message = (
+        "cloud_profiles.openai.reasoning in config/models.yaml is empty, but OpenAI's profile must name an effort "
+        "(it takes: high, low, max, medium, minimal, none, xhigh)"
+    )
+
+    with pytest.raises(ConfigurationError, match=re.escape(message)):
+        create_cloud_providers(with_effort(settings, "openai", None), {}, real_kinds())
+
+
+@pytest.mark.parametrize("reasoning", ["none", "minimal", "low", "medium", "high", "xhigh", "max"])
+def test_openais_profile_takes_each_of_its_efforts(settings, reasoning):
+    setup = create_cloud_providers(with_effort(settings, "openai", reasoning), BOTH, real_kinds())
+
+    assert [provider.name for provider, _ in setup.providers] == ["anthropic", "openai"]
+
+
+def test_a_name_offered_by_two_providers_stops_the_setup(settings):
+    environ = BOTH | {"ANTHROPIC_MODELS": "claude-a,gpt-x", "OPENAI_MODELS": "gpt-x"}
+    message = (
+        "gpt-x is allowed by both ANTHROPIC_MODELS and OPENAI_MODELS, so a request naming it couldn't say which "
+        "provider it goes to. Remove it from one of them."
+    )
+
+    with pytest.raises(ConfigurationError, match=re.escape(message)):
+        create_cloud_providers(settings, environ, real_kinds())
+
+
+@pytest.mark.parametrize("setting", ["OPENAI_MODELS", "ANTHROPIC_MODELS"])
+def test_a_name_offered_that_is_the_local_models_stops_the_setup(settings, setting):
+    environ = BOTH | {setting: "gpt-oss:20b"}
+    message = (
+        f"gpt-oss:20b is in {setting} and is llm.model in config/models.yaml, the local model. "
+        f"Remove it from {setting}."
+    )
+
+    with pytest.raises(ConfigurationError, match=re.escape(message)):
+        create_cloud_providers(settings, environ, real_kinds())
+
+
+def test_a_list_without_its_key_clashes_with_nothing(settings):
+    environ = {"ANTHROPIC_MODELS": "gpt-x,gpt-oss:20b", "OPENAI_API_KEY": "sk-test", "OPENAI_MODELS": "gpt-x"}
+
+    choices = ModelChoices(local_llm(), create_cloud_providers(settings, environ, real_kinds()))
+
+    assert [option.name for option in choices.offered()] == ["gpt-oss:20b", "gpt-x"]
+
+
+def test_the_rules_log_nothing_when_they_pass(settings, caplog):
+    with caplog.at_level(logging.DEBUG):
+        create_cloud_providers(settings, BOTH, real_kinds())
+
+    assert caplog.records == []
+
+
+OUT_OF_CREDIT = "its account is out of credit or over a spending or usage limit"
+
+
+@pytest.mark.parametrize(
+    ("detail", "words"),
+    [
+        ("credit_balance_exhausted", f"{OUT_OF_CREDIT} (credit_balance_exhausted)"),
+        ("", OUT_OF_CREDIT),
+    ],
+)
+def test_out_of_credit_says_so(detail, words):
+    assert FailureReason.OUT_OF_CREDIT.describe(detail) == words
+    assert FailureReason.OUT_OF_CREDIT.value == "out of credit"
+
+
+# Sequences across providers (specs/009-openai-provider, US3, FR-007)
+
+
+def both(settings):
+    return ModelChoices(local_llm(), create_cloud_providers(settings, BOTH, real_kinds()))
+
+
+def test_a_claude_models_fallbacks_include_openais_and_the_reverse(settings):
+    choices = both(settings)
+
+    assert [option.name for option in choices.fallback_options("claude-a")] == ["claude-b", "gpt-a", "gpt-b"]
+    assert [option.name for option in choices.fallback_options("gpt-b")] == ["claude-a", "claude-b", "gpt-a"]
+
+
+@pytest.mark.parametrize(
+    ("model", "fallbacks", "sequence"),
+    [
+        ("claude-a", ["gpt-a"], [("claude-a", "anthropic"), ("gpt-a", "openai"), ("gpt-oss:20b", "ollama")]),
+        (
+            "gpt-b",
+            ["claude-b", "gpt-a"],
+            [("gpt-b", "openai"), ("claude-b", "anthropic"), ("gpt-a", "openai"), ("gpt-oss:20b", "ollama")],
+        ),
+    ],
+)
+def test_a_sequence_may_mix_providers_in_any_order_and_ends_with_the_local_model(settings, model, fallbacks, sequence):
+    options = both(settings).describe(model, fallbacks)
+
+    assert [(option.name, option.provider) for option in options] == sequence
+
+
+def test_a_name_given_twice_across_providers_is_refused(settings):
+    with pytest.raises(ModelChoiceError, match="gpt-a is given more than once"):
+        both(settings).describe("gpt-a", ["claude-a", "gpt-a"])

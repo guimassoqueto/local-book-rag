@@ -12,6 +12,7 @@ from app.generation.anthropic_provider import AnthropicCloud
 from app.generation.choices import ModelChoices
 from app.generation.cloud import CloudProvider
 from app.generation.factory import create_cloud_providers, create_llm_provider
+from app.generation.openai_provider import OpenAICloud
 from app.generation.question_answering import QuestionAnsweringService
 from app.generation.summarization import ChapterSummarizer
 from app.ingestion.base import DocumentFormat
@@ -39,9 +40,10 @@ from app.utils.tokenization import create_token_counter
 logger = get_logger("container")
 
 # Each cloud provider kind the app implements, under the name that keys its profile in
-# cloud_profiles and prefixes its settings (ANTHROPIC_API_KEY, ANTHROPIC_MODELS). The only place
-# that names a cloud provider's class (Principle I).
-CLOUD_PROVIDERS: dict[str, type[CloudProvider]] = {"anthropic": AnthropicCloud}
+# cloud_profiles and prefixes its settings (ANTHROPIC_API_KEY and ANTHROPIC_MODELS, OPENAI_API_KEY
+# and OPENAI_MODELS). Its order is the order the tabs offer their models in. The only place that
+# names a cloud provider's class (Principle I).
+CLOUD_PROVIDERS: dict[str, type[CloudProvider]] = {"anthropic": AnthropicCloud, "openai": OpenAICloud}
 
 
 @dataclass(frozen=True)

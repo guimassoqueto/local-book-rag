@@ -724,6 +724,9 @@ def save_as(library, book, summary_type, provider):
     if provider == "anthropic":
         metadata["model"] = "claude-sonnet-5-5"
         metadata["tokens"] = {"read": 18204, "generated": 1377}
+    if provider == "openai":
+        metadata["model"] = "gpt-a-20261101"
+        metadata["tokens"] = {"read": 17950, "generated": 1210}
     path.write_text(json.dumps(metadata), encoding="utf-8")
     return path
 
@@ -760,3 +763,24 @@ def test_with_anthropics_settings_regenerating_still_calls_no_cloud_model(settin
 
     assert (report.summaries_regenerated, len(report.summaries_kept)) == (1, 1)
     assert client.calls == 0
+
+
+# OpenAI's summaries (specs/009-openai-provider, US2, FR-013, SC-005)
+
+
+@pytest.mark.parametrize(
+    "environ", [{}, {"OPENAI_API_KEY": "sk-test-openai", "OPENAI_MODELS": "gpt-a"}], ids=["unset", "set"]
+)
+def test_an_openai_summary_is_kept_as_it_was_with_no_request_to_openai(settings, tmp_path, openai_client, environ):
+    library = Library(settings, tmp_path / "data", environ=environ)
+    book = library.add(tmp_path)
+    cloud = save_as(library, book, "brief", "openai")
+    save_as(library, book, "standard", "ollama")
+    kept = {path: path.read_bytes() for path in (cloud, cloud.with_suffix(".md"))}
+
+    report = library.library.reindex_all(regenerate_summaries=True)
+
+    assert report.summaries_regenerated == 1
+    assert report.summaries_kept == (f"{book.book_id}, chapter_01_brief (gpt-a-20261101, OpenAI)",)
+    assert all(path.read_bytes() == content for path, content in kept.items())
+    assert openai_client.calls == 0

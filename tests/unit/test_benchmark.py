@@ -633,7 +633,7 @@ class OllamaWithoutCloudModels(FakeRuntime):
     """Ollama, which has the local models and knows no cloud model's name."""
 
     def model_info(self, name):
-        if name.startswith("claude-"):
+        if name.startswith("claude-") or name == "gpt-a":
             raise ModelNotFoundError(f"{name} is not on the Ollama server.")
         return super().model_info(name)
 
@@ -660,6 +660,39 @@ def test_a_judge_naming_a_cloud_model_is_refused_before_the_run_starts(lab, mode
         runner.run(experiment_of("generation", judge=judge))
 
     assert libraries == {} and models == {}
+
+
+OPENAI = {"OPENAI_API_KEY": "sk-test-openai", "OPENAI_MODELS": "gpt-a"}
+
+
+def test_a_variant_naming_an_openai_model_is_refused_before_the_run_starts(lab, models, monkeypatch, openai_client):
+    """specs/009-openai-provider, FR-019, SC-008."""
+    runner, _, libraries, _ = lab
+    for name, value in OPENAI.items():
+        monkeypatch.setenv(name, value)
+    variant = VariantConfig(name="cloud", overrides={"llm": {"model": "gpt-a"}})
+    experiment = Experiment(name="test", kind="generation", description="A test.", variants=(variant,), judge=JUDGE)
+
+    with pytest.raises(ValueError, match="llm_profiles has no entry for llm.model 'gpt-a'"):
+        runner.run(experiment)
+
+    assert libraries == {} and models == {}
+    assert openai_client.options is None and openai_client.calls == 0
+
+
+def test_a_judge_naming_an_openai_model_is_refused_before_the_run_starts(lab, models, monkeypatch, openai_client):
+    """specs/009-openai-provider, FR-019, SC-008."""
+    runner, _, libraries, _ = lab
+    for name, value in OPENAI.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(benchmark, "OllamaRuntime", lambda url, timeout: OllamaWithoutCloudModels())
+    judge = JudgeConfig(model="gpt-a", embedding_model="qwen3-embedding:0.6b", max_tokens=6000)
+
+    with pytest.raises(ModelNotFoundError, match="gpt-a"):
+        runner.run(experiment_of("generation", judge=judge))
+
+    assert libraries == {} and models == {}
+    assert openai_client.options is None and openai_client.calls == 0
 
 
 def test_a_workspace_is_assembled_without_the_environment_so_it_offers_no_cloud_model(

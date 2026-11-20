@@ -102,8 +102,8 @@ embedding_profiles:
 
 
 # What every model of a cloud provider shares, by provider. A provider's models are offered only
-# when its API key and allowed models are set in .env (ANTHROPIC_API_KEY, ANTHROPIC_MODELS), and
-# none answers unless the user picks it for a request.
+# when its API key and allowed models are set in .env (ANTHROPIC_API_KEY and ANTHROPIC_MODELS,
+# OPENAI_API_KEY and OPENAI_MODELS), and none answers unless the user picks it for a request.
 cloud_profiles:
   anthropic:
     # Claude's tokenizer isn't public, so this is an approximation, and it runs low: for the same
@@ -134,4 +134,39 @@ cloud_profiles:
 
     # Seconds that Anthropic may send nothing before the request counts as timed out and the next
     # model of the sequence starts. A timeout is never tried again, so this is the longest wait.
+    request_timeout_seconds: 120
+
+  openai:
+    # OpenAI's recent models count with o200k_base, which tiktoken maps to gpt-5, gpt-4.1 and
+    # gpt-4o; it has no entry for the GPT-6 models yet. On the real models, OpenAI counted 1.015 to
+    # 1.018 times the app's estimate (2026-11-20), the messages' formatting, about 10 tokens a
+    # prompt: well within generation.context.safety_margin.
+    tokenizer:
+      kind: tiktoken
+      name: o200k_base
+
+    # The window the app works with, far below the models' own (922,000 input tokens): it caps
+    # what one request sends, and so what it costs, at about this many of OpenAI's own tokens,
+    # given the tokenizer above.
+    context_size: 65536
+
+    # Sent as the request's reasoning effort, with a summary of the reasoning asked for. It can't
+    # be empty: each model would reason at its own default. Every allowed model must take it:
+    # gpt-6.2-sol refuses none, and OpenAI advises low over none or minimal. At low, the three
+    # models reasoned no tokens at all on the integration tests' questions (2026-11-20), so no
+    # summary of their reasoning came back. The GPT-6 models take no sampling temperature, so
+    # generation.yaml's temperature doesn't apply to them.
+    reasoning: low
+
+    # Added to every request's max_output_tokens, since reasoning counts against it, and set
+    # aside from context_size.
+    reasoning_tokens: 4000
+
+    # gpt-6-luna, gpt-6.1-terra and gpt-6.2-sol each wrote the marker on all three of the
+    # integration tests' unanswerable questions (2026-11-20), so no reply is read again.
+    check_abstentions: false
+
+    # Seconds that OpenAI may send nothing, not even an event of its stream, before the request
+    # counts as timed out and the next model of the sequence starts. A timeout is never tried
+    # again, so this is the longest wait.
     request_timeout_seconds: 120

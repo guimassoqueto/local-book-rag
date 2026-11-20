@@ -96,6 +96,8 @@ services:
       # container, which empties the library.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODELS: ${ANTHROPIC_MODELS:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODELS: ${OPENAI_MODELS:-}
 
     # The reranker runs inside this container, on the GPU when configured to.
     deploy:
