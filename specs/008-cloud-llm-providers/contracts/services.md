@@ -5,11 +5,13 @@ FR-032; `research.md`, R6 to R12). Every rule lives here, not in the interface (
 
 ## The container (`app/container.py`)
 
-`Container` gains `models: ModelChoices`. `assemble()` builds the local provider as today, with
-`create_llm_provider()`, the cloud providers with `create_cloud_providers(settings, os.environ)`,
-and the choices from both. It passes the choices to `QuestionAnsweringService`,
-`ChapterSummarizer` and `HealthService`. It logs each provider that has one setting only, and
-contacts no provider.
+`Container` gains `models: ModelChoices`. `assemble(settings, environment, collection_prefix,
+environ=None)` builds the local provider as today, with `create_llm_provider()`, the cloud
+providers with `create_cloud_providers(settings, environ)`, and the choices from both. Only
+`build_container()` passes an environment, the process's; without one, as the benchmarks'
+workspaces are assembled, there is no cloud provider. It passes the choices to
+`QuestionAnsweringService`, `ChapterSummarizer` and `HealthService`. It logs each provider that has
+one setting only, and contacts no provider.
 
 ## `QuestionAnsweringService` (`app/generation/question_answering.py`)
 

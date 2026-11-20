@@ -52,9 +52,12 @@ def create_llm_provider(settings: Settings, runtime: OllamaRuntime) -> LLMProvid
 def create_cloud_providers(settings: Settings, environ: Mapping[str, str]) -> CloudSetup: ...
 ```
 
-`CloudSetup` holds the configured `CloudProvider`s with their allowed models, and the setting
-problems of the providers with one setting only. `create_cloud_providers` raises
-`ConfigurationError` for an allowed model whose provider has no profile (FR-003). It is the one
+`CloudSetup` holds the configured `CloudProvider`s with their allowed models, the setting problems
+of the providers with one setting only, and the names of every implemented kind. The kinds are one
+mapping, `CLOUD_PROVIDERS: dict[str, type[CloudProvider]]`, `{"anthropic": AnthropicCloud}` now,
+and the settings' names derive from its keys (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODELS`).
+`create_cloud_providers` raises `ConfigurationError` for a profile whose name isn't a key of
+`CLOUD_PROVIDERS`, and for an allowed model whose provider has no profile (FR-003). It is the one
 place, with `create_llm_provider`, that knows the concrete classes.
 
 ## `ModelChoices` (`app/generation/choices.py`)
@@ -69,14 +72,17 @@ class ModelChoices:
     def describe(self, model: str | None, fallbacks: Sequence[str]) -> list[ModelOption]: ...
     def sequence(self, model: str | None, fallbacks: Sequence[str]) -> list[LLMProvider]: ...
     def is_cloud_provider(self, provider: str | None) -> bool: ...
+    def label_of(self, provider: str) -> str: ...
     def check(self) -> list[ProviderCheck]: ...
     def setting_problems(self) -> list[ProviderCheck]: ...
 ```
 
 - `describe()` and `sequence()` apply `data-model.md`'s rules, and raise `ModelChoiceError`.
   `describe()` builds no provider.
-- `is_cloud_provider()` is true for the name of a provider kind that `cloud_profiles` can hold,
-  configured or not, and false for None and the local provider.
+- `is_cloud_provider()` is true for the name of a provider kind in `CLOUD_PROVIDERS`, configured
+  or not, and false for None and the local provider.
+- `label_of(provider)` gives a provider's label, `local` for the local one, for messages and the
+  interface.
 - `check()` runs every configured provider's `check()`. `setting_problems()` contacts nothing.
 
 ## The Anthropic provider (`app/generation/anthropic_provider.py`)

@@ -152,7 +152,7 @@ app/
 │   ├── cloud.py                # new: CloudProvider, ProviderCheck
 │   ├── anthropic_provider.py   # new: the Anthropic kind and its models' provider (R4)
 │   ├── choices.py              # new: ModelOption, ModelChoices (R6)
-│   ├── factory.py              # create_cloud_providers()
+│   ├── factory.py              # CLOUD_PROVIDERS, the implemented kinds; create_cloud_providers()
 │   ├── ollama_provider.py      # provider, check_abstentions
 │   ├── question_answering.py   # the sequence of an answer; check_abstention() reads the provider (R7)
 │   └── summarization.py        # the sequence of a summary; the run carries its model; tokens (R8)

@@ -33,8 +33,9 @@ One per provider kind that the app implements, read when the container is assemb
 | `check_abstentions`       | bool, default false                           | as in `llm_profiles` |
 | `request_timeout_seconds` | positive float                                | how long the provider may send nothing |
 
-`Settings.cloud_profiles` is a mapping from a provider kind, a `Literal` of the implemented ones
-(`anthropic`), to its profile, empty by default. Rule across files: for each profile, each task's
+`Settings.cloud_profiles` is a mapping from a provider kind's name to its profile, empty by
+default. The names have to be those of the factory's `CLOUD_PROVIDERS` (`anthropic`), checked when
+the container is assembled, at startup. Rule across files: for each profile, each task's
 `max_tokens` (`question_answering`, `summarization`), plus `reasoning_tokens`, is smaller than
 `context_size`.
 

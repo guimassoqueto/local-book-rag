@@ -70,7 +70,7 @@ cloud_profiles:
 | Configuration | Outcome |
 | ------------- | ------- |
 | `cloud_profiles` absent | valid: no provider can be offered |
-| a profile under a name the app doesn't implement, such as `openai` | the app doesn't start: `cloud_profiles.openai`, as any unknown key |
+| a profile under a name the app doesn't implement, such as `openai` | the app doesn't start: "cloud_profiles in config/models.yaml names a provider the app doesn't implement: openai (implemented: anthropic)", checked when the container is assembled |
 | a profile with an unknown key, or a value out of range | the app doesn't start, naming it |
 | a task's `max_tokens` plus `reasoning_tokens` not smaller than `context_size` | the app doesn't start: "max_tokens and reasoning_tokens leave no room for the prompt in cloud_profiles.anthropic.context_size" |
 | `ANTHROPIC_MODELS` set and `cloud_profiles.anthropic` absent | the app doesn't start: "ANTHROPIC_MODELS allows claude-…, but cloud_profiles in config/models.yaml has no profile for anthropic" (FR-003) |

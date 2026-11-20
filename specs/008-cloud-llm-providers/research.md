@@ -68,12 +68,15 @@ cloud_profiles:
 - `request_timeout_seconds`: how long the provider may send nothing before the request counts as
   timed out (R4).
 
-The names that `cloud_profiles` accepts are those of the providers the app implements, a `Literal`
-in `app/config/settings.py`: `anthropic`. A profile under any other name stops the app at startup,
-as any unknown key does. A rule across files, like the one for `llm.context_size`, checks that each
-task's `max_tokens`, plus `reasoning_tokens`, leaves room for a prompt in `context_size`. An
-allowed model whose provider has no profile stops the app at startup (FR-003). Without the key,
-`cloud_profiles` is empty, and no provider can be offered.
+The names that `cloud_profiles` accepts are those of the provider kinds the app implements, which
+the factory holds in one mapping, `CLOUD_PROVIDERS` (`anthropic` now). `Settings` validates each
+profile's fields, and the factory checks the names when the container is assembled, at startup: a
+profile under any other name stops the app there, as an unknown key does (FR-003). Keeping the
+names in the factory's mapping alone means that a provider kind is registered in one place, which
+SC-009's fake provider uses too. A rule across files, like the one for `llm.context_size`, checks
+that each task's `max_tokens`, plus `reasoning_tokens`, leaves room for a prompt in
+`context_size`. An allowed model whose provider has no profile stops the app at startup (FR-003).
+Without the key, `cloud_profiles` is empty, and no provider can be offered.
 
 **Rationale.** Principle I: what differs between models lives in profiles, validated at startup.
 One profile per provider, not per model, is constitution 3.0.0's rule, and keeps allowing a model
@@ -425,6 +428,10 @@ runner builds its models with `create_llm_provider()`, which builds Ollama provi
 never reaches the choices. One of its lines changes, for `check_abstention()`'s new signature
 (R3).
 
+The workspaces' containers hold no cloud provider at all: `assemble()` reads the providers'
+settings only from the environment it is given, `build_container()` gives it the process's, and
+the runner, which calls `assemble()` for each workspace, gives it none.
+
 **Rationale.** Principle I keeps benchmarks and judges local, and the runner already refuses
 anything else. The README says it.
 
@@ -446,7 +453,8 @@ anything else. The README says it.
   with them and the local model only, ends with the count at zero; so does assembling the
   container.
 - **A second provider** (SC-009): `FakeCloud` is registered only in the factory's mapping of
-  provider kinds, as a real one would be, and in its profile; no service, tab or command names it.
+  provider kinds, `CLOUD_PROVIDERS`, as a real one would be, with a profile under its name; no
+  service, tab or command names it.
 
 **Integration tests** (`make test-integration`): `tests/integration/test_cloud_generation.py`,
 skipped unless both Anthropic settings are in the environment, runs every model of
