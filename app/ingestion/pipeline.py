@@ -9,7 +9,7 @@ from app.ingestion.base import BlockKind, DocumentFormat, DocumentLoader, Extrac
 from app.ingestion.chunker import Chunk, Chunker
 from app.ingestion.language import detect_language, normalize_language
 from app.ingestion.normalizer import Normalizer
-from app.ingestion.structure_extractor import BookStructure, build_structure
+from app.ingestion.structure_extractor import BookStructure, book_blocks, build_structure
 from app.utils.progress import Progress
 
 # The stages this pipeline reports, which an operation declares (app/services/ingestion_service.py).
@@ -69,11 +69,14 @@ class IngestionPipeline:
             extracted = self._loaders[document_format].load(path)
         with progress.stage(PREPARE):
             normalized = self._normalizer.normalize(extracted)
-            if not any(block.kind is not BlockKind.HEADING for block in normalized.blocks):
+            # The book's own text only: its language, chapters and chunks never come from a
+            # distributor's license or a table of contents.
+            book = replace(normalized, blocks=book_blocks(normalized.blocks))
+            if not any(block.kind is not BlockKind.HEADING for block in book.blocks):
                 raise EmptyDocumentError(f"{path.name} holds no text after cleaning.")
 
-            language = self._language_of(normalized, path)
-            structure = build_structure(replace(normalized, language=language), title)
+            language = self._language_of(book, path)
+            structure = build_structure(replace(book, language=language), title)
             chunks = self._chunker.chunk(book_id, title, structure)
         return ProcessedDocument(extracted, normalized, structure, tuple(chunks), title, language)
 

@@ -122,6 +122,37 @@ def test_extracted_document_is_kept_apart_from_the_normalized_one(pipeline, tmp_
     assert result.extracted is not result.normalized
 
 
+def test_only_the_books_own_text_is_structured_and_chunked(pipeline, tmp_path):
+    """Gutenberg's header and license, and a table of contents, aren't the book (.specify/bugs/publisher-back-matter).
+
+    The header and the license are in English, and the book in Portuguese: its language comes from its own text.
+    """
+    english = " ".join([ENGLISH] * 6)
+    result = process(
+        pipeline,
+        tmp_path,
+        f"## The Project Gutenberg eBook of O Livro\n\n{english}\n\n"
+        "\\*\\*\\* START OF THE PROJECT GUTENBERG EBOOK O LIVRO \\*\\*\\*\n\n"
+        f"## Capítulo I\n\n{PORTUGUESE}\n\n## Capítulo II\n\n{PORTUGUESE}\n\n"
+        "### Sumário\n\nCapítulo I Capítulo II\n\n"
+        "\\*\\*\\* END OF THE PROJECT GUTENBERG EBOOK O LIVRO \\*\\*\\*\n\n"
+        f"## THE FULL PROJECT GUTENBERG™ LICENSE\n\n{english}\n",
+    )
+
+    assert [(chapter.number, chapter.title) for chapter in result.structure.chapters] == [
+        (1, "Capítulo I"),
+        (2, "Capítulo II"),
+    ]
+    assert result.language == "pt"
+    assert not any("GUTENBERG" in chunk.text.upper() or "Sumário" in chunk.text for chunk in result.chunks)
+    assert any("GUTENBERG" in block.text.upper() for block in result.normalized.blocks)  # kept for debugging
+
+
+def test_a_book_that_is_only_a_table_of_contents_is_empty(pipeline, tmp_path):
+    with pytest.raises(EmptyDocumentError):
+        process(pipeline, tmp_path, "# Contents\n\nOne ... 1\n\nTwo ... 2\n")
+
+
 # The stages of extraction and preparation (specs/004-library-progress)
 
 
