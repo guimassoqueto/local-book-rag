@@ -1,7 +1,11 @@
+import sqlite3
+
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.dialects.sqlite.base import SQLiteDialect
 
 from app.errors import BookNotFoundError
-from app.storage.catalog import Book, BookCatalog, BookStatus, BookUpdate
+from app.storage.catalog import Book, BookCatalog, BookStatus, BookUpdate, _Base
 
 
 @pytest.fixture
@@ -130,3 +134,60 @@ def test_clearing_everything_restarts_the_book_ids_but_never_the_index_versions(
 
     assert catalog.next_book_id() == "book_001"
     assert catalog.next_index_version() == 2
+
+
+# Two processes opening a new catalog at once (.specify/bugs/catalog-first-start-race)
+
+
+def tables_and_indexes(path):
+    with sqlite3.connect(path) as connection:
+        rows = connection.execute("SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").fetchall()
+    return sorted(rows)
+
+
+def test_a_catalog_opens_even_when_its_tables_appeared_after_it_checked(tmp_path, monkeypatch):
+    """The race's window: a process that found no tables, while another created them since."""
+    path = tmp_path / "metadata" / "catalog.db"
+    BookCatalog(path)
+    monkeypatch.setattr(SQLiteDialect, "has_table", lambda self, *arguments, **options: False)
+
+    BookCatalog(path)
+
+    assert tables_and_indexes(path) == tables_and_indexes_of_create_all(tmp_path)
+
+
+def test_opening_a_catalog_again_keeps_what_it_holds(tmp_path):
+    path = tmp_path / "metadata" / "catalog.db"
+    first = BookCatalog(path)
+    first.add(book())
+    first.next_book_id()
+
+    again = BookCatalog(path)
+
+    assert again.get("book_001") == book()
+    assert again.next_book_id() == "book_002"
+
+
+def tables_and_indexes_of_create_all(tmp_path):
+    """The schema as SQLAlchemy's create_all makes it, which the catalog's own creation must match."""
+    path = tmp_path / "reference.db"
+    engine = create_engine(f"sqlite:///{path}")
+    _Base.metadata.create_all(engine)
+    engine.dispose()
+    return tables_and_indexes(path)
+
+
+def test_the_schema_is_the_one_create_all_makes(tmp_path):
+    path = tmp_path / "metadata" / "catalog.db"
+
+    BookCatalog(path)
+
+    assert tables_and_indexes(path) == tables_and_indexes_of_create_all(tmp_path)
+    assert ("index", "ix_books_checksum") in tables_and_indexes(path)
+    assert {name for kind, name in tables_and_indexes(path) if kind == "table"} == {
+        "books",
+        "chapters",
+        "counters",
+        "indexes",
+        "operations",
+    }

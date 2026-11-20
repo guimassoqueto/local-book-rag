@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import ForeignKey, String, create_engine, delete, event, select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
+from sqlalchemy.schema import CreateIndex, CreateTable
 
 from app.errors import BookNotFoundError
 
@@ -178,6 +179,22 @@ def _enable_foreign_keys(connection: Any, _: Any) -> None:
     connection.execute("PRAGMA foreign_keys=ON")
 
 
+def _create_schema(engine: Engine) -> None:
+    """Create the catalog's tables and indexes, those that don't exist yet.
+
+    Each statement is `CREATE ... IF NOT EXISTS`, which SQLite runs atomically, so two processes
+    opening a new catalog at once, such as the server starting and a command run beside it, both
+    succeed. `create_all` checks first and creates after, and the slower process failed with "table
+    already exists" (.specify/bugs/catalog-first-start-race). The schema is the one `create_all`
+    makes, in its order.
+    """
+    with engine.begin() as connection:
+        for table in _Base.metadata.sorted_tables:
+            connection.execute(CreateTable(table, if_not_exists=True))
+            for index in sorted(table.indexes, key=lambda index: index.name or ""):
+                connection.execute(CreateIndex(index, if_not_exists=True))
+
+
 def _to_index(row: _IndexRow) -> IndexRecord:
     return IndexRecord(**{name: getattr(row, name) for name in _INDEX_FIELDS})
 
@@ -192,7 +209,7 @@ class BookCatalog:
         database.parent.mkdir(parents=True, exist_ok=True)
         self._engine: Engine = create_engine(f"sqlite:///{database}")
         event.listen(self._engine, "connect", _enable_foreign_keys)
-        _Base.metadata.create_all(self._engine)
+        _create_schema(self._engine)
 
     def next_book_id(self) -> str:
         return f"book_{self._next(_BOOK_COUNTER):03d}"
