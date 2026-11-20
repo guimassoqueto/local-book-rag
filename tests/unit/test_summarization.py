@@ -2,6 +2,7 @@ import json
 import logging
 import re
 
+import openai
 import pytest
 
 from app.errors import (
@@ -15,12 +16,12 @@ from app.errors import (
 )
 from app.generation.base import FINISHED_BY_LENGTH, Attempt, FailureReason
 from app.generation.choices import ModelChoices
-from app.generation.factory import CloudSetup
+from app.generation.factory import CloudSetup, create_cloud_providers
 from app.generation.summarization import ChapterSummarizer, _Run
 from app.storage.catalog import Book, BookCatalog, BookStatus
 from app.storage.repositories import SummaryDocuments
 from app.utils.logging import INFERENCE_LOGGER, configure_logging
-from tests.fakes import FakeChunks, FakeCloud, FakeLLM, make_chunk
+from tests.fakes import FakeChunks, FakeCloud, FakeLLM, FakeResponse, make_chunk, openai_status_error
 
 FINAL = """## Chapter overview
 The chapter explains how costs work in practice.
@@ -761,3 +762,96 @@ def test_after_a_fallback_the_summary_is_logged_with_the_model_that_wrote_it(set
     [summarized] = [entry for entry in entries if entry["message"] == "chapter summarized"]
     assert (failed["model"], failed["provider"]) == ("fc-a", "fakecloud")
     assert (summarized["model"], summarized["provider"], summarized["failed_attempts"]) == ("fake-llm", "ollama", 1)
+
+
+# OpenAI's models (specs/009-openai-provider, US2, FR-009, FR-013)
+
+OPENAI_ENVIRON = {"OPENAI_API_KEY": "sk-test-openai", "OPENAI_MODELS": "gpt-a"}
+
+
+def openai_window(settings, context_size):
+    """The settings, with OpenAI's profile set to a given window."""
+    profile = settings.cloud_profiles["openai"].model_copy(update={"context_size": context_size})
+    return settings.model_copy(update={"cloud_profiles": settings.cloud_profiles | {"openai": profile}})
+
+
+def openai_choices(settings, local):
+    from app.container import CLOUD_PROVIDERS
+
+    return ModelChoices(local, create_cloud_providers(settings, OPENAI_ENVIRON, CLOUD_PROVIDERS))
+
+
+def test_an_openai_model_summarizes_in_one_step_and_records_its_provider_and_tokens(
+    settings, catalog, tmp_path, openai_client
+):
+    openai_client.script(FakeResponse(text=FINAL, model="gpt-a-20261101", input_tokens=900, output_tokens=200))
+
+    summary = summarizer(settings, openai_choices(settings, FakeLLM([FINAL])), catalog, chapter(2, words=100), tmp_path)
+    summary = summary.summarize("book_001", 4, "standard", model="gpt-a")
+
+    assert (summary.model, summary.provider, summary.attempts) == ("gpt-a-20261101", "openai", ())
+    assert (summary.strategy, summary.steps) == ("direct", 1)
+    assert (summary.prompt_tokens, summary.completion_tokens) == (900, 200)
+    assert summary.citations and summary.statements
+    [request] = openai_client.create_calls
+    assert request["model"] == "gpt-a" and request["store"] is False
+
+
+def test_an_openai_model_summarizes_a_long_chapter_in_several_steps_its_tokens_summed(
+    settings, catalog, tmp_path, openai_client
+):
+    small = openai_window(settings, 8192)
+    openai_client.script(FakeResponse(text=FINAL, model="gpt-a", input_tokens=900, output_tokens=200))
+
+    summary = summarizer(small, openai_choices(small, FakeLLM([FINAL])), catalog, chapter(30), tmp_path)
+    summary = summary.summarize("book_001", 4, "standard", model="gpt-a")
+
+    steps = len(openai_client.create_calls)
+    assert summary.strategy == "map_reduce" and summary.steps == steps > 1
+    assert (summary.prompt_tokens, summary.completion_tokens) == (900 * steps, 200 * steps)
+    assert summary.provider == "openai" and summary.attempts == ()
+
+
+def test_an_openai_model_out_of_credit_at_its_second_step_hands_the_whole_summary_on(
+    settings, catalog, tmp_path, openai_client
+):
+    small = openai_window(settings, 8192)
+    broke = openai_status_error(openai.RateLimitError, 429, code="credit_balance_exhausted")
+    openai_client.script(
+        FakeResponse(text=FINAL, model="gpt-a", input_tokens=900, output_tokens=200), FakeResponse(error=broke)
+    )
+    local = FakeLLM(respond=lambda messages, parameters: FINAL)
+    progress = []
+
+    summary = summarizer(small, openai_choices(small, local), catalog, chapter(30), tmp_path).summarize(
+        "book_001", 4, "standard", on_progress=progress.append, model="gpt-a"
+    )
+
+    assert (summary.model, summary.provider) == ("fake-llm", "ollama")
+    assert summary.attempts == (
+        Attempt("gpt-a", "openai", FailureReason.OUT_OF_CREDIT, "credit_balance_exhausted", 900, 200, step=2),
+    )
+    assert (
+        "gpt-a (OpenAI) failed: its account is out of credit or over a spending or usage limit "
+        "(credit_balance_exhausted). Starting again with fake-llm."
+    ) in progress
+    assert len(openai_client.create_calls) == 2
+
+
+def test_a_saved_openai_summary_records_its_provider_its_reported_model_and_its_tokens(
+    settings, catalog, tmp_path, openai_client
+):
+    """specs/009-openai-provider, SC-012, FR-013."""
+    openai_client.script(FakeResponse(text=FINAL, model="gpt-a-20261101", input_tokens=900, output_tokens=200))
+    service = summarizer(settings, openai_choices(settings, FakeLLM([FINAL])), catalog, chapter(2, words=100), tmp_path)
+
+    service.save(service.summarize("book_001", 4, "brief", model="gpt-a"))
+
+    record = json.loads((tmp_path / "summaries/book_001/chapter_04_brief.json").read_text(encoding="utf-8"))
+    assert (record["model"], record["provider"], record["tokens"]) == (
+        "gpt-a-20261101",
+        "openai",
+        {"read": 900, "generated": 200},
+    )
+    assert record["failed_attempts"] == []
+    assert "sk-test-openai" not in json.dumps(record)

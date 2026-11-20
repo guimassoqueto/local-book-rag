@@ -5,6 +5,8 @@ import dataclasses
 import json
 import re
 
+import anthropic
+import openai
 import pytest
 from pydantic import SecretStr
 
@@ -15,11 +17,20 @@ from app.errors import AllModelsFailedError, ModelFailedError, ServiceUnavailabl
 from app.generation.anthropic_provider import AnthropicCloud
 from app.generation.base import FailureReason
 from app.generation.choices import ModelChoices
-from app.generation.factory import CloudSetup
+from app.generation.factory import CloudSetup, create_cloud_providers
 from app.generation.question_answering import QuestionAnsweringService
 from app.generation.summarization import ChapterSummarizer
 from app.services.health_service import CheckResult, HealthService
-from tests.fakes import FakeAnthropicClient, FakeCloud, FakeLLM, WordCounter
+from tests.fakes import (
+    FakeAnthropicClient,
+    FakeCloud,
+    FakeLLM,
+    FakeResponse,
+    WordCounter,
+    anthropic_model_info,
+    openai_model,
+    openai_status_error,
+)
 from tests.library import Library, other_text, upload
 
 
@@ -478,3 +489,169 @@ def test_ask_with_the_local_model_failing_alone_prints_as_on_main(container, lib
         main._ask(local_only, argparse.Namespace(**QUESTION, model=None, fallback=[]))
 
     assert capsys.readouterr().err == ""
+
+
+# OpenAI in ask (specs/009-openai-provider, US1, SC-001)
+
+OPENAI_ENVIRON = {"OPENAI_API_KEY": "sk-test-openai", "OPENAI_MODELS": "gpt-a,gpt-b"}
+
+
+def openai_models(library, environ=None):
+    """The local model, and the cloud models that an environment configures, built as the container
+    builds them: OpenAI's on the `openai_client` fixture's fake client."""
+    from app.container import CLOUD_PROVIDERS
+
+    local = FakeLLM([LOCAL_ANSWER], model="fake-llm")
+    setup = create_cloud_providers(library.settings, OPENAI_ENVIRON if environ is None else environ, CLOUD_PROVIDERS)
+    return ModelChoices(local, setup)
+
+
+def test_ask_with_an_openai_model_says_it_goes_to_openai_and_names_the_reported_model(
+    container, library, capsys, tmp_path, openai_client
+):
+    library.add(tmp_path)
+    openai_client.script(FakeResponse(text=CLOUD_ANSWER, model="gpt-a-2026-11-01"))
+
+    out, err = ask(asking(container, library, openai_models(library)), capsys, model="gpt-a")
+
+    assert err == ["The question and the passages found go to OpenAI: gpt-a. If it fails, fake-llm answers, locally."]
+    lines = out.splitlines()
+    assert lines[0].strip() == CLOUD_ANSWER
+    assert lines[-2] == "Answered by gpt-a-2026-11-01 (OpenAI)"
+    assert openai_client.options["api_key"] == "sk-test-openai"
+    assert len(openai_client.create_calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("error", "words"),
+    [
+        (
+            openai_status_error(openai.RateLimitError, 429, code="credit_balance_exhausted"),
+            "its account is out of credit or over a spending or usage limit (credit_balance_exhausted)",
+        ),
+        (openai_status_error(openai.AuthenticationError, 401, code="invalid_api_key"), "it refused the API key"),
+    ],
+)
+def test_ask_with_a_failing_openai_model_is_answered_by_the_local_one(
+    container, library, capsys, tmp_path, openai_client, error, words
+):
+    library.add(tmp_path)
+    openai_client.script(FakeResponse(error=error))
+
+    out, err = ask(asking(container, library, openai_models(library)), capsys, model="gpt-a")
+
+    assert err[-1] == f"gpt-a (OpenAI) failed: {words}. The text above is discarded: fake-llm answers from the start."
+    assert LOCAL_ANSWER in out and out.splitlines()[-2] == "Answered by fake-llm (local)"
+    assert "sk-test-openai" not in out + " ".join(err)
+
+
+def test_ask_with_a_name_openai_doesnt_offer_lists_its_models(container, library, monkeypatch, capsys, openai_client):
+    asked = asking(container, library, openai_models(library))
+    monkeypatch.setattr(main, "build_container", lambda console_logs=False: asked)
+
+    with pytest.raises(SystemExit) as stopped:
+        main.main(["ask", "Where is the dog?", "--model", "gpt-x"])
+
+    assert stopped.value.code == (
+        "error: gpt-x isn't offered. Offered: fake-llm (local), gpt-a (OpenAI), gpt-b (OpenAI)."
+    )
+    assert openai_client.calls == 0
+
+
+@pytest.mark.parametrize(
+    "environ", [{}, {"ANTHROPIC_API_KEY": "sk-ant-test", "ANTHROPIC_MODELS": "claude-a"}], ids=["none", "claude"]
+)
+def test_without_openais_settings_ask_prints_as_before_and_openai_is_never_reached(
+    container, library, capsys, tmp_path, openai_client, environ
+):
+    library.add(tmp_path)
+    models = openai_models(library, environ=environ)
+
+    out, err = ask(asking(container, library, models), capsys)
+
+    assert "OpenAI" not in " ".join(f"{option.name} ({option.provider_label})" for option in models.offered())
+    assert out.splitlines()[0].strip() == LOCAL_ANSWER and err == []
+    assert openai_client.options is None and openai_client.calls == 0
+
+
+# OpenAI in doctor (specs/009-openai-provider, US4, FR-017)
+
+BOTH = OPENAI_ENVIRON | {"ANTHROPIC_API_KEY": "sk-ant-test", "ANTHROPIC_MODELS": "claude-a"}
+
+
+@pytest.fixture
+def anthropic_client(monkeypatch):
+    client = FakeAnthropicClient(models={"claude-a": anthropic_model_info("claude-a")})
+    monkeypatch.setattr(anthropic, "Anthropic", client.factory)
+    return client
+
+
+def health_of(library, environ):
+    models = openai_models(library, environ)
+    return HealthService(library.settings, library.runtime, library.server, library.indexes, models=models)
+
+
+def provider_rows(results):
+    return [(row.name, row.ok, row.detail) for row in results if row.name.split()[0] in ("anthropic", "openai")]
+
+
+def test_doctor_checks_openai_after_claude_model_by_model(library, openai_client, anthropic_client):
+    openai_client.script(FakeResponse(), models={"gpt-a": openai_model("gpt-a"), "gpt-b": openai_model("gpt-b")})
+
+    rows = provider_rows(health_of(library, BOTH).run(providers=True))
+
+    assert [name for name, _, _ in rows] == ["anthropic claude-a", "openai gpt-a", "openai gpt-b"]
+    assert rows[1:] == [
+        ("openai gpt-a", True, "gpt-a, owned by openai"),
+        ("openai gpt-b", True, "gpt-b, owned by openai"),
+    ]
+    assert openai_client.create_calls == []
+
+
+def test_a_key_openai_refuses_is_one_failing_row_and_claudes_are_unchanged(library, openai_client, anthropic_client):
+    refused = openai_status_error(openai.AuthenticationError, 401, code="invalid_api_key")
+    openai_client.script(FakeResponse(), models={"gpt-a": refused, "gpt-b": openai_model("gpt-b")})
+
+    rows = provider_rows(health_of(library, BOTH).run(providers=True))
+
+    assert rows[0][:2] == ("anthropic claude-a", True)
+    assert rows[1:] == [("openai", False, "OpenAI refused the API key")]
+
+
+def test_a_model_the_project_may_not_use_fails_its_row_only(library, openai_client, anthropic_client):
+    forbidden = openai_status_error(openai.PermissionDeniedError, 403, code="model_not_allowed")
+    openai_client.script(FakeResponse(), models={"gpt-a": forbidden, "gpt-b": openai_model("gpt-b")})
+
+    rows = provider_rows(health_of(library, OPENAI_ENVIRON).run(providers=True))
+
+    assert rows == [
+        ("openai gpt-a", False, "OpenAI rejected the request: model_not_allowed"),
+        ("openai gpt-b", True, "gpt-b, owned by openai"),
+    ]
+
+
+def test_one_openai_setting_alone_is_a_failing_row_naming_the_other(library, openai_client):
+    rows = provider_rows(health_of(library, {"OPENAI_MODELS": "gpt-a"}).run(providers=True))
+
+    assert rows == [("openai", False, "OPENAI_MODELS is set and OPENAI_API_KEY isn't: no model of OpenAI's is offered")]
+    assert openai_client.calls == 0
+
+
+def test_the_checks_that_run_on_their_own_leave_openai_alone(library, openai_client):
+    health_of(library, OPENAI_ENVIRON).run()
+
+    assert openai_client.calls == 0
+
+
+def test_doctor_prints_openais_rows_and_fails_on_a_failing_one(container, library, capsys, openai_client):
+    refused = openai_status_error(openai.AuthenticationError, 401, code="invalid_api_key")
+    openai_client.script(FakeResponse(), models={"gpt-a": refused})
+    checked = dataclasses.replace(container, health=health_of(library, OPENAI_ENVIRON))
+
+    with pytest.raises(SystemExit) as stopped:
+        main._doctor(checked, argparse.Namespace(inference=False))
+
+    out = capsys.readouterr().out
+    assert stopped.value.code == 1
+    assert "[FAIL] openai" in out and "OpenAI refused the API key" in out
+    assert "sk-test-openai" not in out

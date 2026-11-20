@@ -23,18 +23,11 @@ from app.generation.base import (
     Message,
     TextDelta,
 )
-from app.generation.cloud import ProviderCheck
+from app.generation.cloud import RETRY_WAITS, ProviderCheck, retry_wait
 from app.utils.logging import INFERENCE_LOGGER, log_event
 from app.utils.tokenization import TokenCounter, create_token_counter
 
 inference_logger = logging.getLogger(INFERENCE_LOGGER)
-
-# A rate limit, an overload or a lost connection is tried again, before anything has streamed,
-# after each of these waits. A timeout never is: the profile's timeout is the longest wait (FR-017).
-_RETRY_WAITS = (2.0, 6.0)
-_RETRIED = frozenset({FailureReason.RATE_LIMITED, FailureReason.OUTAGE, FailureReason.UNREACHABLE})
-# The API's retry-after replaces a wait only when it is shorter than this.
-_LONGEST_RETRY_AFTER = 10.0
 
 _FINISH_REASONS = {
     "end_turn": "stop",
@@ -61,6 +54,8 @@ class AnthropicCloud:
 
     name = "anthropic"
     label = "Anthropic"
+    # Anthropic's efforts, or none at all (specs/009, research.md R6).
+    efforts = frozenset({None, "low", "medium", "high", "xhigh", "max"})
 
     def __init__(
         self,
@@ -152,7 +147,7 @@ class AnthropicLLMProvider:
 
     def stream(self, messages: Sequence[Message], parameters: GenerationParameters) -> Iterator[TextDelta | Generation]:
         request = self._request(messages, parameters)
-        waits = iter(_RETRY_WAITS)
+        waits = iter(RETRY_WAITS)
         started = perf_counter()
         while True:
             first: float | None = None
@@ -174,7 +169,7 @@ class AnthropicLLMProvider:
                     final = events.get_final_message()
             except anthropic.AnthropicError as exc:
                 reason, detail = _failure(exc, self._profile.request_timeout_seconds)
-                wait = _retry_wait(exc, reason, waits) if first is None else None
+                wait = retry_wait(_headers(exc), reason, waits) if first is None else None
                 if wait is None:
                     # Raised without the SDK's error, whose request holds the key in its headers.
                     raise ModelFailedError(self.model, self.provider, reason, detail, self._label) from None
@@ -264,20 +259,10 @@ def _failure(error: anthropic.AnthropicError, timeout: float) -> tuple[FailureRe
     return FailureReason.REJECTED, kind or str(error.status_code)
 
 
-def _retry_wait(error: anthropic.AnthropicError, reason: FailureReason, waits: Iterator[float]) -> float | None:
-    """How long to wait before trying again, or None when the failure is final."""
-    if reason not in _RETRIED:
-        return None
-    wait = next(waits, None)
-    if wait is None:
-        return None
+def _headers(error: anthropic.AnthropicError) -> Any:
+    """The failed response's headers, for its retry-after; None when no response came back."""
     response = getattr(error, "response", None)
-    retry_after = response.headers.get("retry-after") if response is not None else None
-    try:
-        seconds = float(retry_after) if retry_after is not None else None
-    except ValueError:
-        seconds = None
-    return seconds if seconds is not None and 0 <= seconds < _LONGEST_RETRY_AFTER else wait
+    return response.headers if response is not None else None
 
 
 def _supported(capability: Any) -> bool:

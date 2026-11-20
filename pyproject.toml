@@ -20,6 +20,7 @@ dependencies = [
     "lxml",
     "markdown",
     "ollama",
+    "openai",
     "py3langid",
     "pydantic",
     "pydantic-settings",

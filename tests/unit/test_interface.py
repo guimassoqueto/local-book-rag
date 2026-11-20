@@ -1276,3 +1276,87 @@ def test_the_local_model_failing_alone_leaves_its_text_as_on_main(library, tmp_p
     updates = collect(ask("Where is the dog?", [], formatting.ALL_CHAPTERS, "Same as the question"), "Ollama went away")
 
     assert updates[-1][1] == "Half a local answer "
+
+
+# OpenAI beside Anthropic (specs/009-openai-provider, US3 and US4)
+
+BOTH_PROVIDERS = {
+    "ANTHROPIC_API_KEY": "sk-ant-test",
+    "ANTHROPIC_MODELS": "claude-a",
+    "OPENAI_API_KEY": "sk-test-openai",
+    "OPENAI_MODELS": "gpt-a,gpt-b",
+}
+
+
+def both_providers(settings):
+    """The local model, and Claude's and OpenAI's models, built as the container builds them."""
+    from app.container import CLOUD_PROVIDERS
+    from app.generation.factory import create_cloud_providers
+
+    local = FakeLLM(["A local answer [1]."], model="gpt-oss:20b")
+    return ModelChoices(local, create_cloud_providers(settings, BOTH_PROVIDERS, CLOUD_PROVIDERS))
+
+
+@pytest.mark.parametrize(
+    ("model", "fallbacks", "notice"),
+    [
+        (
+            "claude-a",
+            ["gpt-a"],
+            "The question and the passages found go to Anthropic: claude-a, then OpenAI: gpt-a. "
+            "If they fail, gpt-oss:20b answers, locally.",
+        ),
+        (
+            "gpt-a",
+            ["gpt-b", "claude-a"],
+            "The question and the passages found go to OpenAI: gpt-a, then gpt-b, then Anthropic: claude-a. "
+            "If they fail, gpt-oss:20b answers, locally.",
+        ),
+        (
+            "gpt-b",
+            [],
+            "The question and the passages found go to OpenAI: gpt-b. If it fails, gpt-oss:20b answers, locally.",
+        ),
+    ],
+)
+def test_a_sequence_across_providers_names_each_in_its_order(settings, model, fallbacks, notice):
+    options = both_providers(settings).describe(model, fallbacks)
+
+    assert formatting.model_notice(options, "question") == notice
+
+
+def test_an_openai_models_summary_notice_speaks_of_the_chapter(settings):
+    options = both_providers(settings).describe("gpt-a", [])
+
+    assert formatting.model_notice(options, "summary") == (
+        "The chapter's text goes to OpenAI: gpt-a. If it fails, gpt-oss:20b summarizes it, locally."
+    )
+
+
+def openai_answer(thinking="It weighs the passages."):
+    """gpt-a's answer, as OpenAI reported it, after gpt-b's account ran out of credit."""
+    stats = make_stats(prompt_tokens=2000, completion_tokens=500, model="gpt-a-20261101", cloud=True)
+    attempt = Attempt("gpt-b", "openai", FailureReason.OUT_OF_CREDIT, "credit_balance_exhausted")
+    generation = Generation("An answer [1].", thinking, stats, thinking_summarized=True)
+    answered = answer(thinking=thinking, model="gpt-a-20261101", provider="openai", attempts=(attempt,))
+    return dataclasses.replace(answered, generation=generation)
+
+
+def test_the_research_tab_names_openai_its_reported_model_and_what_it_doesnt_report(settings):
+    rows = formatting.run_markdown(openai_answer(), "embedding-model", "reranker-model", both_providers(settings))
+
+    assert rows.splitlines()[2:4] == [
+        "| LLM | `gpt-a-20261101` (OpenAI) |",
+        "| Failed first | `gpt-b` (OpenAI): its account is out of credit or over a spending or usage limit "
+        "(credit_balance_exhausted) |",
+    ]
+    lines = rows.splitlines()
+    assert "| Model loading | unavailable |" in lines and "| Prompt processing | unavailable |" in lines
+
+
+def test_openais_reasoning_is_labeled_a_summary_or_said_missing(settings):
+    models = both_providers(settings)
+
+    assert formatting.reasoning_label(openai_answer(), models) == "A summary of the reasoning, as OpenAI returns it"
+    assert formatting.reasoning_text(openai_answer(), models) == "It weighs the passages."
+    assert formatting.reasoning_text(openai_answer(thinking=""), models) == "None came back."

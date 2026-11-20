@@ -84,7 +84,9 @@ class CloudProfile(ConfigModel):
             approximation, which generation.context.safety_margin absorbs.
         context_size: the window the app works with, below the models' own: it caps what one
             request sends.
-        reasoning: the effort sent with each request; None sends none.
+        reasoning: the effort sent with each request; None sends none. Every provider's effort
+            names load here; which of them a provider takes, None included, its kind decides at
+            startup (CloudProvider.efforts; specs/009, research.md R6).
         reasoning_tokens: added to every request's max_tokens, since reasoning counts against it,
             and set aside from context_size.
         check_abstentions: as in llm_profiles.
@@ -94,7 +96,7 @@ class CloudProfile(ConfigModel):
 
     tokenizer: TokenizerConfig
     context_size: PositiveInt
-    reasoning: Literal["low", "medium", "high", "xhigh", "max"] | None
+    reasoning: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None
     reasoning_tokens: int = Field(ge=0)
     check_abstentions: bool = False
     request_timeout_seconds: PositiveFloat

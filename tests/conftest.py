@@ -7,6 +7,7 @@ import yaml
 
 from app.config.loader import load_settings
 from app.config.settings import Settings
+from tests.fakes import FakeOpenAIClient
 
 PROJECT_CONFIG = Path(__file__).resolve().parents[1] / "config"
 
@@ -35,3 +36,17 @@ def edit_config(config_dir: Path) -> Callable[[str, Callable[[dict], None]], Non
         path.write_text(yaml.safe_dump(content), encoding="utf-8")
 
     return edit
+
+
+@pytest.fixture
+def openai_client(monkeypatch: pytest.MonkeyPatch) -> FakeOpenAIClient:
+    """The client that every OpenAI provider the test builds gets, as the container builds them.
+
+    It replaces `openai.OpenAI`, which the provider calls, records the client's options, and is
+    scripted by the test (specs/009, research.md R11).
+    """
+    import openai
+
+    client = FakeOpenAIClient()
+    monkeypatch.setattr(openai, "OpenAI", client.factory)
+    return client

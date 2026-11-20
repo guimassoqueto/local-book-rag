@@ -6,6 +6,7 @@ they take Anthropic.
 """
 
 import argparse
+import re
 from pathlib import Path
 
 import gradio as gr
@@ -116,5 +117,30 @@ def test_no_code_of_the_application_names_it():
     application = Path(__file__).resolve().parents[2] / "app"
 
     named = [str(path) for path in application.rglob("*.py") if "fakecloud" in path.read_text(encoding="utf-8").lower()]
+
+    assert named == []
+
+
+# OpenAI, through the same interfaces (specs/009-openai-provider, SC-011, Principle I)
+
+
+def test_no_service_tab_or_command_names_openai():
+    application = Path(__file__).resolve().parents[2] / "app"
+    files = [*(application / "services").rglob("*.py"), *(application / "interface").rglob("*.py")]
+    files.append(application / "main.py")
+
+    named = [str(path) for path in files if "openai" in path.read_text(encoding="utf-8").lower()]
+
+    assert named == []
+
+
+def test_no_code_of_the_application_names_one_of_openais_models():
+    application = Path(__file__).resolve().parents[2] / "app"
+
+    named = [
+        str(path)
+        for path in application.rglob("*.py")
+        if re.search(r"gpt-[56]", path.read_text(encoding="utf-8"), flags=re.IGNORECASE)
+    ]
 
     assert named == []

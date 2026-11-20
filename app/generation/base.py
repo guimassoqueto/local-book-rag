@@ -92,9 +92,15 @@ class FailureReason(StrEnum):
     DECLINED = "declined"
     REJECTED = "rejected"
     NO_ANSWER = "no answer"
+    # The account can't pay: out of credit, or over a spending or usage limit. Waiting doesn't fix
+    # it, so it is never tried again (specs/009, research.md R5).
+    OUT_OF_CREDIT = "out of credit"
 
     def describe(self, detail: str = "") -> str:
         """The reason in the words every interface shows, such as "it limited the rate"."""
+        if self is FailureReason.OUT_OF_CREDIT:
+            words = "its account is out of credit or over a spending or usage limit"
+            return f"{words} ({detail})" if detail else words
         if self is FailureReason.TIMED_OUT:
             return f"it sent nothing for {detail}" if detail else "it sent nothing in time"
         if self is FailureReason.OUTAGE:

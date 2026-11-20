@@ -1,3 +1,5 @@
+import re
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -80,3 +82,53 @@ def test_a_metric_that_fails_or_finds_nothing_to_score_gives_no_value():
     assert scores.faithfulness is None
     assert scores.answer_correctness is None
     assert scores.answer_relevance == 1.0
+
+
+# The key stays with OpenAI's provider (specs/009-openai-provider, FR-020, SC-008)
+
+
+def test_the_judges_client_reaches_ollama_with_its_own_key_whatever_the_environment_says(monkeypatch):
+    import openai
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-should-never-be-read")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    built = []
+    real = openai.AsyncOpenAI
+
+    def recording(**options):
+        built.append(options)
+        return real(**options)
+
+    monkeypatch.setattr(openai, "AsyncOpenAI", recording)
+    config = JudgeConfig(model="m", embedding_model="e", max_tokens=100)
+    judge = RagasJudge(FakeLLM(["{}"]), PARAMETERS, config, "http://ollama:11434", 1.0)
+
+    assert judge._metrics  # building the metrics builds the judges' client with them
+
+    assert built == [{"base_url": "http://ollama:11434/v1", "api_key": "local", "timeout": 1.0}]
+
+
+def openai_clients_built_in(source):
+    """Each construction of a client of OpenAI's library in a module's source, with its arguments."""
+    calls = []
+    for match in re.finditer(r"\b(?:Async)?OpenAI\)?\(", source):
+        opening, depth = match.end() - 1, 0
+        for position in range(opening, len(source)):
+            depth += {"(": 1, ")": -1}.get(source[position], 0)
+            if depth == 0:
+                calls.append(source[opening : position + 1])
+                break
+    return calls
+
+
+def test_every_client_of_openais_library_in_the_app_is_given_its_key_and_its_address():
+    application = Path(__file__).resolve().parents[2] / "app"
+
+    calls = [
+        (str(path.relative_to(application)), call)
+        for path in application.rglob("*.py")
+        for call in openai_clients_built_in(path.read_text(encoding="utf-8"))
+    ]
+
+    assert {path for path, _ in calls} == {"evaluation/generation_metrics.py", "generation/openai_provider.py"}
+    assert all("api_key=" in call and "base_url=" in call for _, call in calls)

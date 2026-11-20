@@ -1,6 +1,8 @@
 import json
 import logging
 
+import anthropic
+import openai
 import pytest
 
 from app.errors import (
@@ -12,13 +14,22 @@ from app.errors import (
 )
 from app.generation.base import FINISHED_BY_LENGTH, Attempt, AttemptFailed, FailureReason, TextDelta
 from app.generation.choices import ModelChoices
-from app.generation.factory import CloudSetup
+from app.generation.factory import CloudSetup, create_cloud_providers
 from app.generation.prompts import NO_EVIDENCE_MARKER
 from app.generation.question_answering import NOTHING_RETRIEVED, Answer, QuestionAnsweringService, _MarkerFilter
 from app.retrieval.base import Passage, RetrievalFilters
 from app.retrieval.pipeline import RetrievalResult
 from app.utils.logging import INFERENCE_LOGGER, configure_logging
-from tests.fakes import FakeCloud, FakeLLM, make_chunk
+from tests.fakes import (
+    FakeAnthropicClient,
+    FakeCloud,
+    FakeLLM,
+    FakeReply,
+    FakeResponse,
+    anthropic_status_error,
+    make_chunk,
+    openai_status_error,
+)
 
 PASSAGE = ("Opportunity cost is what you give up.",)
 
@@ -683,3 +694,149 @@ def test_when_every_fallback_fails_the_local_model_answers_listing_them_in_order
         ("fc-a", FailureReason.UNKNOWN_MODEL),
         ("fc-b", FailureReason.UNKNOWN_MODEL),
     ]
+
+
+# OpenAI's models through the service (specs/009-openai-provider, US1 and US3)
+
+OPENAI_ENVIRON = {"OPENAI_API_KEY": "sk-test-openai", "OPENAI_MODELS": "gpt-a"}
+BOTH_ENVIRON = OPENAI_ENVIRON | {"ANTHROPIC_API_KEY": "sk-ant-test", "ANTHROPIC_MODELS": "claude-a"}
+
+
+def real_choices(settings, local_llm, environ):
+    """The local model, and the cloud models an environment configures, built as the container builds
+    them, on fake clients."""
+    from app.container import CLOUD_PROVIDERS
+
+    return ModelChoices(local_llm, create_cloud_providers(settings, environ, CLOUD_PROVIDERS))
+
+
+@pytest.fixture
+def anthropic_client(monkeypatch):
+    """The client that every Anthropic provider the test builds gets."""
+    client = FakeAnthropicClient()
+    monkeypatch.setattr(anthropic, "Anthropic", client.factory)
+    return client
+
+
+def as_sent(messages):
+    return [{"role": message.role, "content": message.content} for message in messages]
+
+
+def test_an_openai_model_gets_the_passages_and_exactly_the_prompt_the_local_one_would(settings, openai_client):
+    found = ("First passage.", "Second passage.", "Third passage.")
+    openai_client.script(FakeResponse(text=CLOUD_ANSWER, model="gpt-a-20261101"))
+    local_llm = local()
+
+    by_local = ask(settings, ModelChoices.local_only(local()), found=found)
+    by_openai = ask(settings, real_choices(settings, local_llm, OPENAI_ENVIRON), found=found, model="gpt-a")
+
+    assert [passage.chunk.chunk_id for passage in by_openai.passages] == [
+        passage.chunk.chunk_id for passage in by_local.passages
+    ]
+    [request] = openai_client.create_calls
+    assert request["input"] == as_sent(by_local.messages)
+    assert request["input"] == as_sent(by_openai.messages)  # the final context the Research tab shows
+    assert (by_openai.model, by_openai.provider, by_openai.attempts) == ("gpt-a-20261101", "openai", ())
+    assert by_openai.text.strip() == CLOUD_ANSWER
+    assert local_llm.calls == []
+
+
+def test_an_openai_answers_citations_resolve_and_an_invented_one_is_reported(settings, openai_client):
+    openai_client.script(FakeResponse(text="A claim [1], and an invented one [9]."))
+
+    answer = ask(settings, real_choices(settings, local(), OPENAI_ENVIRON), model="gpt-a")
+
+    [citation] = answer.citations
+    assert citation.reference == "Title, Chapter 4, Costs"
+    assert answer.invented_citations == (9,)
+
+
+def test_an_openai_abstention_is_shown_as_one(settings, openai_client):
+    openai_client.script(FakeResponse(text=f"{NO_EVIDENCE_MARKER} The passages don't say."))
+
+    answer = ask(settings, real_choices(settings, local(), OPENAI_ENVIRON), model="gpt-a")
+
+    assert answer.insufficient_evidence and answer.provider == "openai" and answer.attempts == ()
+
+
+def test_a_decline_after_text_withdraws_it_and_the_local_model_answers(settings, openai_client):
+    openai_client.script(FakeResponse(text="Opportunity cost", refusal="I can't continue."))
+
+    events = events_of(settings, real_choices(settings, local(), OPENAI_ENVIRON), model="gpt-a")
+
+    kinds = [type(event).__name__ for event in events]
+    assert kinds[:4] == ["RetrievalResult", "TextDelta", "TextDelta", "AttemptFailed"]
+    failed = events[3]
+    assert (failed.attempt.model, failed.attempt.provider, failed.attempt.reason) == (
+        "gpt-a",
+        "openai",
+        FailureReason.DECLINED,
+    )
+    assert events[-1].text == LOCAL_ANSWER and events[-1].provider == "ollama"
+
+
+def test_local_and_claude_answers_make_no_request_to_openai(settings, openai_client, anthropic_client):
+    models = real_choices(settings, local(), BOTH_ENVIRON)
+
+    ask(settings, models)
+    ask(settings, models, model="claude-a")
+
+    assert openai_client.calls == 0
+    assert anthropic_client.stream_calls  # Claude answered, its profile's reply check included
+
+
+# Sequences across providers (US3, SC-006)
+
+
+def claude_unknown():
+    return FakeReply(error=anthropic_status_error(anthropic.NotFoundError, 404))
+
+
+def openai_unknown():
+    return FakeResponse(error=openai_status_error(openai.NotFoundError, 404, code="model_not_found"))
+
+
+def test_a_failing_claude_model_is_followed_by_an_openai_one_and_the_local_model_isnt_called(
+    settings, openai_client, anthropic_client
+):
+    anthropic_client.replies = [claude_unknown()]
+    openai_client.script(FakeResponse(text=CLOUD_ANSWER, model="gpt-a"))
+    local_llm = local()
+
+    events = events_of(settings, real_choices(settings, local_llm, BOTH_ENVIRON), model="claude-a", fallbacks=["gpt-a"])
+
+    failed = [event for event in events if isinstance(event, AttemptFailed)]
+    assert [(event.attempt.model, event.attempt.provider, event.next_model) for event in failed] == [
+        ("claude-a", "anthropic", "gpt-a")
+    ]
+    assert (events[-1].model, events[-1].provider) == ("gpt-a", "openai")
+    assert local_llm.calls == []
+
+
+def test_a_failing_openai_model_is_followed_by_a_claude_one(settings, openai_client, anthropic_client):
+    openai_client.script(openai_unknown())
+    local_llm = local()
+
+    events = events_of(settings, real_choices(settings, local_llm, BOTH_ENVIRON), model="gpt-a", fallbacks=["claude-a"])
+
+    failed = [event for event in events if isinstance(event, AttemptFailed)]
+    assert [(event.attempt.provider, event.attempt.reason, event.next_model) for event in failed] == [
+        ("openai", FailureReason.UNKNOWN_MODEL, "claude-a")
+    ]
+    assert events[-1].provider == "anthropic"
+    assert local_llm.calls == []
+
+
+def test_both_providers_failing_leave_the_answer_to_the_local_model_listing_both(
+    settings, openai_client, anthropic_client
+):
+    anthropic_client.replies = [claude_unknown()]
+    openai_client.script(openai_unknown())
+
+    answer = ask(settings, real_choices(settings, local(), BOTH_ENVIRON), model="claude-a", fallbacks=["gpt-a"])
+
+    assert [(attempt.model, attempt.provider) for attempt in answer.attempts] == [
+        ("claude-a", "anthropic"),
+        ("gpt-a", "openai"),
+    ]
+    assert (answer.model, answer.text) == ("gpt-oss:20b", LOCAL_ANSWER)
