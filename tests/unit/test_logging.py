@@ -123,7 +123,9 @@ def test_a_session_of_cloud_questions_leaves_the_key_nowhere(settings, tmp_path)
         models={"claude-a": anthropic_model_info("claude-a")},
     )
     credentials = ProviderCredentials("anthropic", SecretStr(SENTINEL), ("claude-a",))
-    cloud = AnthropicCloud(credentials, settings.cloud_profiles["anthropic"], client.factory, lambda seconds: None)
+    # Without the abstention check, whose calls would take scripted replies of their own.
+    profile = settings.cloud_profiles["anthropic"].model_copy(update={"check_abstentions": False})
+    cloud = AnthropicCloud(credentials, profile, client.factory, lambda seconds: None)
     local = FakeLLM(["The local answer [1]."], model=settings.llm.model)
     models = ModelChoices(local, CloudSetup(((cloud, ("claude-a",)),), (), {"anthropic": "Anthropic"}))
     questions = QuestionAnsweringService(settings, OnePassage(), models)

@@ -19,7 +19,7 @@ from app.generation.base import GenerationParameters
 from app.generation.choices import ModelChoices
 from app.generation.factory import CloudSetup
 from app.generation.prompts import question_answering_messages
-from app.generation.question_answering import read_reply
+from app.generation.question_answering import check_abstention, read_reply
 from app.generation.summarization import ChapterSummarizer
 from app.ingestion.chunker import Chunk
 from app.storage.catalog import Book, BookCatalog, BookStatus
@@ -80,6 +80,15 @@ def models():
     return CREDENTIALS.models or ("none",)
 
 
+def reply_to(settings, cloud, chunks, model, question):
+    """A model's reply, read as the application reads it: the marker, the citations, and, when the
+    profile asks, the model reading its reply again for an abstention written only in words."""
+    llm = cloud.model(model)
+    task = parameters(settings)
+    generation = llm.generate(question_answering_messages(question, chunks, None), task)
+    return generation, check_abstention(llm, question, read_reply(generation, chunks), task)
+
+
 @pytest.mark.parametrize("model", models())
 def test_the_key_and_the_model_pass_the_check(cloud, model):
     [row] = cloud.check([model])
@@ -90,10 +99,7 @@ def test_the_key_and_the_model_pass_the_check(cloud, model):
 @pytest.mark.parametrize("model", models())
 @pytest.mark.parametrize("case", CASES["answerable"], ids=lambda case: case["section"])
 def test_an_answerable_question_is_answered_with_citations_that_resolve(settings, cloud, chunks, model, case):
-    messages = question_answering_messages(case["question"], chunks, None)
-    generation = cloud.model(model).generate(messages, parameters(settings))
-
-    reply = read_reply(generation, chunks)
+    generation, reply = reply_to(settings, cloud, chunks, model, case["question"])
 
     assert not reply.insufficient_evidence, reply.text
     assert reply.citations, f"no citation the app recognizes: {reply.text}"
@@ -110,10 +116,7 @@ def test_an_answerable_question_is_answered_with_citations_that_resolve(settings
 @pytest.mark.parametrize("model", models())
 @pytest.mark.parametrize("case", CASES["unanswerable"], ids=lambda case: case["question"][:40])
 def test_an_unanswerable_question_gets_the_marker(settings, cloud, chunks, model, case):
-    messages = question_answering_messages(case["question"], chunks, None)
-    generation = cloud.model(model).generate(messages, parameters(settings))
-
-    reply = read_reply(generation, chunks)
+    _, reply = reply_to(settings, cloud, chunks, model, case["question"])
 
     assert reply.insufficient_evidence, reply.text
 

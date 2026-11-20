@@ -407,20 +407,49 @@ seconds, or the API's `retry-after` when it is shorter than 10, and only before 
 streamed. A timeout is never tried again, so the profile's `request_timeout_seconds` is the
 longest a sequence waits on one model. The owner chose 120 seconds.
 
-**Tokens are counted with an approximation.** Claude's tokenizer isn't public, so `o200k_base`
-stands in, and `generation.context.safety_margin` absorbs its error, as it does for `gemma4:12b`'s.
-Principle V's rule exists because Ollama cuts a prompt silently; the API refuses one that doesn't
-fit, and the profile's window, 64K tokens, is far below the models' own, so a miscount can't drop
-passages unseen. Counting exactly would cost a request for each passage fitted.
+**Tokens are counted with an approximation, which runs low.** Claude's tokenizer isn't public, so
+`o200k_base` stands in. On the real models it ran about a third low: Claude counted 3,801 tokens in
+a question's prompt that the app estimated at 2,543, and 4,803 in a chapter summary's estimated at
+3,143, 1.49 and 1.53 times as many, more than `generation.context.safety_margin` absorbs. Nothing
+is lost to it: Principle V's rule exists because Ollama cuts a prompt silently, while the API
+refuses one that doesn't fit, and the models' own window, a million tokens, is far above the
+profile's. What changes is the cap: `context_size: 65536` limits a request to about 100K of
+Claude's own tokens, not 64K. Counting exactly would cost a request for each passage fitted.
 
 **The profile's values.** `reasoning: low`, since the tasks read passages and write a short answer
 or a summary; `reasoning_tokens: 4000`, room for the reasoning beside task limits set for
 `gpt-oss`; `context_size: 65536`, a cap on what one request sends, and so on its cost;
-`check_abstentions: false`, since the current Claude models follow an instruction to open a reply
-with the marker, and a check costs a call per answer; `request_timeout_seconds: 120`. Each stays
-while the checks on the real models pass: a case that a higher effort passes raises the effort, a
-reply that stops at its limit without text raises the room for reasoning, and a reply that abstains
-in words turns the abstention check on.
+`request_timeout_seconds: 120`; and `check_abstentions`, planned off, since a check costs a call
+per answer, and turned on by the first run on the real models (below). Each stays while the checks
+on the real models pass: a case that a higher effort passes raises the effort, a reply that stops
+at its limit without text raises the room for reasoning, and a reply that abstains in words turns
+the abstention check on.
+
+**Checked on Claude Haiku 5.5, Sonnet 5.5 and Opus 5.5 (2026-11-20).** `doctor` found the three,
+each with a window of a million tokens, taking the profile's effort and adaptive reasoning. The
+integration tests ran each on an excerpt written for them, five questions it answers, three it
+doesn't, and a short summary, and the quickstart's checks ran on *On Liberty*. What they write
+differently from the local models:
+- **They cite as the app asks**, `[1]`, where `gpt-oss` writes `【3】`. Every citation resolved,
+  none was invented, and each answer cited the passage that holds its answer.
+- **Haiku abstains in words.** Sonnet and Opus opened all three unanswerable replies with the
+  no-evidence marker. Haiku did once, and twice wrote the abstention without it: "The passages
+  don't say how much the electric lamp and the diesel generator cost the harbor board", and "The
+  passages do not give the name of the convoy's commander". So `check_abstentions` is on for the
+  provider. Given those two replies, Haiku's own check read both as abstentions, and with the
+  check on, the 9 unanswerable cases and the 15 answerable ones came out right on all three
+  models. It costs one more short call per answer without the marker.
+- **They write more.** Answers ran 750 to 1,000 tokens, reasoning included, against `gpt-oss`'s
+  200 to 280 for the same question, with bold labels in Markdown ("**Society as a tyrant.**").
+  Asked in Portuguese, Sonnet answered in Portuguese.
+- **They are fast to start.** Haiku's first token came in 1.5 s, and its answers in 12 to 17 s in
+  all, Sonnet's in 19 s; `gpt-oss` took 15 s once loaded. No request came near the 120-second
+  timeout, and no reply stopped at its limit, so `reasoning: low` and `reasoning_tokens: 4000`
+  held.
+- **A summary fits in one step.** Haiku summarized a 7-chunk chapter in one step, reading 4,803
+  tokens and generating 1,737, with 5 of 33 statements close to no passage. The longest chapter of
+  *On Liberty*, 22,274 tokens by the app's count, fits the 52,177 that `context_size: 65536` leaves
+  a one-step summary, so that value held too.
 
 **A command marks the text it can't take back.** The Chat tab removes what a failed model wrote
 before the next one starts. A terminal can't, so `ask` says on standard error that the text above

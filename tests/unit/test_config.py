@@ -196,7 +196,7 @@ def test_the_shipped_configuration_holds_anthropics_profile(settings):
     assert profile.context_size == 65536
     assert profile.reasoning == "low"
     assert profile.reasoning_tokens == 4000
-    assert profile.check_abstentions is False
+    assert profile.check_abstentions is True
     assert profile.request_timeout_seconds == 120
 
 

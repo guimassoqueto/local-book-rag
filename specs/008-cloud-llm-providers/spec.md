@@ -699,3 +699,75 @@ The rest the agent settled, from what the owner had decided before.
   release, v0.8.0 unless another release comes first. Nothing that a user relies on breaks: a
   saved summary's record gains keys, and those written before still read (FR-023). The
   constitution's major version governs the project, not the app's.
+
+## Results of the implementation, 2026-11-20
+
+The implementation is `2f5892d`, and the corrections below follow it. The owner rebuilt the stack
+from it with the settings already in `.env` (`claude-haiku-5-5`, `claude-sonnet-5-5`,
+`claude-opus-5-5`), so ChromaDB was empty, `reset-everything` had nothing to delete, and the
+checks without the settings ran in processes of their own. *On Liberty* was added beside the
+owner's book for the checks, and removed afterwards with its summaries.
+
+- **SC-001: pass.** Without the settings, `doctor` printed `main`'s rows, in the same order, with
+  the same results; only the GPU's memory and the index's detail differed, as they do between
+  runs. `ask` without `--model` printed as on `main`. The help of `ask` and `summarize` differs
+  only by `--model` and `--fallback`, and `reindex-all`'s doesn't. The tabs without the settings
+  are proved by the unit tests, whose clients count no request in a session of questions and
+  summaries.
+- **SC-002: pass.** `doctor` reported the key accepted and the three models found, each with a
+  1,000,000-token window. With a wrong key, in its own process, it reported one row, "Anthropic
+  refused the API key", and a question asked with Haiku and no fallback was answered by
+  `gpt-oss:20b`, standard error naming the refused key. The tab's wording is in the unit tests.
+- **SC-003: pass, after one change.** The first run passed every case on Sonnet and Opus, and all
+  but two on Haiku, which abstained in words, without the marker, on two of the three unanswerable
+  questions. As research.md R2 planned, that turned the profile's `check_abstentions` on, and the
+  test now reads replies as the application does, the check included. Given its two replies,
+  Haiku's own check read both as abstentions, and the second run passed all 30 cases on the three
+  models, in 76 s. Without the settings, the 10 tests are skipped. In the first run, the
+  reranker's GPU test ran out of memory, `gpt-oss` holding 12 GB of the GPU; with the model
+  unloaded, its 6 tests passed.
+- **SC-004: pass.** In the app, the same question to `gpt-oss:20b` and to Haiku got the same five
+  passages, in the same order, and the same prompt, byte for byte.
+- **SC-005: pass.** Haiku's summary of *On Liberty*'s chapter 2 recorded `provider: anthropic`, no
+  failed attempt, and its tokens, 4,803 read and 1,737 generated; the local summary of chapter 3,
+  `provider: ollama` and no tokens. `reindex-all --regenerate-summaries` listed Haiku's as kept,
+  left its file unchanged, byte for byte, wrote chapter 3's again, and made no Claude generation.
+- **SC-006: pass.** With `claude-no-such-model` allowed for the run: alone, `gpt-oss:20b`
+  answered; with Haiku as its fallback, Haiku answered, and the local model made no generation;
+  with a second unknown name as its fallback, `gpt-oss:20b` answered. Standard error said each
+  failure in order, and the last line named the model that answered. A name given twice was
+  refused before any search. The tabs' and the Research tab's wording is in the unit tests, and in
+  the owner's check in the browser (T067).
+- **SC-007, SC-008 and SC-009: pass**, in the unit tests, as the criteria ask.
+- **SC-010: pass.** On the stack, an experiment whose variant names `claude-haiku-5-5` was refused
+  before it ran, as a model without a profile is ("llm_profiles has no entry for llm.model"), and
+  one whose judge names it was refused by Ollama ("not on the Ollama server"). No request reached
+  Anthropic.
+- **SC-011: pass.** After the session, failures and a wrong key included, the logs, the library and
+  the saved output of every check hold no trace of the key. The page source is part of the owner's
+  check in the browser.
+- **SC-012: pass.** `make lint-check` is clean. `make test` ran 1008 unit tests before the change,
+  and 1177 after.
+
+### Corrections during implementation
+
+- **Anthropic's SDK is its 2.x line.** `uv add` resolved 2.12.0, where the research expected 1.x,
+  still on `httpx2`. A model's capabilities come back as typed objects, which the check reads,
+  where `contracts/providers.md` showed a dictionary.
+- **A summary's failed attempt records its step**, for the report's "failed at step 3":
+  `Attempt.step`, and `step` in a saved summary's `failed_attempts` (`data-model.md`).
+- **`summaries_kept` holds the form the tabs and the commands show**, "book_001,
+  chapter_04_standard (claude-sonnet-5-5, Anthropic)" (`data-model.md`).
+- **`check_abstentions` is on for Anthropic**, after Haiku's two abstentions in words (SC-003).
+  `contracts/configuration.md` shows the shipped profile, and `docs/decisions.md` the replies.
+- **The token estimate runs about a third low.** Claude counted 1.49 and 1.53 times the app's
+  `o200k_base` estimate on two prompts, more than the safety margin absorbs. Nothing is lost, but
+  `context_size: 65536` caps a request at about 100K of Claude's tokens: the README, the profile's
+  comments and `docs/decisions.md` say so. Its own rule still holds: the longest chapter of *On
+  Liberty* takes 22,274 of the 52,177 tokens that a one-step summary has.
+- **The integration test reads replies through `check_abstention()`**, as the benchmark's
+  generation does, which its first version left out.
+- **The test fake's default reasoning stays "some reasoning"**, which an existing test reads,
+  where T004 said empty.
+- **`tests/unit/test_summary_metrics.py` changed**, outside the plan's list: its summary helper
+  gained the `provider` that `ChapterSummary` now requires.

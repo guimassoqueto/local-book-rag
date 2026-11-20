@@ -609,16 +609,16 @@ the real models.
   `docs/decisions.md` and this spec's folder, and no file of the delivered specs (FR-031). None
   is in `app/retrieval`, `app/ingestion`, `app/storage` or `app/generation/prompts.py`, and in
   `config/` only `models.yaml` changed (FR-028).
-- [ ] T064 With the owner's go-ahead, the rebuild without the settings (quickstart.md § 2; SC-001):
+- [X] T064 With the owner's go-ahead, the rebuild without the settings (quickstart.md § 2; SC-001):
   `.env` without `ANTHROPIC_*`; `make up`, which deletes what Path Conventions lists;
   `reset-everything --confirm "DELETE EVERYTHING"`; then `doctor`, the same rows as T003's. The
   owner sees no model choice in the tabs.
-- [ ] T065 The owner writes the key into `.env`, with `ANTHROPIC_MODELS` set to
+- [X] T065 The owner writes the key into `.env`, with `ANTHROPIC_MODELS` set to
   `claude-haiku-5-5,claude-sonnet-5-5,claude-no-such-model` (quickstart.md § 3; SC-002). With their
   go-ahead: `make up`, which deletes what Path Conventions lists; `reset-everything`; and *On
   Liberty* added from `benchmarks/books/on-liberty.md`. Then quickstart.md § 4: `doctor`'s three
   rows, and its run with a wrong key in its own process.
-- [ ] T066 With the owner's go-ahead for the paid calls, `quickstart.md` § 5 to § 8, § 11 and § 12,
+- [X] T066 With the owner's go-ahead for the paid calls, `quickstart.md` § 5 to § 8, § 11 and § 12,
   by command: the same passages, the abstention, the fallbacks, the summaries and `reindex-all`, no
   trace of the key, and the benchmark's refusal. Each section's outputs go to `$SCRATCH`.
 - [ ] T067 The owner, in the browser: quickstart.md § 9 and § 10. If the multiselect doesn't keep
@@ -628,11 +628,11 @@ the real models.
   (`docker compose exec app python -c "import app; print(app.__file__)"`, uv's editable install),
   copy the module in with `docker compose cp`, and run `docker compose restart app`, which keeps
   the container and its library. Then § 9 runs again.
-- [ ] T068 With the owner's go-ahead, quickstart.md § 13: `make test-integration` with the settings
+- [X] T068 With the owner's go-ahead, quickstart.md § 13: `make test-integration` with the settings
   exported and `ANTHROPIC_MODELS=claude-haiku-5-5,claude-sonnet-5-5`. Then `docs/decisions.md`
   gains what the real models showed, and whether research.md R2's values held; a value that didn't
   changes in `config/models.yaml`, with its reason.
-- [ ] T069 Results: a "Results of the implementation" section in spec.md, as `specs/007` has, with
+- [X] T069 Results: a "Results of the implementation" section in spec.md, as `specs/007` has, with
   one line per success criterion and its evidence, and the test counts against T001's. The owner
   adds their own book back, or empties the settings and runs `make up` (quickstart.md § 14).
 

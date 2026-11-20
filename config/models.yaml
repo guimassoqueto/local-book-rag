@@ -106,14 +106,16 @@ embedding_profiles:
 # none answers unless the user picks it for a request.
 cloud_profiles:
   anthropic:
-    # Claude's tokenizer isn't public, so this is an approximation, which
-    # generation.context.safety_margin absorbs. The API refuses a prompt that doesn't fit the
-    # model, where Ollama cuts it.
+    # Claude's tokenizer isn't public, so this is an approximation, and it runs low: for the same
+    # prompts, Claude counted about 1.5 times as many tokens (2026-11-20), more than
+    # generation.context.safety_margin absorbs. Nothing is lost: the API refuses a prompt that
+    # doesn't fit the model, where Ollama cuts it, and the models' window is far above context_size.
     tokenizer:
       kind: tiktoken
       name: o200k_base
 
-    # The window the app works with, far below the models' own: it caps what one request sends.
+    # The window the app works with, far below the models' own: it caps what one request sends,
+    # at about 1.5 times this many of Claude's own tokens, given the tokenizer above.
     context_size: 65536
 
     # Sent as the request's effort. The current Claude models reason whatever they are told,
@@ -125,7 +127,10 @@ cloud_profiles:
     # context_size.
     reasoning_tokens: 4000
 
-    check_abstentions: false
+    # Claude Haiku 5.5 abstained in words, without the marker, on 2 of the integration tests' 3
+    # unanswerable questions (2026-11-20). So a reply without the marker is read again by the model
+    # that wrote it, which costs one short call per answer.
+    check_abstentions: true
 
     # Seconds that Anthropic may send nothing before the request counts as timed out and the next
     # model of the sequence starts. A timeout is never tried again, so this is the longest wait.

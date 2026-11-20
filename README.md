@@ -351,9 +351,9 @@ Some models sometimes abstain in words, without the marker: asked who did someth
 that the passages say only "someone". With `check_abstentions: true` in a model's profile in
 `config/models.yaml`, the model reads each reply without the marker again, in one short call,
 and an abstention it finds is shown as one. It is on for `gemma4:12b` and `qwen3.5:9b`, where it
-took about a quarter of a second. A check that fails, or can't be read, leaves the reply an
-answer. It can still take a partial answer for an abstention: `docs/decisions.md` has its
-measurements.
+took about a quarter of a second, and for the Claude models (see Cloud models). A check that
+fails, or can't be read, leaves the reply an answer. It can still take a partial answer for an
+abstention: `docs/decisions.md` has its measurements.
 
 Passages are fitted to the context window before anything is sent, reserving room for the
 reply and `generation.context.safety_margin`. This matters: Ollama doesn't refuse a prompt
@@ -460,12 +460,16 @@ returns, or "None came back".
 `config/models.yaml`: the window the app works with (64K tokens, far below the models' own, to cap
 what one request sends), the reasoning effort, the room set aside for reasoning, and the timeout.
 The task limits in `config/generation.yaml` apply, with that room added; their temperature
-doesn't, since the current Claude models take no sampling setting. Tokens are counted with an
-approximate tokenizer, which the safety margin absorbs, and the API refuses a prompt that doesn't
-fit instead of cutting it.
+doesn't, since the current Claude models take no sampling setting. Tokens are counted with
+`o200k_base`, since Claude's tokenizer isn't public, and Claude counts about one and a half times
+as many for the same prompt, more than the safety margin absorbs: the 64K cap is about 100K of
+Claude's own tokens. Nothing is lost to the miscount, since the API refuses a prompt that doesn't
+fit instead of cutting it, and the models' own window is far larger.
 
-**Costs and the key.** Anthropic bills each request, a failed one included. A cloud summary's report
-shows the tokens it read and generated, and those of each attempt that failed. The key is in the
+**Costs and the key.** Anthropic bills each request, a failed one included. An answer without the
+no-evidence marker costs one more short call, since Claude Haiku 5.5 sometimes abstains in words
+and the profile's `check_abstentions` is on. A cloud summary's report shows the tokens it read and
+generated, and those of each attempt that failed. The key is in the
 app container's environment: anyone who can open the interface, or call its API, can spend it (see
 Deployment notes).
 
