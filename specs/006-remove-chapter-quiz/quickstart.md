@@ -27,14 +27,14 @@ Expected:
 - **Lint** is clean: no import left unused by the removal (`research.md`, R2).
 - **Every unit test passes**, with the four quiz test files gone and the shared files changed as
   R10 lists.
-- **The refusals**, each in its test:
-  - `test_config.py`: a `quiz` section under `generation` stops loading, naming
-    `generation.quiz` (FR-003);
-  - `test_benchmark.py`: an `extraction`, a `quiz` and a `quiz_check` experiment are refused,
-    naming the four kinds, and a retrieval experiment with any of the five removed fields is
-    refused (FR-011);
-  - `test_report.py` and `test_commands.py`: a `quiz`, a `quiz_check` and an `extraction` result
-    are refused, naming the kind, with nothing on standard output (FR-012).
+- **The refusals**, each in its test, with `extraction` or made-up names, so that no test names
+  the quiz (SC-001). The quiz's real files are refused on the stack, in § 6:
+  - `test_config.py`: an unknown section under `generation` stops loading, naming it (FR-003);
+  - `test_benchmark.py`: an `extraction` experiment is refused, and the allowed kinds it names
+    are exactly the four (FR-011);
+  - `test_report.py`: an `extraction` result and one of a made-up kind are refused, naming the
+    kind; `test_commands.py`: `benchmark-report` on an `extraction` result fails, with nothing on
+    standard output (FR-012).
 - **What stays**: one provider for `llm.model` in the container (`test_container.py`), the four
   tabs in order (`test_interface.py`), the cache sweep within the hour and the stop on SIGTERM.
 
@@ -58,11 +58,12 @@ is under `specs/`, and the books aren't in the repository.
 **The diff.**
 
 ```bash
-git diff main --name-only
-git diff main -U0 -- app/generation/prompts.py | grep '^+[^+]'
+git diff main...HEAD --name-only
+git diff main...HEAD -U0 -- app/generation/prompts.py | grep '^+[^+]'
 ```
 
-Expected:
+The three dots compare with where the branch left `main`, so a later merge into `main` doesn't
+count. Expected:
 - `--name-only` lists only the files of `plan.md`'s Project Structure, `README.md`,
   `docs/decisions.md`, `docs/benchmark-results.md` and `specs/006-remove-chapter-quiz/`. A file
   outside that list stops the check until the plan names it (SC-006, R9).
@@ -79,15 +80,19 @@ scratchpad and never committed (R8), prints:
 - the SHA-256 of `render()` on a retrieval result from the host's `benchmarks/results/`
   (`markdown_books_*`), the only kind it holds, without and with `--baseline`'s comparison.
 
-It runs on a worktree of `main` and on the branch, with the branch's `.venv`. `PYTHONPATH` puts
-each tree's `app` before the editable install's:
+It runs on a worktree of where the branch left `main`, before any change (tasks.md, T003), and on
+the branch after the changes (T037), with the branch's `.venv`. Each run starts in its own tree,
+so that it reads that tree's `config/`: `main`'s code requires the `quiz` section. `PYTHONPATH`
+puts each tree's `app` before the editable install's:
 
 ```bash
-git worktree add "$SCRATCH/main-tree" main
-PYTHONPATH="$SCRATCH/main-tree" .venv/bin/python "$SCRATCH/same_as_main.py" > "$SCRATCH/main.txt"
-PYTHONPATH="$PWD" .venv/bin/python "$SCRATCH/same_as_main.py" > "$SCRATCH/branch.txt"
-diff "$SCRATCH/main.txt" "$SCRATCH/branch.txt"   # only the app.__file__ line differs
+REPO="$PWD"
+git worktree add "$SCRATCH/main-tree" "$(git merge-base main HEAD)"
+(cd "$SCRATCH/main-tree" && PYTHONPATH="$SCRATCH/main-tree" "$REPO/.venv/bin/python" "$SCRATCH/same_as_main.py" > "$SCRATCH/main.txt")
 git worktree remove "$SCRATCH/main-tree"
+# later, on the branch:
+PYTHONPATH="$REPO" .venv/bin/python "$SCRATCH/same_as_main.py" > "$SCRATCH/branch.txt"
+diff "$SCRATCH/main.txt" "$SCRATCH/branch.txt"   # only the app.__file__ line differs
 ```
 
 Expected: every hash is the same on both. The result is recorded in the spec, under "Results of

@@ -24,8 +24,11 @@ The quiz goes from every place it reaches:
 
 **How.**
 - **Removal by exact parts.** Four modules are deleted, and eleven shared ones lose their quiz
-  parts and nothing else (R1, R2). So the remaining prompts, the index fingerprint and the catalog
-  are untouched, which the diff and a dump on both trees prove (R8, R9).
+  parts (R1, R2). Three of them also gain what the removal needs: `report.py` refuses a kind it
+  doesn't run, `benchmark.py` takes the kinds from the new `kinds.py`, and `gradio_app.py`
+  restates two comments (R4, R6). Nothing else in them changes, so the remaining prompts, the
+  index fingerprint and the catalog are untouched, which the diff and a dump on both trees prove
+  (R8, R9).
 - **Three things stay, with their reason restated.** The stop on SIGTERM, Gradio's cache sweep,
   which Gradio 6.32 applies to uploads too, and the Library tab's operation thread (R4).
 - **One definition of the kinds**, in a new small module, so that `benchmark-report` can refuse a
@@ -49,7 +52,9 @@ application doesn't (FR-008).
 
 **Testing**: pytest.
 - `make test`: four test files deleted, seven shared ones changed. New tests cover the refusals
-  (configuration, experiment, report), the container's one provider, and the four tabs (R10).
+  (configuration, experiment, report) with `extraction` or made-up names, so that no test names
+  the quiz, plus the container's one provider and the four tabs (R10). The quiz's real files are
+  refused on the stack (quickstart § 6).
 - `make test-integration`, on the real models, without `test_quiz.py`.
 - A throwaway script that compares the prompts and a report on `main` and on the branch (R8).
 - `quickstart.md`, for the tabs in the browser and the commands in the container.

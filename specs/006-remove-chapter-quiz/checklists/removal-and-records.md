@@ -91,7 +91,7 @@ how. Uncheck any whose resolution you don't accept.
   quickstart § 3]
   → SC-006 is shown by the positive rule: the diff touches only the files `plan.md` lists and the
     records. R9 names the fingerprint's inputs, the embedding providers and tokenizers among
-    them, and quickstart § 3 checks `git diff main --name-only`.
+    them, and quickstart § 3 checks `git diff main...HEAD --name-only`.
 - [x] CHK012 Can US3's "the same as `main`'s for the same file" be checked for all four kinds,
   when the host holds retrieval results only? Is it said which kinds are compared byte for byte,
   and what covers the others? [Coverage, Spec §US3, research.md R8]

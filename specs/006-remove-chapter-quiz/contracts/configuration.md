@@ -20,7 +20,9 @@ profile for the key check alone (spec, Edge Cases).
 | `generation.quiz`, with any content | every command, `serve` included, stops at startup: `error: Invalid configuration in <dir>: generation.quiz: Extra inputs are not permitted` |
 | any other unknown key | the same, naming that key, as on `main` |
 
-The wording after the key is Pydantic's. The test matches the key, `generation.quiz` (R7).
+The wording after the key is Pydantic's. The unit test adds a section with a neutral name and
+matches that key, so that no test names the quiz (R10). On the stack, `main`'s configuration is
+refused, naming `generation.quiz` (quickstart § 6).
 
 ## Startup checks
 

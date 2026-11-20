@@ -103,9 +103,10 @@ startup, naming the key, as any unknown key does. Restarting the app still takes
 moves.
 
 **Independent Test**: Start the stack on this branch's image. Check the tabs, add a book and see
-the other tabs' lists take it, then ask a question and make a summary. Start the app again with a
-`quiz` section added back, and see it refused. Restart the app container and time it. Run
-`make test`, `make test-integration` and `doctor`.
+the other tabs' lists take it, then ask a question and make a summary. Run `doctor` with a `quiz`
+section added back, and see it refused: restarting the server itself with that file would leave
+the container down. Restart the app container and time it. Run `make test`,
+`make test-integration` and `doctor`.
 
 **Acceptance Scenarios**:
 
@@ -259,6 +260,26 @@ The owner approved every fix that `checklists/removal-and-records.md` proposed:
   followed by `reset-everything` (CHK022), and the history is kept as a record, not kept running
   (CHK004).
 
+### Corrections from the analysis, 2026-11-19
+
+`/speckit-analyze` found one conflict, and the owner chose its fix (option B):
+- **No test names the quiz.** The refusal tests had to name `quiz`, its kinds and its fields as
+  test data, so SC-001's searches could never come back empty. The unit tests now check the same
+  rules with `extraction` or made-up names, and the quiz's real files are refused on the running
+  stack (SC-005). The test of the five removed fields goes: an unknown key is refused (a test
+  that stays), and SC-001's search shows those fields are no longer known.
+
+It also found these, fixed the same day:
+- **Diffs** compare with where the branch left `main` (`git diff main...HEAD`), so that a later
+  merge into `main` doesn't count (SC-006).
+- **The comparison with `main`** checks out where the branch left `main`, and runs in that tree,
+  whose code needs its own configuration (quickstart § 3, tasks T003).
+- **Wording.** A leftover `quiz` section is checked with a command such as `doctor`, since a
+  server restarted with it would leave the container down (US1, SC-005). The refusal of a result
+  says the kind is one "this benchmark doesn't run", which also holds for a kind that never
+  existed. The plan's summary names what three shared modules gain. A task's placeholder became
+  a variable.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -398,14 +419,17 @@ The owner approved every fix that `checklists/removal-and-records.md` proposed:
   - a question is answered with its citations, and a chapter summary is saved;
   - `time docker compose restart app`, run while no library operation is in progress, reports
     under 2 s of wall-clock time.
-- **SC-005**: Each refusal holds: the app started with a `quiz` section in
-  `config/generation.yaml` stops and names the key; a `quiz` and a `quiz_check` experiment are
-  refused as unknown kinds; and `benchmark-report` refuses a quiz result, naming its kind.
+- **SC-005**: Each refusal holds on the running stack, with the quiz's real files: a command run
+  with a `quiz` section in `config/generation.yaml`, such as `doctor`, stops and names the key; a
+  `quiz` and a `quiz_check` experiment are refused as unknown kinds; and `benchmark-report`
+  refuses a quiz result, naming its kind. The unit tests check the same rules with `extraction`
+  or made-up names, so that no test names the quiz (SC-001).
 - **SC-006**: For the same configuration, the index fingerprint and the catalog's schema are the
   same as `main`'s, so an index that `main` built would be current on this branch. The diff shows
-  it: against `main`, it changes only the files that `plan.md`'s Project Structure lists and the
-  records (`README.md`, `docs/`, this spec's folder), and none of them is an input of the
-  fingerprint or the catalog's schema. The same rule shows US1's "nothing else moves".
+  it: since the branch left `main` (`git diff main...HEAD`), it changes only the files that
+  `plan.md`'s Project Structure lists and the records (`README.md`, `docs/`, this spec's folder),
+  and none of them is an input of the fingerprint or the catalog's schema. The same rule shows
+  US1's "nothing else moves".
 
 ## Assumptions
 

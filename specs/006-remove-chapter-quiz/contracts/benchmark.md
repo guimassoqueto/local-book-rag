@@ -29,7 +29,7 @@ Unknown fields are still refused (`extra="forbid"`).
 | Result's kind | Outcome |
 | ------------- | ------- |
 | `retrieval`, `generation`, `summarization`, `performance` | rendered as on `main` |
-| `quiz`, `quiz_check`, `extraction`, or any other | exit status 1, nothing on standard output, and on standard error: `error: This is a result of the '<kind>' kind, which the benchmark no longer has. benchmark-report renders retrieval, generation, summarization and performance runs.` |
+| `quiz`, `quiz_check`, `extraction`, or any other | exit status 1, nothing on standard output, and on standard error: `error: This is a result of the '<kind>' kind, which this benchmark doesn't run. benchmark-report renders retrieval, generation, summarization and performance runs.` |
 
 `extraction` results were renderable after `specs/005`. None exists any more (R6).
 

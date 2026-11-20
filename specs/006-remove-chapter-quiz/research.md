@@ -149,8 +149,8 @@ which misleads.
 **Decision.** `render()` checks the result's kind before anything else. A kind outside
 `EXPERIMENT_KINDS` raises `ConfigurationError`:
 
-> This is a result of the 'quiz' kind, which the benchmark no longer has. benchmark-report
-> renders retrieval, generation, summarization and performance runs.
+> This is a result of the 'quiz' kind, which this benchmark doesn't run. benchmark-report renders
+> retrieval, generation, summarization and performance runs.
 
 `main()` already prints a `BookRagError` as `error: …` and exits with 1. `render()` returns the
 Markdown as a whole and `_benchmark_report` prints it only on success, so a refused result prints
@@ -199,7 +199,9 @@ forbids ignoring a key, and the repository's configuration loses the section in 
 
 **Decision.** Three checks, all before the pull request:
 
-1. **The diff.** `git diff main -- app/generation/prompts.py` removes lines and adds none. The
+1. **The diff.** `git diff main...HEAD -- app/generation/prompts.py` removes lines and adds none.
+   The three dots compare with where the branch left `main`, so a later merge into `main` doesn't
+   count. The
    modules that hold the judges' prompts, `app/evaluation/summary_metrics.py` and
    `app/evaluation/ragas_llm.py`, aren't in the diff at all, nor are `question_answering.py`,
    `summarization.py` and `citations.py`.
@@ -234,8 +236,9 @@ alone shows the code is the same, and the script shows the outputs are.
 
 ## R9. Proving the index and the catalog untouched
 
-**Decision.** SC-006 is shown by what the diff touches, as a positive rule: `git diff main
---name-only` lists only the files that `plan.md`'s Project Structure names, the records
+**Decision.** SC-006 is shown by what the diff touches, as a positive rule:
+`git diff main...HEAD --name-only` lists only the files that `plan.md`'s Project Structure names,
+the records
 (`README.md`, `docs/decisions.md`, `docs/benchmark-results.md`) and this spec's folder. None of
 them is an input of the fingerprint:
 - `app/services/index_service.py` (`current_configuration`, `METADATA_SCHEMA_VERSION`);
@@ -265,11 +268,11 @@ rewritten when it is the only test of something that stays and checks it through
 | ---- | ------- | ------------------- | ----- |
 | `tests/unit/test_container.py` | its three tests: the checker's level, the checker's model and profile, `quiz_downloads` | | the container builds one provider, for `llm.model` with its profile, shared by questions and summaries (FR-004). Without it, `assemble()` would have no test |
 | `tests/unit/test_llm_provider.py` | `test_a_reasoning_level_replaces_the_profiles_for_that_provider_only` | `test_the_factory_builds_a_named_model_from_its_own_profile` and `test_a_model_without_a_profile_is_refused` name the model through a copy of the settings with another `llm.model`, not the removed parameter. The section comment stops naming `generation.quiz.check` | |
-| `tests/unit/test_config.py` | the seven quiz-settings tests from `test_the_quiz_settings_load_with_their_defaults` to `test_the_checker_reasoning_can_be_left_to_the_profile` | `test_an_unknown_quiz_key_is_rejected` becomes FR-003's test: a `quiz` section under `generation` stops loading, naming `generation.quiz` | |
-| `tests/unit/test_report.py` | `quiz_results` and the six tests that render a `quiz` or `quiz_check` run | | `render()` refuses a `quiz`, a `quiz_check` and an `extraction` result, naming the kind (FR-012); a retrieval result with `by_book` renders "## By book", which only the quiz's fixture exercised |
+| `tests/unit/test_config.py` | the eight quiz-settings tests, from `test_an_unknown_quiz_key_is_rejected` and `test_the_quiz_settings_load_with_their_defaults` to `test_the_checker_reasoning_can_be_left_to_the_profile` | | an unknown section under `generation`, with a neutral name such as `retired`, stops loading, naming it (FR-003) |
+| `tests/unit/test_report.py` | `quiz_results` and the six tests that render a `quiz` or `quiz_check` run | | `render()` refuses an `extraction` result and one of a made-up kind, naming the kind (FR-012); a retrieval result with `by_book` renders "## By book", which only the quiz's fixture exercised |
 | `tests/unit/test_interface.py` | the quiz block: its helpers and twelve tests (lines 432–612) | the fixture loses `quizzes`; `test_every_primary_operation_is_reachable` loses `prepare_quiz` and `grade_quiz`; `test_the_interface_clears_gradios_copies_of_downloads_within_the_hour` is renamed for uploads, its assertion unchanged; the imports of `QuizWriter`, `QuizService` and `Path` go | the tabs are Library, Chat, Summarization and Research, in that order (FR-001) |
-| `tests/unit/test_benchmark.py` | the quiz drafts and helpers (`QUIZ_DRAFT`, `quiz_reply`, `quiz_experiment`, `answers`, `local_book`, `question_rows`, `quiz_rows`, `FOX`, `known_case`, `check_experiment`, `check_models`, `cases_of`, `check_summary`), and the tests of the two kinds: targets, seed, local books, the reading, the default count, closed-book answers, failed targets, the known cases, the check's verdict and the key's length | the `lab` fixture loses `quiz_llm` and `quizzes`. `test_an_extraction_experiment_is_refused_naming_the_kinds_left` covers `extraction`, `quiz` and `quiz_check`, and the allowed kinds are the four. Three are rewritten without the quiz: `test_unknown_quiz_keys_are_refused` becomes a retrieval experiment refused for each of the five removed fields (FR-011); `test_the_environment_records_the_commit_and_every_books_checksum` runs a retrieval experiment; `test_the_known_cases_are_read_beside_the_experiment` becomes `load_experiment` reading a valid retrieval file. The `re` import goes | |
-| `tests/unit/test_commands.py` | | the fixture loses `quizzes=None` | `benchmark-report` on a quiz result fails naming the kind, and prints nothing to standard output |
+| `tests/unit/test_benchmark.py` | the quiz drafts and helpers (`QUIZ_DRAFT`, `quiz_reply`, `quiz_experiment`, `answers`, `local_book`, `question_rows`, `quiz_rows`, `FOX`, `known_case`, `check_experiment`, `check_models`, `cases_of`, `check_summary`), and the tests of the two kinds: targets, seed, local books, the reading, the default count, closed-book answers, failed targets, the known cases, the check's verdict and the key's length | the `lab` fixture loses `quiz_llm` and `quizzes`. `test_an_extraction_experiment_is_refused_naming_the_kinds_left` stays on `extraction`, and the allowed kinds it reads are exactly the four, which shows no other kind is left (FR-011). Three are rewritten without the quiz: `test_unknown_quiz_keys_are_refused` becomes a retrieval experiment refused for an unknown key, which, with SC-001's search of the names, shows that the five removed fields are refused; `test_the_environment_records_the_commit_and_every_books_checksum` runs a retrieval experiment; `test_the_known_cases_are_read_beside_the_experiment` becomes `load_experiment` reading a valid retrieval file. The `re` import goes | |
+| `tests/unit/test_commands.py` | | the fixture loses `quizzes=None` | `benchmark-report` on an `extraction` result fails naming the kind, and prints nothing to standard output |
 
 Unchanged: `test_sigterm_shuts_gradio_down_as_an_interrupt_does`, every other test file, and the
 shared helpers (`tests/conftest.py`, `tests/fakes.py`, `tests/library.py`,
@@ -277,7 +280,10 @@ shared helpers (`tests/conftest.py`, `tests/fakes.py`, `tests/library.py`,
 check, since `apply_overrides` and a copy of the settings can hand it a model without one.
 
 No test searches the repository for the word: SC-001 is a one-time check (quickstart), and a
-permanent one would trip on Portuguese text in a future fixture.
+permanent one would trip on Portuguese text in a future fixture. Nor does any test name the quiz,
+its kinds or its fields. The refusal tests check their rules with `extraction` or made-up names,
+and the quiz's real configuration, experiments and result are refused on the stack (quickstart
+§ 6). So SC-001's searches hold for the tests too.
 
 **Rationale.** FR-005: what the shared files checked about the rest stays checked. Six behaviors
 were tested only through the quiz: the container's wiring, the factory's profile for a named

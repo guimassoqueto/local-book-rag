@@ -80,11 +80,11 @@ scenario 4, taken from `main`'s code before anything changes.
 
   It reads the settings with `load_settings(Path("config"))` from the tree it runs on, and labels
   each line with what it hashed.
-- [ ] T003 Run T002's script on `main`'s code and keep its output:
-  `git worktree add "$SCRATCH/main-tree" "$(git merge-base main HEAD)"`, then
-  `cd "$SCRATCH/main-tree" && PYTHONPATH="$SCRATCH/main-tree" <repo>/.venv/bin/python "$SCRATCH/same_as_main.py" > "$SCRATCH/main.txt"`.
+- [ ] T003 Run T002's script on `main`'s code and keep its output. From the repository's root:
+  `REPO="$PWD"`, `git worktree add "$SCRATCH/main-tree" "$(git merge-base main HEAD)"`, then
+  `cd "$SCRATCH/main-tree" && PYTHONPATH="$SCRATCH/main-tree" "$REPO/.venv/bin/python" "$SCRATCH/same_as_main.py" > "$SCRATCH/main.txt"`.
   `PYTHONPATH` puts the worktree's `app` ahead of the editable install. Check that the first line
-  names the worktree, then `git worktree remove "$SCRATCH/main-tree"`.
+  names the worktree, then go back to `$REPO` and `git worktree remove "$SCRATCH/main-tree"`.
 
 **Checkpoint**: `$SCRATCH/main.txt` holds `main`'s hashes.
 
@@ -187,12 +187,16 @@ stack, T037 and T041.
 
 ### Tests for User Story 3 (write first, and see them fail)
 
-- [ ] T013 [P] [US3] In `tests/unit/test_benchmark.py` (FR-011, research.md R5, R10):
+- [ ] T013 [P] [US3] In `tests/unit/test_benchmark.py` (FR-011, research.md R5, R10). No test
+  names the quiz or its fields, so that SC-001's searches hold for the tests too. The quiz's own
+  experiments are refused on the stack (T041).
   - **Refusal of the kinds.** `test_an_extraction_experiment_is_refused_naming_the_kinds_left`
-    covers `extraction`, `quiz` and `quiz_check`, and the allowed kinds it reads are exactly
-    `'retrieval'`, `'generation'`, `'summarization'` and `'performance'`.
-  - **Refusal of the fields.** A new test: a retrieval experiment that sets `seed`, `targets`,
-    `local_books`, `known_cases` or `case_set` is refused, naming the field (parametrized).
+    stays on `extraction`. The allowed kinds it reads must be exactly `'retrieval'`,
+    `'generation'`, `'summarization'` and `'performance'`, which shows that no other kind is left.
+    It fails while `'quiz_check'` is among them.
+  - **Refusal of the fields.** No test of its own. T006 shows that a retrieval experiment refuses
+    a key it doesn't know, and SC-001's search of the names shows that the five fields are no
+    longer known.
   - **Deleted, with what only they use:** `QUIZ_DRAFT`, `quiz_reply`, `quiz_experiment`, `answers`,
     `local_book`, `question_rows`, `quiz_rows`, `FOX`, `known_case`, `check_experiment`,
     `check_models`, `cases_of` and `check_summary`. With them go these tests:
@@ -217,8 +221,10 @@ stack, T037 and T041.
   Remove the imports left unused, `re` among them. The `lab` fixture keeps `quiz_llm` and
   `quizzes=QuizService(...)` until T026.
 - [ ] T014 [P] [US3] In `tests/unit/test_report.py` (FR-012, contracts/benchmark.md):
-  - **Add** a test, parametrized over `quiz`, `quiz_check` and `extraction`: `render()` raises
-    `ConfigurationError` naming the kind, for a result that holds nothing but its experiment.
+  - **Add** a test, parametrized over `extraction` and a made-up kind such as `retired`:
+    `render()` raises `ConfigurationError` naming the kind, for a result that holds nothing but
+    its experiment. It fails while `render()` accepts any kind. No test names the quiz: T041
+    refuses a real quiz result on the stack.
   - **Delete** `quiz_results`, its comment, and the six tests that render a quiz or `quiz_check`
     run: `test_the_quiz_report_shows_every_measure`,
     `test_closed_book_correct_is_shown_without_a_target`,
@@ -226,11 +232,11 @@ stack, T037 and T041.
     `test_the_quiz_report_says_when_nothing_is_marked`,
     `test_quiz_variants_pair_question_by_question` and
     `test_a_check_run_shows_its_catches_and_its_verdict`.
-- [ ] T015 [P] [US3] In `tests/unit/test_commands.py`, add a test that `benchmark-report` on a quiz
-  run's folder fails and prints nothing to standard output (FR-012). Write a `results.json` of
-  kind `quiz` and a `reading.csv` into `tmp_path`, then
+- [ ] T015 [P] [US3] In `tests/unit/test_commands.py`, add a test that `benchmark-report` on a
+  result of a kind it doesn't render fails and prints nothing to standard output (FR-012). Write a
+  `results.json` of kind `extraction` and a `reading.csv` beside it into `tmp_path`, then
   `run(main._benchmark_report, container, capsys, results=tmp_path, baseline=None)` raises
-  `ConfigurationError` naming `'quiz'`, and `capsys.readouterr().out` is empty.
+  `ConfigurationError` naming `'extraction'`, and `capsys.readouterr().out` is empty.
 - [ ] T016 [P] [US3] Delete `tests/unit/test_quiz_metrics.py`, whose module goes at T021.
 
 ### Implementation for User Story 3
@@ -261,7 +267,7 @@ stack, T037 and T041.
   T014 passes:
   - **The refusal.** `render(results, baseline=None)` (`data-model.md`, `render()`) first checks
     `results["experiment"]["kind"]` against `EXPERIMENT_KINDS`. Any other kind raises
-    `ConfigurationError("This is a result of the '<kind>' kind, which the benchmark no longer has. benchmark-report renders retrieval, generation, summarization and performance runs.")`.
+    `ConfigurationError("This is a result of the '<kind>' kind, which this benchmark doesn't run. benchmark-report renders retrieval, generation, summarization and performance runs.")`.
   - **What goes.** The `reading` parameter, the `quiz_check` branch and the quiz sections in
     `render()`; `_quiz_sections`, `_check_section` and `_reading_section`; the `quiz_check` case
     of `_comparisons()`; the imports from `quiz_metrics` and of `REFUSAL_KINDS`. The docstrings
@@ -299,10 +305,12 @@ unit tests. On the real stack, T041's configuration check.
 ### Tests for User Story 2 (write first, and see them fail)
 
 - [ ] T024 [P] [US2] In `tests/unit/test_config.py` (FR-003, contracts/configuration.md):
-  - **The refusal.** `test_an_unknown_quiz_key_is_rejected` becomes FR-003's test: a `quiz`
-    section under `generation`, with any content, stops loading with `ConfigurationError` matching
-    `generation.quiz`. It fails while the section is valid.
-  - **Deleted:** the seven quiz-settings tests, `test_the_quiz_settings_load_with_their_defaults`,
+  - **The refusal.** A new test, with a neutral name: an unknown section under `generation`, such
+    as `retired: {}`, stops loading with `ConfigurationError` matching `generation.retired`. It
+    passes before and after, since it checks the rule that refuses a leftover `quiz` section. No
+    test names the quiz: T041 refuses `main`'s real configuration on the stack.
+  - **Deleted:** the eight quiz-settings tests, `test_an_unknown_quiz_key_is_rejected`,
+    `test_the_quiz_settings_load_with_their_defaults`,
     `test_the_checker_model_needs_a_profile`, `test_a_checker_model_with_a_profile_is_accepted`,
     `test_the_quiz_limits_must_leave_room_for_the_prompt`,
     `test_the_default_count_cannot_exceed_the_cap`,
@@ -395,9 +403,10 @@ unit tests. On the real stack, T041's configuration check.
   - `make lint-check` and `make test` pass, T024 to T026 included;
   - both searches of § 2 print nothing outside the records, and the third finds only the
     removal's section and the quiz's section of the two documents (SC-001);
-  - `git diff main --name-only` lists only the files of plan.md's Project Structure, the records
-    and this spec's folder (SC-006);
-  - `git diff main -U0 -- app/generation/prompts.py | grep '^+[^+]'` prints nothing.
+  - `git diff main...HEAD --name-only` lists only the files of plan.md's Project Structure, the
+    records and this spec's folder (SC-006). The three dots compare with where the branch left
+    `main`, so a later merge into `main` doesn't count;
+  - `git diff main...HEAD -U0 -- app/generation/prompts.py | grep '^+[^+]'` prints nothing.
 
 **Checkpoint**: Nothing of the quiz is left in the code, the configuration or the tests.
 
@@ -490,7 +499,8 @@ host's quiz files, and the record of the results.
 
 ### Within Each User Story
 
-- New-behavior tests first, and they fail: T009, T013 to T015, T024 and T026.
+- New-behavior tests first, and they fail: T009, T013 to T015, and T026. T024 passes before and
+  after, since the rule it checks already refuses any unknown key.
 - Then the consumers before what they import: the interface (T010) before its module goes (T011);
   `kinds.py` (T017) before the runner and the report (T018, T019); the report (T019) before
   `main.py` (T020); all three before `quiz_metrics.py` goes (T021); the container (T028) before
@@ -515,9 +525,9 @@ host's quiz files, and the record of the results.
 
 ```bash
 # The tests of User Story 3, together:
-Task: "T013 In tests/unit/test_benchmark.py, the refusals of kinds and fields, and the quiz's tests deleted"
-Task: "T014 In tests/unit/test_report.py, render() refuses quiz, quiz_check and extraction results"
-Task: "T015 In tests/unit/test_commands.py, benchmark-report on a quiz result fails, printing nothing"
+Task: "T013 In tests/unit/test_benchmark.py, exactly four kinds allowed, and the quiz's tests deleted"
+Task: "T014 In tests/unit/test_report.py, render() refuses an extraction result and a made-up kind"
+Task: "T015 In tests/unit/test_commands.py, benchmark-report on an extraction result fails, printing nothing"
 Task: "T016 Delete tests/unit/test_quiz_metrics.py"
 
 # Then, once T017 has created app/evaluation/kinds.py:
