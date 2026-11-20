@@ -6,10 +6,14 @@ configuration on main's code with the original books, and on the Markdown-only b
 their conversions (specs/005-markdown-only, FR-020, research.md R13).
 
 It merges both runs' rows under the labels given, leaving out each question whose evidence
-resolved to no chunk in either run (its metrics would measure the chunking, not the retrieval), and
-renders them with app.evaluation.report: each metric's difference, with its 95% interval from
-4,000 resamples. Then it lists the questions whose Recall@5, MRR or nDCG@10 moved, to read what
-each retrieved before naming a difference. It runs on the host, from the repository's root:
+resolved to no chunk in one of the runs (its metrics would measure the chunking, not the
+retrieval), and renders them with app.evaluation.report: each metric's difference, with its 95%
+interval from 4,000 resamples. Then it lists the questions whose Recall@5, MRR or nDCG@10 moved,
+and shows what each run retrieved for them: the ranks the evidence took, and the chunks that ranked
+above it, down to the lowest-ranked evidence among the first ten (specs/007-retrieval-rows). A run
+written before the rows recorded their rankings says so. Each run's chunk IDs are its own, since
+another chunking or ingestion numbers the chunks differently. It runs on the host, from the
+repository's root:
 
     uv run python devtools/compare_runs.py benchmarks/results/markdown_books_<main> \
         benchmarks/results/markdown_books_<branch> --labels originals markdown
@@ -18,7 +22,7 @@ each retrieved before naming a difference. It runs on the host, from the reposit
 import argparse
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -27,6 +31,7 @@ from app.evaluation.benchmark import _RETRIEVAL_METRICS, summarize
 from app.evaluation.report import render
 
 _MOVING = ("recall_at_5", "mrr", "ndcg_at_10")
+_DEEPEST = 10  # Recall@10 and nDCG@10 read no deeper, and MRR only down to the first evidence
 
 
 class ComparisonError(Exception):
@@ -112,6 +117,42 @@ def moved(rows: Sequence[Mapping[str, Any]], labels: Sequence[str]) -> list[list
     return table
 
 
+def ranked_above(row: Mapping[str, Any]) -> tuple[str, str]:
+    """What ranked above a question's evidence in one run: the ranks its evidence took, and the others.
+
+    The reading goes down to the lowest-ranked evidence among the first ten, as deep as the scores
+    that decide whether a question moved read. When none of the evidence is there, it goes down to
+    the first piece of evidence, which MRR reads however deep. The evidence is the run's own
+    relevant_chunks: a chunk ID holds within its run only (specs/007-retrieval-rows, FR-009 to FR-011).
+
+    Returns:
+        The cells "evidence at" and "ranked above it".
+    """
+    ranking = row.get("ranking")
+    if ranking is None:  # written before the rows recorded their rankings
+        return "not recorded", "not recorded"
+    evidence = {chunk_id for chunk_id in row["relevant_chunks"].split("; ") if chunk_id}
+    ranks = [rank for rank, chunk_id in enumerate(ranking, start=1) if chunk_id in evidence]
+    if not ranks:  # the chunks that took the evidence's places
+        return "not retrieved", _ranked(enumerate(ranking[:_DEEPEST], start=1))
+    within = [rank for rank in ranks if rank <= _DEEPEST]
+    depth = within[-1] if within else ranks[0]
+    above = [(rank, chunk_id) for rank, chunk_id in enumerate(ranking[: depth - 1], start=1) if chunk_id not in evidence]
+    return ", ".join(str(rank) for rank in ranks if rank <= depth), _ranked(above)
+
+
+def _ranked(chunks: Iterable[tuple[int, str]]) -> str:
+    return "; ".join(f"{rank}: {chunk_id}" for rank, chunk_id in chunks) or "none"
+
+
+def _table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> list[str]:
+    return [
+        "| " + " | ".join(headers) + " |",
+        "|" + "|".join(" --- " for _ in headers) + "|",
+        *("| " + " | ".join(str(cell) for cell in row) + " |" for row in rows),
+    ]
+
+
 def render_comparison(baseline: Mapping[str, Any], changed: Mapping[str, Any], labels: Sequence[str]) -> str:
     """The comparison as Markdown: what each run was, what was left out, the pairing and what moved."""
     merged = merge(baseline, changed, labels)
@@ -136,12 +177,12 @@ def render_comparison(baseline: Mapping[str, Any], changed: Mapping[str, Any], l
     ]
     table = moved(merged.results["rows"], labels)
     lines += ["", "## Questions that moved", ""]
+    lines += _table(headers, table) if table else ["None."]
     if table:
-        lines.append("| " + " | ".join(headers) + " |")
-        lines.append("|" + "|".join(" --- " for _ in headers) + "|")
-        lines += ["| " + " | ".join(str(cell) for cell in row) + " |" for row in table]
-    else:
-        lines.append("None.")
+        rows = {(row["question"], row["variant"]): row for row in merged.results["rows"]}
+        readings = [[entry[0], label, *ranked_above(rows[entry[0], label])] for entry in table for label in labels]
+        lines += ["", "## What ranked above the evidence", ""]
+        lines += _table(["question", "run", "evidence at", "ranked above it"], readings)
     return "\n".join(lines) + "\n"
 
 

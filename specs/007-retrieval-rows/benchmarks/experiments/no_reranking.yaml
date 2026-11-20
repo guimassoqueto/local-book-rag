@@ -1,0 +1,10 @@
+name: no_reranking
+kind: retrieval
+description: >-
+  The default configuration with reranking off: the retriever's own order, so that two runs that
+  rank differently can be compared question by question (specs/007-retrieval-rows, SC-005).
+
+variants:
+  - name: hybrid_rrf
+    overrides:
+      retrieval: {reranker: {enabled: false}}

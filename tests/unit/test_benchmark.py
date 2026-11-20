@@ -1,6 +1,8 @@
+import csv
 import json
 import re
 from collections import Counter
+from dataclasses import replace
 
 import pytest
 import yaml
@@ -19,13 +21,21 @@ from app.evaluation.benchmark import (
     load_experiment,
     summarize,
 )
-from app.evaluation.dataset import CATEGORY_COUNTS
+from app.evaluation.dataset import CATEGORY_COUNTS, relevant_chunks
 from app.evaluation.generation_metrics import JudgeScores
 from app.evaluation.performance import PerformanceResult
+from app.evaluation.retrieval_metrics import (
+    context_precision,
+    context_recall,
+    ndcg_at_k,
+    recall_at_k,
+    reciprocal_rank,
+)
 from app.generation.base import GenerationParameters
 from app.generation.question_answering import QuestionAnsweringService
 from app.services.health_service import HealthService
 from app.services.reset_service import CONFIRM_RESET_EVERYTHING, ResetService
+from app.services.retrieval_service import RetrievalService
 from app.storage.catalog import BookStatus
 from app.utils.hashing import file_checksum
 from tests.fakes import FakeEmbedder, FakeLLM, FakeRuntime
@@ -231,6 +241,87 @@ def test_a_run_writes_machine_readable_results(lab):
     assert report["environment"]["configuration"]["chunking"]
 
 
+def the_row_in_each_file(directory):
+    """A one-row run's row, as rows.jsonl, results.json and rows.csv each hold it."""
+    [written] = [json.loads(line) for line in (directory / "rows.jsonl").read_text(encoding="utf-8").splitlines()]
+    [reported] = report_of(directory)["rows"]
+    with (directory / "rows.csv").open(encoding="utf-8", newline="") as file:
+        [tabled] = list(csv.DictReader(file))
+    return written, reported, tabled
+
+
+def test_a_retrieval_row_records_its_ranking_and_its_context_in_the_three_files(lab):
+    runner, *_ = lab
+
+    directory = runner.run(retrieval_experiment())
+
+    written, reported, tabled = the_row_in_each_file(directory)
+    assert written == reported
+    for key in ("ranking", "context"):
+        assert written[key]
+        assert all(isinstance(chunk_id, str) for chunk_id in written[key])
+        assert tabled[key] == "; ".join(written[key])  # one cell, as relevant_chunks is
+    assert list(written)[-3:] == ["rerank_seconds", "ranking", "context"]
+    assert list(tabled)[-2:] == ["ranking", "context"]
+    header = (directory / "summary.csv").read_text(encoding="utf-8").splitlines()[0].split(",")
+    assert "ranking" not in header and "context" not in header
+
+
+def test_a_rows_scores_are_computed_from_the_lists_it_records(lab, settings):
+    runner, *_ = lab
+    [variant] = retrieval_experiment().variants
+
+    [row] = report_of(runner.run(retrieval_experiment()))["rows"]
+
+    workspace = runner._open(apply_overrides(settings, variant.overrides))
+    [question] = runner._dataset.questions
+    evidence = relevant_chunks(question, workspace.chunks[question.book])
+    assert row["recall_at_5"] == recall_at_k(row["ranking"], evidence, 5)
+    assert row["recall_at_10"] == recall_at_k(row["ranking"], evidence, 10)
+    assert row["mrr"] == reciprocal_rank(row["ranking"], evidence)
+    assert row["ndcg_at_10"] == ndcg_at_k(row["ranking"], evidence, 10)
+    assert row["context_precision"] == context_precision(row["context"], evidence)
+    assert row["context_recall"] == context_recall(row["context"], evidence)
+
+
+def test_a_row_records_the_lists_as_the_search_returned_them(lab, monkeypatch):
+    runner, *_ = lab
+    real_search = RetrievalService.search
+    returned = []
+
+    def reordered(service, query, filters, config=None):
+        """As a reranker would: another order, and a passage without the evidence first."""
+        result = real_search(service, query, filters, config)
+        first = result.candidates[0]
+        stranger = replace(first, chunk=replace(first.chunk, chunk_id="book_001_chapter_09_chunk_0099", text="No."))
+        candidates = (stranger, *reversed(result.candidates))
+        returned.append(replace(result, candidates=candidates, passages=candidates[1:3]))
+        return returned[-1]
+
+    monkeypatch.setattr(RetrievalService, "search", reordered)
+
+    [row] = report_of(runner.run(retrieval_experiment()))["rows"]
+
+    [result] = returned
+    assert row["ranking"] == [passage.chunk.chunk_id for passage in result.candidates]
+    assert row["context"] == [passage.chunk.chunk_id for passage in result.passages]
+    assert row["ranking"][0] == "book_001_chapter_09_chunk_0099"
+    assert row["mrr"] == 0.5  # read from the order recorded: the evidence comes second
+
+
+@pytest.mark.parametrize("reranking", [False, True], ids=["reranking off", "reranking on"])
+def test_the_context_is_the_rankings_first_passages(lab, reranking):
+    runner, *_ = lab
+    overrides = {"retrieval": {"strategy": "bm25", "reranker": {"enabled": reranking, "top_k": 1}}}
+    variant = VariantConfig(name="bm25", overrides=overrides)
+    experiment = Experiment(name="test", kind="retrieval", description="A test.", variants=(variant,))
+
+    [row] = report_of(runner.run(experiment))["rows"]
+
+    assert len(row["ranking"]) == 3  # the book's three chunks, all found
+    assert row["context"] == row["ranking"][:1]
+
+
 def test_a_benchmark_never_touches_the_real_library(lab):
     runner, _, _, data = lab
 
@@ -299,7 +390,9 @@ def test_rows_reach_the_disk_before_a_run_fails(lab, monkeypatch):
         runner.run(two_variants)
 
     [directory] = (runner._root / "results").iterdir()
-    assert json.loads((directory / "rows.jsonl").read_text(encoding="utf-8"))["variant"] == "bm25"
+    row = json.loads((directory / "rows.jsonl").read_text(encoding="utf-8"))
+    assert row["variant"] == "bm25"
+    assert row["ranking"] and row["context"]
 
 
 def test_a_package_left_out_with_its_extra_is_recorded_as_missing(lab, monkeypatch):
@@ -403,6 +496,7 @@ def test_a_generation_run_reports_every_answer(lab, models):
     assert report["summary"][0]["faithfulness"] == 1.0
     assert report["summary"][0]["answer_relevance_samples"] == 0
     assert row["evidence_in_context"] == 1.0
+    assert "ranking" not in row and "context" not in row  # its search records nothing new
     assert json.loads((directory / "rows.jsonl").read_text(encoding="utf-8"))["question"] == "q1"
 
 

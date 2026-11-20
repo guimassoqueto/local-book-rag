@@ -85,6 +85,17 @@ def test_a_run_split_by_book_shows_a_table_for_the_books():
     assert "| base | a_book |" in report and "| base | b_book |" in report
 
 
+@pytest.mark.parametrize("baseline", [None, "base"], ids=["alone", "with a baseline"])
+def test_what_a_retrieval_row_retrieved_changes_nothing_in_the_report(baseline):
+    written_before = [*scored("base", 0.5), *scored("better", 0.6)]
+    written_after = [item | {"ranking": ["c2", "c1", "c3"], "context": ["c2", "c1"]} for item in written_before]
+
+    report = render(results(written_after), baseline)
+
+    assert report == render(results(written_before), baseline)
+    assert "c2" not in report
+
+
 @pytest.mark.parametrize("kind", ["extraction", "retired"])
 def test_a_result_of_a_kind_the_benchmark_doesnt_run_is_refused(kind):
     with pytest.raises(ConfigurationError, match=f"'{kind}' kind"):

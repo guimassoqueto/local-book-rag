@@ -408,16 +408,18 @@ opening words, because that is how to find it: books have no pages.
 Comparing configurations under controlled conditions is the point of this project, so the
 benchmarks are a first-class part of it. The runner, the metrics and the report are in
 `app/evaluation`. `benchmarks/` itself is ignored by git: the dataset's last version is in
-`specs/005-markdown-only/benchmarks/`, with the experiment that feature added, the other
-experiments' last versions are in commit `c7bb785`, and `docs/benchmark-results.md` records what
-the runs found. The books are never in the repository (see the dataset, below). Neither the image
-nor a mount brings `benchmarks/` into the app container, so a run starts by copying it in, and ends
-by copying the results out before the container goes:
+`specs/005-markdown-only/benchmarks/`, with the experiment that feature added, `no_reranking` is
+in `specs/007-retrieval-rows/benchmarks/`, the other experiments' last versions are in commit
+`c7bb785`, and `docs/benchmark-results.md` records what the runs found. The books are never in the
+repository (see the dataset, below). Neither the image nor a mount brings `benchmarks/` into the
+app container, so a run starts by copying it in, and ends by copying the results out before the
+container goes:
 
 ```bash
 git archive c7bb785 benchmarks/experiments | tar -x           # the experiments
 rm benchmarks/experiments/extraction.yaml                     # a kind that no longer exists
 cp -r specs/005-markdown-only/benchmarks/. benchmarks/        # the dataset, and markdown_books.yaml
+cp -r specs/007-retrieval-rows/benchmarks/. benchmarks/       # no_reranking.yaml
 # the three Markdown books go into benchmarks/books (see the dataset, below)
 docker compose cp -a benchmarks app:/app/                     # into the app container
 docker compose exec app book-rag pull-models --all            # every candidate model, about 40 GB
@@ -448,7 +450,12 @@ The experiments in that commit:
 `markdown_books`, in `specs/005-markdown-only/benchmarks/experiments/`, is a `retrieval`
 experiment with one variant, the default configuration. It ran on two versions of the code and of
 the books, and `devtools/compare_runs.py` pairs two such runs question by question, which
-`benchmark-report --baseline` can't do across runs.
+`benchmark-report --baseline` can't do across runs. For each question whose Recall@5, MRR or
+nDCG@10 moved, it shows what each run retrieved: the ranks its evidence took, and the chunks that
+ranked above it, down to the lowest-ranked evidence among the first ten. A run written before the
+rows recorded their rankings says that it didn't record one. `no_reranking`, in
+`specs/007-retrieval-rows/benchmarks/experiments/`, is the default configuration with reranking
+off, the second run that checked this comparison.
 
 Results go to `benchmarks/results/<experiment>_<time>/`: `summary.csv`, `rows.csv` with every
 question, answer and summary, and `results.json`, which also records what a result means nothing
@@ -493,7 +500,11 @@ are never mixed up. Compare them as two runs, with `devtools/compare_runs.py`.
 
 Relevance is stored as verbatim evidence quotes, not chunk IDs. IDs change with every chunk size,
 and comparing chunk sizes is one of the experiments, while a quote finds its chunks under any
-configuration. Each result row lists the chapters and chunks the evidence resolved to.
+configuration. Each result row lists the chapters and chunks the evidence resolved to. A retrieval
+row also lists, by chunk ID, its ranking, every passage the search considered in the order that
+its scores read, and its context, the passages kept after reranking. So what ranked above the
+evidence can be read from the results. An ID holds within its run only: another chunk size, or
+another ingestion, numbers the chunks differently.
 
 Automated scores are a first signal, not a verdict. RAGAS and the summary rubric rely on a model
 as judge, the same one for every candidate, so they compare candidates with each other rather
