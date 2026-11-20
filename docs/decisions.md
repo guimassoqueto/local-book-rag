@@ -456,6 +456,15 @@ before the next one starts. A terminal can't, so `ask` says on standard error th
 is discarded, and which model answers from the start. Holding a cloud answer back until it is
 whole would leave nothing to withdraw, but would stream nothing either.
 
+**The provider reads three things the plan's mapping left out.** The SDK reports an error that
+arrives inside a stream, such as an overload after the request was accepted, with the stream's HTTP
+status, 200, so the API's error type decides its reason: an overload or an API error is an outage, a
+rate limit a rate limit, an authentication, permission or billing error a refused key, and any
+other a rejected request. A reply that stops because it filled the model's window
+(`model_context_window_exceeded`) is read like one that stopped at its token limit: an answer when
+it has text. And a check that can't reach Anthropic, or gets nothing in time, ends with one row, as
+a refused key does, instead of waiting the profile's 120 seconds once for each allowed model.
+
 **Benchmark results from now on have another configuration hash.** `Settings` gained
 `cloud_profiles`, which every result records with the rest of the configuration, so a run of the
 same local setup has another `configuration_sha256` than one made before. Nothing in the code

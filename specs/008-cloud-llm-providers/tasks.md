@@ -728,3 +728,11 @@ Each story leaves `make test` passing, and the app without the settings as on `m
 - No task prints the key or writes it outside `.env`; the paid calls and the rebuilds wait for the
   owner's go-ahead.
 - Commit only when the owner asks; stop at any checkpoint to validate a story on its own.
+
+## Phase 8: Convergence
+
+- [X] T070 CRITICAL: Reword the six docstrings in `app/` that name a model only as an example, in `app/errors.py` (`ModelFailedError`), `app/generation/base.py` (`Attempt.describe`), `app/generation/choices.py` (`ModelOption`), `app/interface/formatting.py` (`option_label`, `summary_attempt_line`) and `app/services/library_service.py` (`ReindexReport`), with placeholders such as `<model>` and `<provider label>`, so that `git grep -n -E 'claude-|gpt-oss|gemma|qwen|haiku|sonnet|opus' -- 'app/*.py'` finds only comments that explain a workaround, as on `main`, per Constitution I (contradicts)
+- [X] T071 Log the model that wrote a summary on its "chapter summarized" event in `app/generation/summarization.py`, so that the line no longer inherits the `summarize_chapter` operation's first model, which after a fallback reads `model=fc-a provider=ollama`, and add to `tests/unit/test_summarization.py` a fallback case that reads the event's model and provider, per FR-020 (contradicts)
+- [X] T072 Record a summary's model as its provider reported it, the final step's `GenerationStats.model`, as an answer records its own, in `app/generation/summarization.py`, with a test in `tests/unit/test_summarization.py` whose fake reports a dated name, per FR-016 (partial)
+- [X] T073 Give a picked model's fallback options from `ModelChoices` in `app/generation/choices.py` (the other offered cloud models, and none for the local model), have `app/interface/model_choice.py` show them instead of filtering `offered()` itself, and cover them in `tests/unit/test_model_choices.py`, per FR-032 (contradicts)
+- [X] T074 Record in `docs/decisions.md` and `specs/008-cloud-llm-providers/contracts/providers.md` what the Anthropic provider does beyond the contract's tables: the stop reason `model_context_window_exceeded` read as a reply cut off by its limit, an error that arrives inside the stream mapped by its API error type, and a check that ends with one row at an unreachable or silent provider, as at a refused key, per plan: R4 and R12 (unrequested)

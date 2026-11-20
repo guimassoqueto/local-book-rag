@@ -84,7 +84,7 @@ class ChapterSummary:
         steps: how many inferences it took.
         incomplete_steps: steps cut off by their token limit, which may have lost content.
         verification: the verification step's report, if enabled.
-        model: the model that wrote it, alone (FR-019).
+        model: the model that wrote it, alone (FR-019), as its provider reported it.
         total_seconds: the whole operation.
         provider: the model's provider.
         attempts: the models that failed before it, each with the tokens of the steps it finished.
@@ -244,6 +244,8 @@ class ChapterSummarizer:
                 strategy=summary.strategy,
                 steps=run.steps,
                 citations=len(summary.citations),
+                # The operation's own model is the first one asked, which a fallback may have replaced.
+                model=summary.model,
                 provider=llm.provider,
                 failed_attempts=len(attempts),
                 **tokens,
@@ -313,7 +315,7 @@ class ChapterSummarizer:
             steps=run.steps,
             incomplete_steps=run.incomplete_steps,
             verification=verification,
-            model=run.llm.model,
+            model=final.stats.model,
             total_seconds=0.0,
             provider=run.llm.provider,
             prompt_tokens=run.prompt_tokens,

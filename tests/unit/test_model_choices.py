@@ -179,3 +179,18 @@ def test_one_setting_alone_offers_nothing_and_is_a_failing_row_contacting_nothin
     assert not choices.has_cloud()
     assert choices.setting_problems() == [ProviderCheck("fakecloud", False, detail)]
     assert choices.cloud_setup.providers == ()
+
+
+# Fallback options (specs/008, Phase 8: Convergence, T073; FR-007, FR-032)
+
+
+def test_a_cloud_models_fallback_options_are_the_other_cloud_models_offered(settings):
+    choices = make_choices(settings)
+
+    assert [option.name for option in choices.fallback_options("fc-b")] == ["fc-a", "fc-c"]
+    assert all(not option.local for option in choices.fallback_options("fc-b"))
+
+
+@pytest.mark.parametrize("model", ["gpt-oss:20b", None, "fc-x"])
+def test_the_local_model_or_a_name_not_offered_takes_no_fallback_option(settings, model):
+    assert make_choices(settings).fallback_options(model) == []

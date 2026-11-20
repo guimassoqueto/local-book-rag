@@ -728,3 +728,36 @@ def test_when_every_fallback_fails_the_local_model_writes_it_listing_them_in_ord
 
     assert summary.model == "fake-llm"
     assert [attempt.model for attempt in summary.attempts] == ["fc-a", "fc-b"]
+
+
+# The model that wrote a summary (specs/008, Phase 8: Convergence, T071 and T072)
+
+
+def test_a_summary_records_the_model_its_provider_reported(settings, catalog, tmp_path):
+    fc = cloud(reported_model="fc-a-20261101")
+
+    summary = summarizer(settings, choices(FakeLLM([FINAL]), fc), catalog, chapter(2, words=100), tmp_path).summarize(
+        "book_001", 4, "standard", model="fc-a"
+    )
+
+    assert (summary.model, summary.provider) == ("fc-a-20261101", "fakecloud")
+
+
+def test_after_a_fallback_the_summary_is_logged_with_the_model_that_wrote_it(settings, catalog, tmp_path):
+    configure_logging("INFO", "INFO", tmp_path / "logs", console=False)
+    models = choices(FakeLLM([FINAL]), cloud(fail=RATE_LIMITED))
+    try:
+        summarizer(settings, models, catalog, chapter(2, words=100), tmp_path).summarize(
+            "book_001", 4, "standard", model="fc-a"
+        )
+    finally:
+        for name in ("book_rag", INFERENCE_LOGGER):
+            for handler in logging.getLogger(name).handlers:
+                handler.close()
+            logging.getLogger(name).handlers.clear()
+
+    entries = [json.loads(line) for line in (tmp_path / "logs" / "app.jsonl").read_text(encoding="utf-8").splitlines()]
+    [failed] = [entry for entry in entries if entry["message"] == "model failed"]
+    [summarized] = [entry for entry in entries if entry["message"] == "chapter summarized"]
+    assert (failed["model"], failed["provider"]) == ("fc-a", "fakecloud")
+    assert (summarized["model"], summarized["provider"], summarized["failed_attempts"]) == ("fake-llm", "ollama", 1)

@@ -140,7 +140,7 @@ class Attempt:
     step: int | None = None
 
     def describe(self, label: str) -> str:
-        """The failure as every interface words it: "claude-x (Anthropic) failed: it limited the rate."."""
+        """The failure as every interface words it: "<model> (<provider label>) failed: it limited the rate."."""
         return f"{self.model} ({label}) failed: {self.reason.describe(self.detail)}."
 
 

@@ -116,7 +116,7 @@ Subject = Literal["question", "chapter"]
 
 
 def option_label(option: ModelOption) -> str:
-    """How the Model dropdown lists a model: `gpt-oss:20b · local`, `claude-sonnet-5-5 · Anthropic`."""
+    """How the Model dropdown lists a model: `<model> · <provider label>`, `local` for the local model."""
     return f"{option.name} · {option.provider_label}"
 
 
@@ -326,7 +326,7 @@ def summary_report(summary: ChapterSummary, models: ModelChoices | None = None) 
 
 def summary_attempt_line(attempt: Attempt, models: ModelChoices, separators: bool = True) -> str:
     """A summary's failed attempt, with the tokens a cloud attempt spent before it failed, which
-    were billed too: "claude-x (Anthropic) failed at step 3: it limited the rate, after reading
+    were billed too: "<model> (<provider label>) failed at step 3: it limited the rate, after reading
     9,120 tokens and generating 1,804." """
     where = f" at step {attempt.step}" if attempt.step else ""
     label = models.label_of(attempt.provider)

@@ -72,8 +72,8 @@ class ModelChoiceError(BookRagError):
 class ModelFailedError(BookRagError):
     """A cloud model failed a request, so the next model of the sequence, if any, is asked.
 
-    Its message reads "claude-sonnet-5-5 (Anthropic) failed: it limited the rate.", and never holds
-    the key.
+    Its message reads "<model> (<provider label>) failed: it limited the rate.", and never holds the
+    key.
 
     Attributes:
         model: the model that failed.

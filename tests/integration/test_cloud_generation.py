@@ -156,7 +156,9 @@ def test_the_chapter_is_summarized_and_cited_by_lookup(settings, cloud, chunks, 
 
     summary = summarizer.summarize("book_test", 1, CASES["summary_type"], model=model)
 
-    assert (summary.model, summary.provider, summary.attempts) == (model, "anthropic", ())
+    # The model as Anthropic reported it, which may name a dated snapshot of the model asked for.
+    assert summary.model.startswith(model), summary.model
+    assert (summary.provider, summary.attempts) == ("anthropic", ())
     assert summary.strategy == "direct"
     assert summary.statements > 0 and summary.citations, summary.text
     assert summary.prompt_tokens > 0 and summary.completion_tokens > 0

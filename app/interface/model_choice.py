@@ -33,7 +33,6 @@ class ModelChoice:
 def build_model_choice(models: ModelChoices, subject: Subject) -> ModelChoice:
     """The Model dropdown, its fallbacks and its notice, in the tab being built."""
     offered = models.offered()
-    cloud = [option for option in offered if not option.local]
     model = gr.Dropdown(
         label="Model",
         choices=[(option_label(option), option.name) for option in offered],
@@ -52,7 +51,7 @@ def build_model_choice(models: ModelChoices, subject: Subject) -> ModelChoice:
     notice = gr.Markdown(visible=False)
 
     def on_model_change(name: str) -> tuple[gr.Dropdown, gr.Markdown]:
-        others = [(option_label(option), option.name) for option in cloud if option.name != name]
+        others = [(option_label(option), option.name) for option in models.fallback_options(name)]
         text = notice_text(models, name, (), subject)
         offered_after = gr.Dropdown(choices=others, value=[], multiselect=True, visible=picks_cloud(models, name))
         return offered_after, _notice(text)

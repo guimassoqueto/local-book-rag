@@ -30,7 +30,8 @@ class ModelOption:
     """A model that a request may name.
 
     Attributes:
-        name: the model, such as `gpt-oss:20b` or `claude-sonnet-5-5`.
+        name: the model, as `config/models.yaml` names the local one, or its provider's allow-list a
+            cloud one.
         provider: its provider's name, such as `ollama` or `anthropic`.
         provider_label: its provider as the interface shows it, `local` for the local model.
         local: whether it is the local model.
@@ -77,6 +78,16 @@ class ModelChoices:
 
     def has_cloud(self) -> bool:
         return bool(self._clouds)
+
+    def fallback_options(self, model: str | None) -> list[ModelOption]:
+        """The models that may follow a picked model, in the order offered: the other cloud models.
+
+        The local model, or a name not offered, takes none: the local model answers last in every
+        sequence (FR-007).
+        """
+        if model not in self._clouds:
+            return []
+        return [option for name, (_, option) in self._clouds.items() if name != model]
 
     def describe(self, model: str | None, fallbacks: Sequence[str]) -> list[ModelOption]:
         """The models a request would go to, in order, building no provider.

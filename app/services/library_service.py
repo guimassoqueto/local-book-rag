@@ -48,7 +48,7 @@ class ReindexReport:
         summaries_regenerated: saved summaries written again.
         summaries_failed: saved summaries that couldn't be, and why. The index is live anyway.
         summaries_kept: saved summaries that a cloud model wrote, left as they were, each as
-            "book_001, chapter_04_standard (claude-sonnet-5-5, Anthropic)". Their references may
+            "book_001, chapter_04_standard (<model>, <provider label>)". Their references may
             name sections that the rebuild changed (FR-023).
     """
 

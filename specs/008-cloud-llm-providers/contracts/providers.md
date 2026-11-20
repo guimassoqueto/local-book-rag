@@ -115,6 +115,7 @@ No server-side `fallbacks`, and no tools.
 | `get_final_message().usage.input_tokens`, `.output_tokens` | `prompt_tokens`, `completion_tokens` |
 | `stop_reason` `end_turn`                                | `finish_reason` `stop` |
 | `stop_reason` `max_tokens`                              | `finish_reason` `length` (`FINISHED_BY_LENGTH`) |
+| `stop_reason` `model_context_window_exceeded`           | `finish_reason` `length`, as `max_tokens`: a reply cut off by the model's window |
 | `stop_reason` `refusal`                                 | `ModelFailedError`, `declined`, its detail `stop_details.category` |
 
 `Generation.thinking_summarized` is true. `load_seconds` and `prompt_seconds` are None;
@@ -133,6 +134,12 @@ No server-side `fallbacks`, and no tools.
 | any other `APIStatusError`                      | `rejected`      | "it rejected the request: invalid_request_error" |
 | `stop_reason` `refusal`                         | `declined`      | "it declined the request (cyber)" |
 
+An error that arrives inside the stream, such as an overload after the request was accepted, comes
+as an `APIStatusError` with the stream's HTTP status, 200, so its API error type decides:
+`overloaded_error` and `api_error` are an `outage`, `rate_limit_error` is `rate limited`,
+`authentication_error`, `permission_error` and `billing_error` are `key refused`,
+`not_found_error` is `unknown model`, and any other is `rejected`.
+
 The client is built with `max_retries=0`. Before the stream has yielded anything, the provider
 tries a request again itself, at most twice, after a `RateLimitError`, an `InternalServerError` or
 an `APIConnectionError` that isn't a timeout, waiting 2 s, then 6 s, or the API's `retry-after`
@@ -148,8 +155,10 @@ No message holds the key: the SDK's errors carry the API's words, not the reques
 
 For each allowed model, `client.models.retrieve(name)`, which reads:
 - `display_name` and `max_input_tokens`, for the row's detail;
-- `capabilities["effort"][reasoning]["supported"]` and
-  `capabilities["thinking"]["types"]["adaptive"]["supported"]`, which the profile needs;
+- `capabilities.effort.<reasoning>.supported` and `capabilities.thinking.types.adaptive.supported`,
+  which the profile needs, typed objects in the SDK's 2.x line;
 - `max_input_tokens` against the profile's `context_size`.
 
-A refused key stops the check at the first model, with one row.
+A refused key stops the check at the first model, with one row. So does a provider that can't be
+reached, or that sends nothing for `request_timeout_seconds`: one row, instead of the same wait
+for each allowed model.
