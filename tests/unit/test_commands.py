@@ -1,6 +1,7 @@
 """The commands' progress on the error stream (specs/004-library-progress, US4, contracts/commands.md)."""
 
 import argparse
+import dataclasses
 import json
 import re
 
@@ -9,8 +10,14 @@ import pytest
 from app import main
 from app.config.settings import EnvironmentSettings
 from app.container import Container
-from app.errors import ServiceUnavailableError
-from app.services.health_service import HealthService
+from app.errors import ModelFailedError, ServiceUnavailableError
+from app.generation.base import FailureReason
+from app.generation.choices import ModelChoices
+from app.generation.factory import CloudSetup
+from app.generation.question_answering import QuestionAnsweringService
+from app.generation.summarization import ChapterSummarizer
+from app.services.health_service import CheckResult, HealthService
+from tests.fakes import FakeCloud, FakeLLM, WordCounter
 from tests.library import Library, other_text, upload
 
 
@@ -33,6 +40,7 @@ def container(library):
         retrieval=library.retrieval,
         questions=None,
         summaries=library.summarizer,
+        models=ModelChoices.local_only(library.llm),
     )
 
 
@@ -161,4 +169,255 @@ def test_a_report_on_a_kind_the_benchmark_doesnt_run_fails_and_prints_nothing(co
         main.main(["benchmark-report", str(tmp_path)])
 
     assert "'extraction' kind" in stopped.value.code
+    assert capsys.readouterr().out == ""
+
+
+# Cloud models (specs/008-cloud-llm-providers, research.md R5)
+
+
+def test_pull_models_also_readies_each_cloud_profiles_tokenizer_contacting_no_provider(container, monkeypatch, capsys):
+    monkeypatch.setattr(container.runtime, "pull", lambda model: iter(()), raising=False)
+    monkeypatch.setattr(main, "local_snapshot", lambda model: "ready")
+    readied = []
+    monkeypatch.setattr(main, "create_token_counter", lambda config: readied.append(config.name) or WordCounter())
+
+    out, _ = run(main._pull_models, container, capsys, all=False)
+
+    assert "tokenizer o200k_base: ready" in out.splitlines()
+    assert readied.count("o200k_base") == 1
+
+
+# Cloud models in ask and doctor (specs/008-cloud-llm-providers, research.md R14, contracts/interface.md)
+
+LOCAL_ANSWER = "An answer about the dog [1]."
+CLOUD_ANSWER = "A cloud answer about the dog [1]."
+TIMING = re.compile(r"^\d+\.\ds in total, \d+ \+ \d+ tokens at \d+ tokens/s$")
+
+
+def cloud_models():
+    """The local model, and FakeCloud's fc-a, which fails after two words, and fc-b, which answers."""
+    failure = ModelFailedError("fc-a", "fakecloud", FailureReason.RATE_LIMITED, label="FakeCloud")
+    failing = FakeLLM(model="fc-a", provider="fakecloud", cloud=True, fail=failure, text_before_failure="Half an")
+    answering = FakeLLM([CLOUD_ANSWER], model="fc-b", provider="fakecloud", cloud=True)
+    provider = FakeCloud(models={"fc-a": failing, "fc-b": answering})
+    local = FakeLLM([LOCAL_ANSWER], model="fake-llm")
+    return ModelChoices(local, CloudSetup(((provider, ("fc-a", "fc-b")),), (), {"fakecloud": "FakeCloud"}))
+
+
+def asking(container, library, models):
+    questions = QuestionAnsweringService(library.settings, library.retrieval, models)
+    return dataclasses.replace(container, questions=questions, models=models)
+
+
+def ask(container, capsys, model=None, fallbacks=()):
+    arguments = {"question": "Where is the dog?", "book": [], "chapter": [], "language": None}
+    return run(main._ask, container, capsys, **arguments, model=model, fallback=list(fallbacks))
+
+
+@pytest.mark.parametrize("models", [lambda: ModelChoices.local_only(FakeLLM([LOCAL_ANSWER])), cloud_models])
+def test_ask_without_a_model_prints_what_it_printed_before(container, library, capsys, tmp_path, models):
+    library.add(tmp_path)
+
+    out, err = ask(asking(container, library, models()), capsys)
+
+    lines = out.splitlines()
+    assert lines[0].strip() == LOCAL_ANSWER
+    assert lines[1:3] == ["", "Sources:"]
+    assert lines[3].startswith("  [1] ")
+    assert TIMING.match(lines[4]) and len(lines) == 5
+    assert err == []
+
+
+def test_ask_with_a_cloud_model_says_where_the_question_goes_and_who_answered(container, library, capsys, tmp_path):
+    library.add(tmp_path)
+
+    out, err = ask(asking(container, library, cloud_models()), capsys, model="fc-b")
+
+    assert err == ["The question and the passages found go to FakeCloud: fc-b. If it fails, fake-llm answers, locally."]
+    lines = out.splitlines()
+    assert lines[0].strip() == CLOUD_ANSWER
+    assert lines[-2] == "Answered by fc-b (FakeCloud)"
+    assert TIMING.match(lines[-1])
+
+
+def test_ask_marks_a_failed_models_text_as_discarded(container, library, capsys, tmp_path):
+    library.add(tmp_path)
+
+    out, err = ask(asking(container, library, cloud_models()), capsys, model="fc-a")
+
+    assert err[-1] == (
+        "fc-a (FakeCloud) failed: it limited the rate. The text above is discarded: fake-llm answers from the start."
+    )
+    assert out.startswith("Half an ") and LOCAL_ANSWER in out
+    assert out.splitlines()[-2] == "Answered by fake-llm (local)"
+
+
+def test_ask_with_a_model_not_offered_stops_before_searching(container, library, monkeypatch, capsys, tmp_path):
+    asked = asking(container, library, cloud_models())
+    monkeypatch.setattr(main, "build_container", lambda console_logs=False: asked)
+
+    with pytest.raises(SystemExit) as stopped:
+        main.main(["ask", "Where is the dog?", "--model", "fc-x"])
+
+    assert stopped.value.code == (
+        "error: fc-x isn't offered. Offered: fake-llm (local), fc-a (FakeCloud), fc-b (FakeCloud)."
+    )
+    assert capsys.readouterr().out == ""
+
+
+class Health:
+    """Health checks that answer with given rows, and record how they were asked."""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.asked = []
+
+    def run(self, inference=False, providers=False):
+        self.asked.append((inference, providers))
+        return self.rows
+
+
+def test_doctor_checks_the_providers_and_fails_on_a_failing_row(container, capsys):
+    health = Health(
+        [
+            CheckResult("ollama", True, "version 0.40.15"),
+            CheckResult("fakecloud fc-a", True, "Fake A, 1000000-token window"),
+            CheckResult("fakecloud fc-x", False, "FakeCloud doesn't know this model"),
+        ]
+    )
+
+    with pytest.raises(SystemExit) as stopped:
+        main._doctor(dataclasses.replace(container, health=health), argparse.Namespace(inference=False))
+
+    out = capsys.readouterr().out.splitlines()
+    assert stopped.value.code == 1
+    assert health.asked == [(False, True)]
+    assert out[1:] == [
+        "[ ok ] fakecloud fc-a       Fake A, 1000000-token window",
+        "[FAIL] fakecloud fc-x       FakeCloud doesn't know this model",
+    ]
+
+
+# Cloud models in summarize and reindex-all (specs/008-cloud-llm-providers, contracts/interface.md)
+
+LAST_LINE = re.compile(r"^direct: \d+/\d+ chunks in \d+ steps, \d+ cited, \d+ statements without a source, \d+\.\ds")
+
+
+def summarizing(container, library, models):
+    summarizer = ChapterSummarizer(
+        library.settings, models, library.catalog, library.processed, library.summary_documents, library.retrieval
+    )
+    return dataclasses.replace(container, summaries=summarizer, models=models)
+
+
+def summarize(container, capsys, book_id, model=None, fallbacks=()):
+    arguments = {"book": book_id, "chapter": 1, "type": "brief", "language": None, "save": False}
+    return run(main._summarize, container, capsys, **arguments, model=model, fallback=list(fallbacks))
+
+
+def test_summarize_without_a_model_prints_what_it_printed_before(container, library, capsys, tmp_path):
+    book = library.add(tmp_path)
+
+    out, err = summarize(summarizing(container, library, cloud_models()), capsys, book.book_id)
+
+    assert out.strip().startswith(LOCAL_ANSWER)
+    assert LAST_LINE.match(err[-1]) and err[-1].endswith("s")
+    assert not any("FakeCloud" in line or "goes to" in line for line in err)
+
+
+def test_summarize_with_a_cloud_model_says_where_the_chapter_goes_and_its_tokens(container, library, capsys, tmp_path):
+    book = library.add(tmp_path)
+
+    out, err = summarize(summarizing(container, library, cloud_models()), capsys, book.book_id, model="fc-b")
+
+    assert err[0] == "The chapter's text goes to FakeCloud: fc-b. If it fails, fake-llm summarizes it, locally."
+    assert out.strip().startswith(CLOUD_ANSWER)
+    assert LAST_LINE.match(err[-1])
+    assert err[-1].endswith(", fc-b (FakeCloud), 100 tokens read and 20 generated")
+
+
+def test_summarize_reports_a_failure_and_the_model_that_wrote_it(container, library, capsys, tmp_path):
+    book = library.add(tmp_path)
+
+    _, err = summarize(summarizing(container, library, cloud_models()), capsys, book.book_id, model="fc-a")
+
+    assert "fc-a (FakeCloud) failed: it limited the rate. Starting again with fake-llm." in err
+    assert "fc-a (FakeCloud) failed at step 1: it limited the rate." in err
+    assert err[-1].endswith(", fake-llm (local)")
+
+
+def test_reindex_all_lists_the_summaries_a_cloud_model_wrote_and_kept(container, library, capsys, tmp_path):
+    book = library.add(tmp_path)
+    library.summarizer.save(library.summarizer.summarize(book.book_id, 1, "brief"))
+    path = library.root / "summaries" / book.book_id / "chapter_01_brief.json"
+    metadata = json.loads(path.read_text(encoding="utf-8")) | {"provider": "anthropic", "model": "claude-sonnet-5-5"}
+    path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    out, _ = run(main._reindex_all, container, capsys, regenerate_summaries=True)
+
+    assert out.splitlines()[-2:] == [
+        "  kept as they were, written by a cloud model: book_001, chapter_01_brief (claude-sonnet-5-5, Anthropic)",
+        "  their references may name sections that the rebuild changed: summarize a chapter again to refresh it",
+    ]
+
+
+# Fallbacks in ask and summarize (specs/008-cloud-llm-providers, US3, FR-008)
+
+
+def test_ask_takes_its_fallbacks_in_order(container, library, capsys, tmp_path):
+    library.add(tmp_path)
+
+    out, err = ask(asking(container, library, cloud_models()), capsys, model="fc-a", fallbacks=["fc-b"])
+
+    assert err[0] == (
+        "The question and the passages found go to FakeCloud: fc-a, then fc-b. If they fail, fake-llm answers, locally."
+    )
+    discarded = (
+        "fc-a (FakeCloud) failed: it limited the rate. The text above is discarded: fc-b answers from the start."
+    )
+    assert discarded in err
+    assert CLOUD_ANSWER in out and out.splitlines()[-2] == "Answered by fc-b (FakeCloud)"
+
+
+def test_summarize_takes_its_fallbacks_in_order(container, library, capsys, tmp_path):
+    book = library.add(tmp_path)
+
+    out, err = summarize(summarizing(container, library, cloud_models()), capsys, book.book_id, "fc-a", ["fc-b"])
+
+    assert err[0] == (
+        "The chapter's text goes to FakeCloud: fc-a, then fc-b. If they fail, fake-llm summarizes it, locally."
+    )
+    assert out.strip().startswith(CLOUD_ANSWER)
+    assert err[-1].endswith(", fc-b (FakeCloud), 100 tokens read and 20 generated")
+
+
+OFFERED = "Offered: fake-llm (local), fc-a (FakeCloud), fc-b (FakeCloud)."
+
+
+@pytest.mark.parametrize("command", ["ask", "summarize"])
+@pytest.mark.parametrize(
+    ("names", "problem"),
+    [
+        (["--model", "fc-a", "--fallback", "fc-x"], "fc-x isn't offered."),
+        (["--model", "fc-a", "--fallback", "fc-b", "--fallback", "fc-b"], "fc-b is given more than once."),
+        (
+            ["--model", "fc-a", "--fallback", "fake-llm"],
+            "fake-llm answers last in every sequence, so it can't be a fallback.",
+        ),
+        (["--fallback", "fc-a"], "fake-llm answers alone, so it takes no fallback."),
+        (["--model", "fake-llm", "--fallback", "fc-a"], "fake-llm answers alone, so it takes no fallback."),
+    ],
+)
+def test_a_refused_sequence_ends_the_command_naming_the_models_offered(
+    container, library, monkeypatch, capsys, command, names, problem
+):
+    models = cloud_models()
+    asked = summarizing(asking(container, library, models), library, models)
+    monkeypatch.setattr(main, "build_container", lambda console_logs=False: asked)
+    arguments = ["ask", "Where is the dog?"] if command == "ask" else ["summarize", "book_001", "1"]
+
+    with pytest.raises(SystemExit) as stopped:
+        main.main([*arguments, *names])
+
+    assert stopped.value.code == f"error: {problem} {OFFERED}"
     assert capsys.readouterr().out == ""

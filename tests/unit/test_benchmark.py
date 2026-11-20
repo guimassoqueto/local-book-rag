@@ -10,7 +10,8 @@ from pydantic import ValidationError
 
 from app.config.settings import EnvironmentSettings, JudgeConfig
 from app.container import Container
-from app.errors import ConfigurationError, ServiceUnavailableError
+from app.container import assemble as assemble_the_application
+from app.errors import ConfigurationError, ModelNotFoundError, ServiceUnavailableError
 from app.evaluation import benchmark
 from app.evaluation.benchmark import (
     BenchmarkRunner,
@@ -32,6 +33,7 @@ from app.evaluation.retrieval_metrics import (
     reciprocal_rank,
 )
 from app.generation.base import GenerationParameters
+from app.generation.choices import ModelChoices
 from app.generation.question_answering import QuestionAnsweringService
 from app.services.health_service import HealthService
 from app.services.reset_service import CONFIRM_RESET_EVERYTHING, ResetService
@@ -202,8 +204,11 @@ def lab(settings, tmp_path, monkeypatch):
             library=library.library,
             resets=library.resets,
             retrieval=library.retrieval,
-            questions=QuestionAnsweringService(variant_settings, library.retrieval, library.llm),
+            questions=QuestionAnsweringService(
+                variant_settings, library.retrieval, ModelChoices.local_only(library.llm)
+            ),
             summaries=library.summarizer,
+            models=ModelChoices.local_only(library.llm),
         )
 
     monkeypatch.setattr(benchmark, "assemble", assemble)
@@ -475,7 +480,11 @@ def models(monkeypatch):
     created = {}
 
     def create(settings, runtime):
-        return created.setdefault(settings.llm.model, (settings, FakeLLM(["{}"])))[1]
+        llm = created.setdefault(settings.llm.model, (settings, FakeLLM(["{}"])))[1]
+        # As the real factory does, the provider follows its profile, overrides included.
+        profile = settings.llm_profiles.get(settings.llm.model)
+        llm.check_abstentions = bool(profile and profile.check_abstentions)
+        return llm
 
     monkeypatch.setattr(benchmark, "create_llm_provider", create)
     monkeypatch.setattr(benchmark, "RagasJudge", FakeJudge)
@@ -613,3 +622,63 @@ def test_a_dataset_book_that_isnt_the_one_named_stops_before_any_work(lab, step)
     assert "Its evidence quotes may not be found in it." in str(stopped.value)
     assert libraries == {}
     assert not (runner._root / "results").exists()
+
+
+# Benchmarks stay local (specs/008-cloud-llm-providers, SC-010, FR-027, research.md R15)
+
+ANTHROPIC = {"ANTHROPIC_API_KEY": "sk-ant-test", "ANTHROPIC_MODELS": "claude-sonnet-5-5"}
+
+
+class OllamaWithoutCloudModels(FakeRuntime):
+    """Ollama, which has the local models and knows no cloud model's name."""
+
+    def model_info(self, name):
+        if name.startswith("claude-"):
+            raise ModelNotFoundError(f"{name} is not on the Ollama server.")
+        return super().model_info(name)
+
+
+def test_a_variant_naming_a_cloud_model_is_refused_before_the_run_starts(lab, models, monkeypatch):
+    runner, _, libraries, _ = lab
+    for name, value in ANTHROPIC.items():
+        monkeypatch.setenv(name, value)
+    variant = VariantConfig(name="cloud", overrides={"llm": {"model": "claude-sonnet-5-5"}})
+    experiment = Experiment(name="test", kind="generation", description="A test.", variants=(variant,), judge=JUDGE)
+
+    with pytest.raises(ValueError, match="llm_profiles has no entry for llm.model 'claude-sonnet-5-5'"):
+        runner.run(experiment)
+
+    assert libraries == {} and models == {}
+
+
+def test_a_judge_naming_a_cloud_model_is_refused_before_the_run_starts(lab, models, monkeypatch):
+    runner, _, libraries, _ = lab
+    monkeypatch.setattr(benchmark, "OllamaRuntime", lambda url, timeout: OllamaWithoutCloudModels())
+    judge = JudgeConfig(model="claude-sonnet-5-5", embedding_model="qwen3-embedding:0.6b", max_tokens=6000)
+
+    with pytest.raises(ModelNotFoundError, match="claude-sonnet-5-5"):
+        runner.run(experiment_of("generation", judge=judge))
+
+    assert libraries == {} and models == {}
+
+
+def test_a_workspace_is_assembled_without_the_environment_so_it_offers_no_cloud_model(
+    lab, settings, tmp_path, monkeypatch
+):
+    runner, *_ = lab
+    for name, value in ANTHROPIC.items():
+        monkeypatch.setenv(name, value)
+    assembled = []
+    lab_assemble = benchmark.assemble
+
+    def recording(*arguments, **options):
+        assembled.append(options)
+        return lab_assemble(*arguments, **options)
+
+    monkeypatch.setattr(benchmark, "assemble", recording)
+
+    runner.run(retrieval_experiment())
+
+    assert assembled and all("environ" not in options for options in assembled)
+    workspace = assemble_the_application(settings, EnvironmentSettings(data_dir=tmp_path / "workspace"))
+    assert not workspace.models.has_cloud()

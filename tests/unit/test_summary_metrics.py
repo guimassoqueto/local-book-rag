@@ -30,6 +30,7 @@ def summary(statements=10, unsourced=2):
         verification=None,
         model="m",
         total_seconds=1.0,
+        provider="ollama",
     )
 
 

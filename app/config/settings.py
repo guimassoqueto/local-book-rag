@@ -1,9 +1,20 @@
 """Typed view of the files in config/ and of the deployment environment."""
 
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    PositiveInt,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -63,6 +74,30 @@ class LLMProfile(ConfigModel):
     tokenizer: TokenizerConfig
     reasoning: bool | Literal["low", "medium", "high"] | None = None
     check_abstentions: bool = False
+
+
+class CloudProfile(ConfigModel):
+    """What every model of one cloud provider shares (research.md R2 of specs/008).
+
+    Attributes:
+        tokenizer: counts tokens to fit prompts. For a provider whose tokenizer isn't public, an
+            approximation, which generation.context.safety_margin absorbs.
+        context_size: the window the app works with, below the models' own: it caps what one
+            request sends.
+        reasoning: the effort sent with each request; None sends none.
+        reasoning_tokens: added to every request's max_tokens, since reasoning counts against it,
+            and set aside from context_size.
+        check_abstentions: as in llm_profiles.
+        request_timeout_seconds: how long the provider may send nothing before the request counts
+            as timed out. A timeout is never tried again.
+    """
+
+    tokenizer: TokenizerConfig
+    context_size: PositiveInt
+    reasoning: Literal["low", "medium", "high", "xhigh", "max"] | None
+    reasoning_tokens: int = Field(ge=0)
+    check_abstentions: bool = False
+    request_timeout_seconds: PositiveFloat
 
 
 class EmbeddingConfig(ConfigModel):
@@ -215,6 +250,8 @@ class Settings(ConfigModel):
     reranker: RerankerModelConfig
     embedding_profiles: dict[str, EmbeddingProfile]
     llm_profiles: dict[str, LLMProfile]
+    # Keyed by provider kind. The container checks the names against the kinds it implements.
+    cloud_profiles: dict[str, CloudProfile] = {}
     languages: LanguagesConfig
     chunking: ChunkingConfig
     retrieval: RetrievalConfig
@@ -233,6 +270,12 @@ class Settings(ConfigModel):
         for task in (self.generation.question_answering, self.generation.summarization):
             if (task.max_tokens or self.llm.max_tokens) >= self.llm.context_size:
                 raise ValueError("max_tokens leaves no room for the prompt in llm.context_size")
+            for name, profile in self.cloud_profiles.items():
+                if (task.max_tokens or self.llm.max_tokens) + profile.reasoning_tokens >= profile.context_size:
+                    raise ValueError(
+                        "max_tokens and reasoning_tokens leave no room for the prompt in "
+                        f"cloud_profiles.{name}.context_size"
+                    )
         return self
 
     @property
@@ -260,3 +303,37 @@ class EnvironmentSettings(BaseSettings):
     logs_dir: Path = Path("logs")
     benchmarks_dir: Path = Path("benchmarks")
     log_level: LogLevel = "INFO"
+
+
+@dataclass(frozen=True)
+class ProviderCredentials:
+    """A cloud provider's two settings, read from the environment apart from everything else.
+
+    Neither Settings nor EnvironmentSettings holds them, so the key stays out of whatever records
+    or copies those, such as a benchmark's result (research.md R1 of specs/008).
+
+    Attributes:
+        name: the provider kind, the prefix of its settings.
+        api_key: None when unset or empty. Its representation hides it.
+        models: the allowed models, in the order listed.
+    """
+
+    name: str
+    api_key: SecretStr | None
+    models: tuple[str, ...]
+
+
+def read_provider_credentials(name: str, environ: Mapping[str, str]) -> ProviderCredentials:
+    """Read `<NAME>_API_KEY` and `<NAME>_MODELS`, a comma-separated list.
+
+    Each model's name is stripped, empty entries are dropped, and a name given twice is kept once.
+    Names are compared as written: the provider decides what a name means.
+    """
+    prefix = name.upper()
+    key = environ.get(f"{prefix}_API_KEY", "").strip()
+    models: list[str] = []
+    for entry in environ.get(f"{prefix}_MODELS", "").split(","):
+        model = entry.strip()
+        if model and model not in models:
+            models.append(model)
+    return ProviderCredentials(name, SecretStr(key) if key else None, tuple(models))

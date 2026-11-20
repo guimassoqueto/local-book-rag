@@ -7,14 +7,17 @@ from pathlib import Path
 
 from app.container import Container, build_container
 from app.errors import BookRagError
-from app.generation.base import TextDelta
+from app.generation.base import AttemptFailed, TextDelta
+from app.generation.choices import ModelChoices
 from app.generation.question_answering import Answer
-from app.interface.formatting import progress_text
+from app.interface.formatting import model_notice, progress_text, summary_attempt_line
 from app.retrieval.base import RetrievalFilters
 from app.services.reset_service import CONFIRM_RESET_EVERYTHING, CONFIRM_RESET_INDEX
 from app.utils.huggingface import local_snapshot
 from app.utils.progress import Progress
 from app.utils.tokenization import create_token_counter
+
+_FALLBACK_HELP = "a cloud model to ask if the one before it fails; repeat, in order. The local model answers last"
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -87,6 +90,8 @@ def _build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--book", action="append", default=[], help="a book ID; repeat for several")
     ask.add_argument("--chapter", action="append", type=int, default=[], help="a chapter number; repeat for several")
     ask.add_argument("--language", help="the language to answer in, such as Portuguese")
+    ask.add_argument("--model", help="the model to answer with: the local one unless a cloud model is named")
+    ask.add_argument("--fallback", action="append", default=[], help=_FALLBACK_HELP)
     ask.set_defaults(handler=_ask)
 
     summarize = commands.add_parser("summarize", help="summarize a chapter")
@@ -95,6 +100,8 @@ def _build_parser() -> argparse.ArgumentParser:
     summarize.add_argument("--type", default="standard", help="brief, standard, comprehensive or analytical")
     summarize.add_argument("--language", help="the language to write in, such as Portuguese")
     summarize.add_argument("--save", action="store_true", help="keep the summary in data/summaries")
+    summarize.add_argument("--model", help="the model to write with: the local one unless a cloud model is named")
+    summarize.add_argument("--fallback", action="append", default=[], help=_FALLBACK_HELP)
     summarize.set_defaults(handler=_summarize)
 
     validate = commands.add_parser("validate-benchmark", help="check the benchmark's questions against its books")
@@ -121,7 +128,7 @@ def _serve(container: Container, _: argparse.Namespace) -> None:
 
 
 def _doctor(container: Container, arguments: argparse.Namespace) -> None:
-    results = container.health.run(inference=arguments.inference)
+    results = container.health.run(inference=arguments.inference, providers=True)
     for result in results:
         print(f"[{' ok ' if result.ok else 'FAIL'}] {result.name:<20} {result.detail}")
     if not all(result.ok for result in results):
@@ -142,7 +149,11 @@ def _pull_models(container: Container, arguments: argparse.Namespace) -> None:
                 last_status = progress.status
 
     print(f"{settings.reranker.model}:\n  {local_snapshot(settings.reranker.model)}")
-    for tokenizer in (settings.embedding_profile.tokenizer, settings.llm_profile.tokenizer):
+    # A cloud model counts tokens with its provider's tokenizer, downloaded here so that a first
+    # cloud request doesn't fetch it. No provider is contacted.
+    tokenizers = [settings.embedding_profile.tokenizer, settings.llm_profile.tokenizer]
+    tokenizers += [profile.tokenizer for profile in settings.cloud_profiles.values()]
+    for tokenizer in dict.fromkeys(tokenizers):
         create_token_counter(tokenizer).count("downloads the tokenizer once")
         print(f"tokenizer {tokenizer.name}: ready")
 
@@ -191,6 +202,9 @@ def _reindex_all(container: Container, arguments: argparse.Namespace) -> None:
         print(f"  {report.summaries_regenerated} summaries written again")
     for failure in report.summaries_failed:
         print(f"  summary not written: {failure}")
+    if report.summaries_kept:
+        print(f"  kept as they were, written by a cloud model: {'; '.join(report.summaries_kept)}")
+        print("  their references may name sections that the rebuild changed: summarize a chapter again to refresh it")
 
 
 def _reset_index(container: Container, arguments: argparse.Namespace) -> None:
@@ -212,14 +226,28 @@ def _list_books(container: Container, _: argparse.Namespace) -> None:
 
 def _ask(container: Container, arguments: argparse.Namespace) -> None:
     filters = RetrievalFilters(book_ids=tuple(arguments.book), chapter_numbers=tuple(arguments.chapter))
-    for event in container.questions.stream(arguments.question, filters, arguments.language):
+    models = container.models
+    model, fallbacks = arguments.model, tuple(arguments.fallback)
+    # Before anything is sent, what goes where (FR-008). A refused name stops here, as an error.
+    if notice := model_notice(models.describe(model, fallbacks), "question"):
+        print(notice, file=sys.stderr, flush=True)
+    question, language = arguments.question, arguments.language
+    for event in container.questions.stream(question, filters, language, model=model, fallbacks=fallbacks):
         if isinstance(event, TextDelta):
             print(event.text, end="", flush=True)
+        elif isinstance(event, AttemptFailed):
+            # A terminal can't take back what it printed, so the failed model's text is marked.
+            failure = event.attempt.describe(models.label_of(event.attempt.provider))
+            print(
+                f"\n{failure} The text above is discarded: {event.next_model} answers from the start.",
+                file=sys.stderr,
+                flush=True,
+            )
         elif isinstance(event, Answer):
-            _print_sources(event)
+            _print_sources(event, models)
 
 
-def _print_sources(answer: Answer) -> None:
+def _print_sources(answer: Answer, models: ModelChoices) -> None:
     print("\n\nSources:")
     for citation in answer.citations:
         print(f"  [{citation.number}] {citation.reference}")
@@ -227,6 +255,8 @@ def _print_sources(answer: Answer) -> None:
         print(f"  The model cited sources that don't exist: {list(answer.invented_citations)}")
     if answer.insufficient_evidence:
         print("  The model found no answer in the sources.")
+    if answer.generation is not None and (models.is_cloud_provider(answer.provider) or answer.attempts):
+        print(f"Answered by {answer.model} ({models.label_of(answer.provider)})")
     stats = answer.generation.stats if answer.generation else None
     timing = f"{answer.total_seconds:.1f}s in total"
     if stats:
@@ -237,20 +267,34 @@ def _print_sources(answer: Answer) -> None:
 
 def _summarize(container: Container, arguments: argparse.Namespace) -> None:
     summaries = container.summaries
+    models = container.models
+    # Before anything is sent, what goes where (FR-008). A refused name stops here, as an error.
+    fallbacks = tuple(arguments.fallback)
+    if notice := model_notice(models.describe(arguments.model, fallbacks), "chapter"):
+        print(notice, file=sys.stderr, flush=True)
     summary = summaries.summarize(
         arguments.book,
         arguments.chapter,
         arguments.type,
         arguments.language,
         on_progress=lambda message: print(message, file=sys.stderr),
+        model=arguments.model,
+        fallbacks=fallbacks,
     )
     print(summary.text)
-    print(
+    for attempt in summary.attempts:
+        print(summary_attempt_line(attempt, models, separators=False), file=sys.stderr)
+    last = (
         f"\n{summary.strategy}: {summary.chunks_covered}/{summary.chunks_total} chunks in {summary.steps} steps, "
         f"{len(summary.citations)} cited, {summary.statements_without_source} statements without a source, "
-        f"{summary.total_seconds:.1f}s",
-        file=sys.stderr,
+        f"{summary.total_seconds:.1f}s"
     )
+    cloud = models.is_cloud_provider(summary.provider)
+    if cloud or summary.attempts:
+        last += f", {summary.model} ({models.label_of(summary.provider)})"
+    if cloud:
+        last += f", {summary.prompt_tokens} tokens read and {summary.completion_tokens} generated"
+    print(last, file=sys.stderr)
     if arguments.save:
         print(f"Saved to {summaries.save(summary)}", file=sys.stderr)
 

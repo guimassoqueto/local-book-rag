@@ -47,6 +47,9 @@ class ReindexReport:
         failed: books with no working revision that still can't be indexed.
         summaries_regenerated: saved summaries written again.
         summaries_failed: saved summaries that couldn't be, and why. The index is live anyway.
+        summaries_kept: saved summaries that a cloud model wrote, left as they were, each as
+            "book_001, chapter_04_standard (claude-sonnet-5-5, Anthropic)". Their references may
+            name sections that the rebuild changed (FR-023).
     """
 
     index_version: int
@@ -58,6 +61,7 @@ class ReindexReport:
     failed: tuple[str, ...]
     summaries_regenerated: int
     summaries_failed: tuple[str, ...]
+    summaries_kept: tuple[str, ...] = ()
 
 
 class LibraryService:
@@ -160,7 +164,9 @@ class LibraryService:
             self._drop_previous(previous, books, changes)
             self._catalog.end_operation(journal)
 
-        regenerated, summaries_failed = self._regenerate_summaries(progress) if regenerate_summaries else (0, [])
+        regenerated, summaries_failed, summaries_kept = (
+            self._regenerate_summaries(progress) if regenerate_summaries else (0, [], [])
+        )
         result = ReindexReport(
             index_version=staging.version,
             collection=staging.collection,
@@ -171,6 +177,7 @@ class LibraryService:
             failed=tuple(failed),
             summaries_regenerated=regenerated,
             summaries_failed=tuple(summaries_failed),
+            summaries_kept=tuple(summaries_kept),
         )
         log_event(logger, "library rebuilt", books=result.books, chunks=result.chunks)
         return result
@@ -236,20 +243,28 @@ class LibraryService:
             if book.book_id in rebuilt and book.revision != _NO_REVISION:
                 self._data.processed.delete_revision(book.book_id, book.revision)
 
-    def _regenerate_summaries(self, progress: Progress) -> tuple[int, list[str]]:
-        """Write saved summaries again, in the language they were saved in.
+    def _regenerate_summaries(self, progress: Progress) -> tuple[int, list[str], list[str]]:
+        """Write saved summaries again with the local model, in the language they were saved in.
 
         The rebuild is live by now, so a summary that fails is reported, not raised, and a
-        summary whose chapter no longer exists is left alone.
+        summary whose chapter no longer exists is left alone. So is one that a cloud model wrote,
+        whether or not its provider is configured now: no cloud model is called (FR-023).
 
         Returns:
-            How many were written, and a description of each that failed.
+            How many were written, a description of each that failed, and of each kept.
         """
         written = 0
         failed: list[str] = []
+        kept: list[str] = []
         with progress.stage("summaries") as stage:
             remaining = []
             for book_id, path in self._data.summaries.saved():
+                metadata = self._data.summaries.metadata(path)
+                provider = metadata.get("provider")
+                if self._summarizer.cloud_written(provider):
+                    label = self._summarizer.label_of(provider)
+                    kept.append(f"{book_id}, {path.stem} ({metadata.get('model')}, {label})")
+                    continue
                 number, summary_type = _parse_summary_name(path)
                 if number in {chapter for chapter, _ in self._catalog.chapters(book_id)}:
                     remaining.append((book_id, path, number, summary_type))
@@ -266,7 +281,7 @@ class LibraryService:
                 except BookRagError as exc:
                     failed.append(f"{book_id}, {path.stem}: {exc}")
                 stage.advance()
-        return written, failed
+        return written, failed, kept
 
 
 def _require_originals(books: list[Book]) -> None:

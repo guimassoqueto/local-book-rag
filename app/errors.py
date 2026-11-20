@@ -1,5 +1,9 @@
 """Failures the application reports to the user, whichever interface started the work."""
 
+from collections.abc import Sequence
+
+from app.generation.base import Attempt, FailureReason
+
 
 class BookRagError(Exception):
     """Base class. The message is shown to the user as it is."""
@@ -59,6 +63,45 @@ class NothingToSearchError(BookRagError):
 
 class GenerationError(BookRagError):
     """The model finished without a usable answer."""
+
+
+class ModelChoiceError(BookRagError):
+    """A request named models that can't make a sequence. The message lists the models offered."""
+
+
+class ModelFailedError(BookRagError):
+    """A cloud model failed a request, so the next model of the sequence, if any, is asked.
+
+    Its message reads "claude-sonnet-5-5 (Anthropic) failed: it limited the rate.", and never holds
+    the key.
+
+    Attributes:
+        model: the model that failed.
+        provider: its provider's name.
+        reason: why it failed.
+        detail: the provider's words, such as a refusal's category or the API's error type.
+    """
+
+    def __init__(
+        self, model: str, provider: str, reason: FailureReason, detail: str = "", label: str | None = None
+    ) -> None:
+        super().__init__(f"{model} ({label or provider}) failed: {reason.describe(detail)}.")
+        self.model = model
+        self.provider = provider
+        self.reason = reason
+        self.detail = detail
+
+
+class AllModelsFailedError(BookRagError):
+    """The last model of a sequence, the local one, failed after the others did.
+
+    Attributes:
+        attempts: every failure, in order, the local model's last.
+    """
+
+    def __init__(self, attempts: Sequence[Attempt], descriptions: Sequence[str]) -> None:
+        super().__init__("No model could answer. " + " ".join(descriptions))
+        self.attempts = tuple(attempts)
 
 
 class ChapterNotFoundError(BookRagError):

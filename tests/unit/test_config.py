@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.config.loader import load_settings
-from app.config.settings import EnvironmentSettings
+from app.config.settings import EnvironmentSettings, read_provider_credentials
 from app.errors import ConfigurationError
 
 
@@ -168,3 +168,107 @@ def test_a_removed_setting_stops_the_app_naming_it(config_dir, edit_config, chan
 def test_the_shipped_ingestion_settings_hold_only_languages_and_chunking(settings):
     assert not hasattr(settings, "pdf") and not hasattr(settings, "normalization")
     assert set(settings.chunking.preserve.model_dump()) == {"chapters", "sections", "paragraphs"}
+
+
+# Cloud providers (specs/008-cloud-llm-providers): one profile per provider, and two settings in the
+# environment, read apart from the rest (research.md R1, R2).
+
+ANTHROPIC_PROFILE = {
+    "tokenizer": {"kind": "tiktoken", "name": "o200k_base"},
+    "context_size": 65536,
+    "reasoning": "low",
+    "reasoning_tokens": 4000,
+    "check_abstentions": False,
+    "request_timeout_seconds": 120,
+}
+
+
+def with_profile(**changes):
+    """Anthropic's profile, with some fields changed or, given None, removed."""
+    profile = {**ANTHROPIC_PROFILE, **changes}
+    return {key: value for key, value in profile.items() if value is not None}
+
+
+def test_the_shipped_configuration_holds_anthropics_profile(settings):
+    profile = settings.cloud_profiles["anthropic"]
+
+    assert profile.tokenizer.kind == "tiktoken" and profile.tokenizer.name == "o200k_base"
+    assert profile.context_size == 65536
+    assert profile.reasoning == "low"
+    assert profile.reasoning_tokens == 4000
+    assert profile.check_abstentions is False
+    assert profile.request_timeout_seconds == 120
+
+
+def test_without_cloud_profiles_no_provider_has_one(config_dir, edit_config):
+    edit_config("models.yaml", lambda c: c.pop("cloud_profiles", None))
+
+    assert load_settings(config_dir).cloud_profiles == {}
+
+
+@pytest.mark.parametrize(
+    ("change", "field"),
+    [
+        ({"temperature": 0.2}, "temperature"),
+        ({"reasoning": "extreme"}, "reasoning"),
+        ({"reasoning_tokens": -1}, "reasoning_tokens"),
+        ({"context_size": 0}, "context_size"),
+        ({"request_timeout_seconds": 0}, "request_timeout_seconds"),
+    ],
+)
+def test_a_profile_out_of_bounds_stops_the_app_naming_the_field(config_dir, edit_config, change, field):
+    edit_config("models.yaml", lambda c: c.update(cloud_profiles={"anthropic": with_profile(**change)}))
+
+    with pytest.raises(ConfigurationError, match=field):
+        load_settings(config_dir)
+
+
+@pytest.mark.parametrize("reasoning", ["low", "medium", "high", "xhigh", "max", None])
+def test_a_profile_takes_each_effort_or_none(config_dir, edit_config, reasoning):
+    profile = {**ANTHROPIC_PROFILE, "reasoning": reasoning}
+    edit_config("models.yaml", lambda c: c.update(cloud_profiles={"anthropic": profile}))
+
+    assert load_settings(config_dir).cloud_profiles["anthropic"].reasoning == reasoning
+
+
+def test_a_profile_must_leave_room_for_the_prompt(config_dir, edit_config):
+    profile = with_profile(context_size=6000)  # the summaries' 3000 plus 4000 for reasoning don't fit
+    edit_config("models.yaml", lambda c: c.update(cloud_profiles={"anthropic": profile}))
+
+    with pytest.raises(
+        ConfigurationError,
+        match="max_tokens and reasoning_tokens leave no room for the prompt in cloud_profiles.anthropic.context_size",
+    ):
+        load_settings(config_dir)
+
+
+def credentials(**environ):
+    return read_provider_credentials("anthropic", environ)
+
+
+def test_both_settings_are_read_by_the_providers_name():
+    read = credentials(ANTHROPIC_API_KEY="sk-ant-test", ANTHROPIC_MODELS="claude-a,claude-b")
+
+    assert read.name == "anthropic"
+    assert read.api_key.get_secret_value() == "sk-ant-test"
+    assert read.models == ("claude-a", "claude-b")
+
+
+def test_settings_left_out_or_empty_read_as_missing():
+    assert credentials().api_key is None and credentials().models == ()
+    assert credentials(ANTHROPIC_API_KEY="", ANTHROPIC_MODELS=" , ").api_key is None
+    assert credentials(ANTHROPIC_API_KEY="", ANTHROPIC_MODELS=" , ").models == ()
+    assert credentials(ANTHROPIC_MODELS="claude-a").api_key is None
+
+
+def test_model_names_are_stripped_kept_once_in_order_and_compared_as_written():
+    read = credentials(ANTHROPIC_MODELS=" claude-b , claude-a,,claude-b, Claude-A ")
+
+    assert read.models == ("claude-b", "claude-a", "Claude-A")
+
+
+def test_the_keys_representation_hides_it():
+    read = credentials(ANTHROPIC_API_KEY="sk-ant-secret-value")
+
+    assert "sk-ant-secret-value" not in repr(read)
+    assert "sk-ant-secret-value" not in str(read)

@@ -355,6 +355,88 @@ dataset's six. A new spec would be needed, since this one is delivered. The read
 gpt-oss making more errors than gemma4 in its multi-section answers, 10 of 15 against 5. The
 judge's scores didn't show that, and they still decide.
 
+## Cloud models
+
+**Answers and summaries may come from a cloud model, picked per request.** Departs from the first
+version's spec, which put local-first at the top of its design principles, and from the
+constitution before 3.0.0, which kept all inference local. The owner wanted Claude beside the local
+model for answers and chapter summaries (`specs/008-cloud-llm-providers`). Constitution 3.0.0 made
+it an opt-in: the local model stays the default, and a cloud model answers only a request that
+picks it, since a cloud call sends a book's text to a third party. That is the user's choice each
+time, not a setting left on, and the request carries no more than it needs: the question and its
+passages, or the chapter. Embeddings, reranking, benchmarks and judges stay local: a cloud model
+has no digest and no seed, so nothing that the index or a comparison rests on can depend on one.
+
+**Cloud models are allowed in the environment, with one profile per provider.** Two settings per
+provider, `ANTHROPIC_API_KEY` and `ANTHROPIC_MODELS`, the fewest the owner could set, and read apart
+from `Settings` and `EnvironmentSettings`, so that the key reaches nothing that records or copies
+them, such as a benchmark's result. Allowing a model takes one name in `.env`, where an entry in
+`config/` would take a rebuild. What a provider's models share is one profile,
+`cloud_profiles.anthropic`, validated at startup with the rest of `config/`. Changing either
+setting still recreates the app container, which empties the library: the README says so where it
+explains them.
+
+**The local model ends every sequence.** Whatever fails before it, a request gets an answer from
+the model that runs here, unless that one fails too. A fallback list can't name it: it is always
+last.
+
+**A summary is written by one model.** When a step fails, the summary starts again from its first
+step with the next model, instead of finishing with another: a summary whose parts came from one
+model and whose final step from another would make its record false. The failed attempt's tokens
+are recorded too, since they were billed.
+
+**Only the sequence's models answer.** Anthropic's API can fall back to another model on its own,
+which its reference advises turning on for Claude Opus 5.5 and Sonnet 5.5. It stays off: it would
+answer a declined request with a model that the user didn't put in the sequence.
+
+**`reindex-all` leaves a cloud summary as it was.** Writing the saved summaries again calls no
+cloud model. A summary that names a cloud provider stays, whether or not that provider is
+configured now, and is listed, with a caveat: its references were made from the chunks before the
+rebuild, and summarizing the chapter again refreshes them. Writing it again with the local model
+would replace a summary the owner paid for with another model's, behind their back.
+
+**No temperature, and no seed.** The current Claude models refuse any sampling setting with a 400,
+so `config/generation.yaml`'s temperature doesn't apply to them; its token limits do, with the
+profile's room for reasoning added. The API has no seed, which is one more reason benchmarks don't
+run cloud models.
+
+**A silent model gets 120 seconds, once.** The SDK's own retries are off: they would try a timeout
+again too, turning 120 seconds of silence into six minutes. The provider tries a request again
+itself, at most twice, after a rate limit, an overload or a lost connection, waiting 2 then 6
+seconds, or the API's `retry-after` when it is shorter than 10, and only before anything has
+streamed. A timeout is never tried again, so the profile's `request_timeout_seconds` is the
+longest a sequence waits on one model. The owner chose 120 seconds.
+
+**Tokens are counted with an approximation.** Claude's tokenizer isn't public, so `o200k_base`
+stands in, and `generation.context.safety_margin` absorbs its error, as it does for `gemma4:12b`'s.
+Principle V's rule exists because Ollama cuts a prompt silently; the API refuses one that doesn't
+fit, and the profile's window, 64K tokens, is far below the models' own, so a miscount can't drop
+passages unseen. Counting exactly would cost a request for each passage fitted.
+
+**The profile's values.** `reasoning: low`, since the tasks read passages and write a short answer
+or a summary; `reasoning_tokens: 4000`, room for the reasoning beside task limits set for
+`gpt-oss`; `context_size: 65536`, a cap on what one request sends, and so on its cost;
+`check_abstentions: false`, since the current Claude models follow an instruction to open a reply
+with the marker, and a check costs a call per answer; `request_timeout_seconds: 120`. Each stays
+while the checks on the real models pass: a case that a higher effort passes raises the effort, a
+reply that stops at its limit without text raises the room for reasoning, and a reply that abstains
+in words turns the abstention check on.
+
+**A command marks the text it can't take back.** The Chat tab removes what a failed model wrote
+before the next one starts. A terminal can't, so `ask` says on standard error that the text above
+is discarded, and which model answers from the start. Holding a cloud answer back until it is
+whole would leave nothing to withdraw, but would stream nothing either.
+
+**Benchmark results from now on have another configuration hash.** `Settings` gained
+`cloud_profiles`, which every result records with the rest of the configuration, so a run of the
+same local setup has another `configuration_sha256` than one made before. Nothing in the code
+compares the two.
+
+**Anthropic's SDK is its 2.x line.** The plan expected 1.x; `uv add` resolved 2.12.0, which runs on
+`httpx2` as planned, apart from the `httpx` that Ollama's client and LlamaIndex use, so neither
+constrains the other. Its model descriptions come back as typed objects, which the provider check
+reads for the effort and the adaptive reasoning that the profile sends.
+
 ## Library lifecycle
 
 **Chunks carry a book revision.** A replacement is indexed next to the live revision and one SQLite

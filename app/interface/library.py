@@ -16,6 +16,7 @@ from app.interface.formatting import (
     added_line,
     everything_reset_line,
     index_reset_line,
+    kept_summaries_notice,
     outcome_html,
     progress_html,
     reindexed_line,
@@ -205,6 +206,8 @@ def build_library_tab(container: Container) -> LibraryTab:
             gr.Warning(f"Still failing: {', '.join(report.failed)}.")
         for failure in report.summaries_failed:
             gr.Warning(f"Summary not written: {failure}")
+        if kept := kept_summaries_notice(report):
+            gr.Info(kept)
         yield outcome_html(reindexed_line(report, _elapsed(progress)), succeeded=True)
 
     @reports_errors

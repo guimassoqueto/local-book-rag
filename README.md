@@ -5,7 +5,10 @@ open-weight models. It is a research environment: LLMs, embedding models and ret
 strategies can be compared under controlled conditions without touching the application
 code.
 
-Everything runs on local infrastructure through Docker Compose, with no external LLM API.
+Everything runs on local infrastructure through Docker Compose, and the local model answers by
+default. Answers and chapter summaries can also come from a cloud model, Claude for now, once its
+API key is set and when you pick it for a request (see Cloud models). Nothing else leaves the
+machine.
 
 ## Requirements
 
@@ -79,7 +82,7 @@ The interface is at <http://localhost:7860>. `docker compose exec app book-rag d
 | `make down`             | Remove the containers, with the library and the models      |
 | `make logs`             | Follow the app's logs                                       |
 | `make pull-models`      | Download the configured models into Ollama                  |
-| `make doctor`           | Check the services, models and GPU                          |
+| `make doctor`           | Check the services, models and GPU, and any cloud provider  |
 | `make test`             | Run the unit tests                                          |
 | `make test-integration` | Run the tests that need the running stack                   |
 | `make lint`             | Lint and format, applying fixes                             |
@@ -111,9 +114,9 @@ The Gradio interface at <http://localhost:7860> has four tabs:
 | Tab           | What it does                                                                        |
 | ------------- | ----------------------------------------------------------------------------------- |
 | Library       | Upload, replace, remove and reindex books, and reset. Shows each book's status, and the progress of each operation |
-| Chat          | Ask about one book, one chapter or several books, and inspect the retrieved passages |
-| Summarization | Summarize a chapter in any of the types, and save the result                        |
-| Research      | The latest question from the inside: models, each stage's scores, final context, reasoning, tokens, timings, and GPU memory |
+| Chat          | Ask about one book, one chapter or several books, and inspect the retrieved passages. With a cloud model set up, pick the model and its fallbacks for the tab |
+| Summarization | Summarize a chapter in any of the types, and save the result. Its own model choice, as in Chat |
+| Research      | The latest question from the inside: the model that answered and any that failed first, each stage's scores, final context, reasoning, tokens, timings, and GPU memory |
 
 Everything in it goes through the same services as the commands. Destructive actions need
 the same confirmation in both, and errors appear as notifications that stay until dismissed,
@@ -336,6 +339,7 @@ docker compose exec app book-rag ask "What is opportunity cost?" --book book_001
 docker compose exec app book-rag ask "Quais são os argumentos?" --book book_001 --chapter 4
 docker compose exec app book-rag ask "Compare how they treat trade." --book book_001 --book book_002
 docker compose exec app book-rag ask "What is the harm principle?" --language Portuguese
+docker compose exec app book-rag ask "What is the harm principle?" --model claude-sonnet-5-5
 ```
 
 Answers come from the retrieved passages, with numbered citations that resolve to the book,
@@ -373,6 +377,7 @@ Models differ in more than quality, and none of the code above the provider depe
 
 ```bash
 docker compose exec app book-rag summarize book_001 4 --type comprehensive --save
+docker compose exec app book-rag summarize book_001 4 --model claude-sonnet-5-5 --fallback claude-opus-5-5
 ```
 
 The types (`brief`, `standard`, `comprehensive`, `analytical`) and their lengths are in
@@ -402,6 +407,78 @@ resembles. It costs milliseconds per statement, and works the same for every mod
 Statements close to no passage stay uncited and are counted, as the first place to look
 for something the model added. The references give each passage's section and quote its
 opening words, because that is how to find it: books have no pages.
+
+A saved summary's JSON file also records its model's provider, the models that failed before it,
+and, for a cloud model, the tokens it read and generated. `reindex-all --regenerate-summaries`
+writes the saved summaries again with the local model, except those a cloud model wrote: it leaves
+them as they were, lists them, and calls no cloud model (see Cloud models).
+
+## Cloud models
+
+Answers and chapter summaries can come from Claude, through Anthropic's API, beside the local
+model. Two settings in `.env` turn it on, and both are needed:
+
+```dotenv
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODELS=claude-sonnet-5-5,claude-opus-5-5
+```
+
+`ANTHROPIC_MODELS` is the list of models the tabs and the commands offer, in that order. With one
+setting alone, nothing is offered, the log says which one is missing, and so does `doctor`.
+**Setting or changing either takes `make up`, which recreates the app container and empties the
+library** (see Running): add the books again afterwards, after `reset-everything`.
+
+**What goes where.** The local model stays the default, on every page load and in every command.
+A cloud model answers only a request that picks it: the Model dropdown in the Chat or the
+Summarization tab, each tab keeping its own choice, or `--model` in `ask` and `summarize`. Before
+anything is sent, a notice says what goes where: for a question, the question and the passages
+found, which are the Research tab's final context; for a summary, the chapter's text, in one step
+or several. Nothing else from the library is sent, and the app contacts Anthropic at no other
+time, except when you ask for a check: `doctor`, or "Check again" in the Research tab, which send
+the key and the allowed models' names and run no inference. Anthropic handles what it is sent
+under its own terms for API data: read its commercial terms,
+<https://www.anthropic.com/legal/commercial-terms>, and its privacy policy,
+<https://www.anthropic.com/legal/privacy>, before setting a key.
+
+**Fallbacks.** "If it fails, then" in a tab, or `--fallback`, repeated, in a command, lists other
+cloud models to ask in order; the local model ends every sequence, so a request always gets an
+answer unless the local model fails too. A model fails when Anthropic refuses the key, doesn't
+know the model, limits the rate, is down or overloaded, can't be reached, rejects or declines the
+request, sends nothing for 120 seconds, or when the model replies with no text. A rate limit, an
+overload or a lost connection is tried again twice first, a few seconds apart; a silent model never
+is. The next model starts from the beginning: the Chat tab removes the text the failed one wrote,
+and `ask` says on standard error that the text above is discarded. Each failure is said as it
+happens, and again with the answer or the summary. A reply cut off by its token limit, and an
+abstention, are answers, not failures.
+
+**The Research tab** names the model that answered, with its provider, and each that failed first.
+For a cloud model, model loading and prompt processing are unavailable, the generation's speed and
+time are measured by the app, network included, and the reasoning is the summary Anthropic
+returns, or "None came back".
+
+**Settings.** What every Claude model shares is its profile, `cloud_profiles.anthropic` in
+`config/models.yaml`: the window the app works with (64K tokens, far below the models' own, to cap
+what one request sends), the reasoning effort, the room set aside for reasoning, and the timeout.
+The task limits in `config/generation.yaml` apply, with that room added; their temperature
+doesn't, since the current Claude models take no sampling setting. Tokens are counted with an
+approximate tokenizer, which the safety margin absorbs, and the API refuses a prompt that doesn't
+fit instead of cutting it.
+
+**Costs and the key.** Anthropic bills each request, a failed one included. A cloud summary's report
+shows the tokens it read and generated, and those of each attempt that failed. The key is in the
+app container's environment: anyone who can open the interface, or call its API, can spend it (see
+Deployment notes).
+
+**Before trusting a model,** run the integration tests on it: with both settings exported in the
+shell, `make test-integration` runs each model of `ANTHROPIC_MODELS` on an excerpt written for the
+test, five questions it answers, three it doesn't, and a summary, and checks how the app reads
+what the model writes. They cost a few cents per model, and are skipped without the settings. A
+model allowed later is trusted once it has passed them.
+
+**What stays local:** embeddings, reranking, benchmarks and their judges. A cloud model has no
+digest and no seed, so its results can't be reproduced, and the index, every search and every
+comparison rest on those. An experiment or a judge that names a cloud model is refused before the
+run starts.
 
 ## Benchmarks
 
@@ -535,6 +612,10 @@ first look.
 - The app container gets the GPU too, for the reranker when it is configured
   to use it. torch comes from the CUDA 13.4 index: the RTX 5060 Ti is a Blackwell GPU, which
   builds for older CUDA versions cannot drive.
+- `ANTHROPIC_API_KEY`, when set, is in the app container's environment: `docker inspect` and
+  `docker compose config` show it to anyone who can run Docker, and anyone who can open the
+  interface, or call its API, can spend it. Keep `GRADIO_BIND_ADDRESS` on loopback unless everyone
+  who can reach it may. The app writes the key nowhere: not in a log, a saved summary or a result.
 - `config/` is copied into the image, and nothing mounts it. `make up` applies a change by
   rebuilding, which empties the library (see Running). To keep the library, copy the change in
   and restart: `docker compose cp config/. app:/app/config`, then `docker compose restart app`.
@@ -545,14 +626,17 @@ first look.
 | File                      | Holds                                                   |
 | ------------------------- | ------------------------------------------------------- |
 | `config/application.yaml` | Server, upload limits, timeouts and logging             |
-| `config/models.yaml`      | The LLM, embedding model and reranker                   |
+| `config/models.yaml`      | The LLM, embedding model and reranker, and each cloud provider's profile |
 | `config/ingestion.yaml`   | Languages and chunking                                  |
 | `config/retrieval.yaml`   | Retrieval strategy and its parameters                   |
 | `config/generation.yaml`  | Temperature and token limits per task                   |
 
 Unknown keys are errors, so a typo stops the app at startup instead of being ignored.
 Addresses and directories come from the environment; their defaults are the Compose
-service names.
+service names. So do a cloud provider's key and allowed models, read apart from the rest, so that
+nothing that records the configuration, such as a benchmark's result, holds the key. A cloud model
+takes `config/generation.yaml`'s token limits but not its temperature; the rest of its settings are
+its provider's profile.
 
 ## Layout
 
@@ -564,7 +648,7 @@ app/
   ingestion/       # from a file to chunks: loaders, normalization, structure, chunking
   embeddings/      # the embedding provider interface and Ollama behind it
   retrieval/       # dense, BM25, fusion, reranking and the pipeline around them
-  generation/      # the LLM provider, questions, summaries, prompts and citations
+  generation/      # the LLM providers, local and cloud, the model choices, questions, summaries, prompts and citations
   storage/         # the catalog in SQLite, ChromaDB, and the library's files
   services/        # the operations: what both Gradio and the commands call
   interface/       # the Gradio tabs, as thin as they can be

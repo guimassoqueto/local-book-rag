@@ -5,6 +5,7 @@ description = "Local RAG research platform for indexing, searching and summarizi
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "anthropic",
     "beautifulsoup4",
     "bm25s",
     "chromadb",

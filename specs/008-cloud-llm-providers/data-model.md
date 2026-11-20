@@ -88,6 +88,7 @@ A model's failed try at a request.
 | `detail`            | the provider's words, such as the category of a refusal or the API's error type, never the key |
 | `prompt_tokens`     | for a summary's attempt, the tokens its finished steps read; None for an answer's |
 | `completion_tokens` | likewise, the tokens they generated |
+| `step`              | for a summary's attempt, the step that failed, which its report names; None for an answer's |
 
 ### Events and errors
 
@@ -136,7 +137,7 @@ Next to the keys of today:
 | Key               | When        | Content |
 | ----------------- | ----------- | ------- |
 | `provider`        | always      | `ollama`, `anthropic` |
-| `failed_attempts` | always      | a list of `{model, provider, reason, detail}`, with `tokens` (`{read, generated}`) for a cloud attempt, empty when none failed |
+| `failed_attempts` | always      | a list of `{model, provider, reason, detail, step}`, with `tokens` (`{read, generated}`) for a cloud attempt, empty when none failed |
 | `tokens`          | cloud model | `{read, generated}`, the attempt that wrote it |
 
 A file without `provider`, saved before this feature, is read as the local model's (FR-023). The
@@ -145,7 +146,8 @@ summary's Markdown file doesn't change.
 ### `ReindexReport`
 
 `summaries_kept`, new: each saved summary that names a cloud provider, configured or not, left as
-it was, described as `book_001, chapter_04_standard: written by claude-sonnet-5-5 (Anthropic)`.
+it was, described as `book_001, chapter_04_standard (claude-sonnet-5-5, Anthropic)`, the form the
+tabs and the commands show.
 Whatever shows the list adds that a kept summary's references may name sections that the rebuild
 changed, and that summarizing the chapter again refreshes it.
 

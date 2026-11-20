@@ -46,11 +46,15 @@ def mock_model(capabilities=("completion", "thinking"), context_length=131072):
     respx.get(f"{BASE_URL}/api/tags").respond(json={"models": []})
 
 
-def provider(reasoning="low", context_size=8192):
+def provider(reasoning="low", context_size=8192, check_abstentions=False):
     config = LLMConfig(
         provider="ollama", model="gpt-oss:20b", context_size=context_size, temperature=0.2, max_tokens=99
     )
-    profile = LLMProfile(tokenizer=TokenizerConfig(kind="tiktoken", name="o200k_base"), reasoning=reasoning)
+    profile = LLMProfile(
+        tokenizer=TokenizerConfig(kind="tiktoken", name="o200k_base"),
+        reasoning=reasoning,
+        check_abstentions=check_abstentions,
+    )
     return OllamaLLMProvider(config, profile, OllamaRuntime(BASE_URL, timeout=5), WordCounter(), timeout=5)
 
 
@@ -92,13 +96,21 @@ def test_the_runtime_statistics_are_reported():
     assert stats.model == "gpt-oss:20b"
     assert stats.prompt_tokens == 87
     assert stats.completion_tokens == 33
-    assert stats.load_seconds == 3
-    assert stats.prompt_seconds == 0.5
+    assert stats.load_seconds == 3 and isinstance(stats.load_seconds, float)
+    assert stats.prompt_seconds == 0.5 and isinstance(stats.prompt_seconds, float)
     assert stats.generation_seconds == 2
     assert stats.tokens_per_second == 16.5
     assert stats.finish_reason == "stop"
     assert stats.time_to_first_token > 0
     assert stats.total_seconds >= stats.time_to_first_token
+
+
+@pytest.mark.parametrize("check", [True, False])
+def test_the_provider_names_its_kind_and_follows_its_profile_on_abstentions(check):
+    llm = provider(check_abstentions=check)
+
+    assert llm.provider == "ollama"
+    assert llm.check_abstentions is check
 
 
 @respx.mock

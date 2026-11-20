@@ -5,7 +5,15 @@ import gradio as gr
 from app.container import Container
 from app.generation.question_answering import Answer
 from app.interface.common import reports_errors
-from app.interface.formatting import SCORE_COLUMNS, gpu_markdown, prompt_text, run_markdown, score_rows
+from app.interface.formatting import (
+    SCORE_COLUMNS,
+    gpu_markdown,
+    prompt_text,
+    reasoning_label,
+    reasoning_text,
+    run_markdown,
+    score_rows,
+)
 from app.utils.gpu import query_gpu
 
 _CHECK_COLUMNS = ["Check", "OK", "Detail"]
@@ -29,26 +37,37 @@ def build_diagnostics_tab(container: Container, last_answer: gr.State, answered:
         checks = gr.Dataframe(headers=_CHECK_COLUMNS, interactive=False, wrap=True, label="Health checks")
         refresh = gr.Button("Check again")
 
-    def on_answer(answer: Answer | None) -> tuple[str, list[list[object]], str, str]:
+    def on_answer(answer: Answer | None) -> tuple[str, list[list[object]], str, gr.Textbox]:
         if answer is None:
-            return _NO_QUESTION, [], "", ""
+            return _NO_QUESTION, [], "", gr.Textbox("", show_label=False)
         reranker = settings.reranker.model if settings.retrieval.reranker.enabled else "disabled"
         index = container.indexes.active()
         embedding = index.embedding_model if index else settings.embedding.model
+        label = reasoning_label(answer, container.models)
         return (
-            run_markdown(answer, settings.llm.model, embedding, reranker),
+            run_markdown(answer, embedding, reranker, container.models),
             score_rows(answer),
             prompt_text(answer.messages),
-            answer.thinking,
+            gr.Textbox(reasoning_text(answer, container.models), label=label or None, show_label=bool(label)),
         )
 
-    @reports_errors
-    def on_refresh() -> tuple[str, list[list[str]]]:
+    def system(providers: bool) -> tuple[str, list[list[str]]]:
         loaded = container.runtime.loaded_models()
-        rows = [[check.name, "yes" if check.ok else "no", check.detail] for check in container.health.run()]
+        results = container.health.run(providers=providers)
+        rows = [[check.name, "yes" if check.ok else "no", check.detail] for check in results]
         return gpu_markdown(query_gpu(), loaded), rows
+
+    @reports_errors
+    def on_answer_checks() -> tuple[str, list[list[str]]]:
+        """After each answer: no provider is contacted (FR-021)."""
+        return system(providers=False)
+
+    @reports_errors
+    def on_check_again() -> tuple[str, list[list[str]]]:
+        """Asked for: each cloud provider's key and models are checked too."""
+        return system(providers=True)
 
     answered.then(  # type: ignore[attr-defined]
         on_answer, inputs=last_answer, outputs=[run, scores, context, thinking], api_visibility="private"
-    ).then(on_refresh, outputs=[gpu, checks], api_visibility="private")
-    refresh.click(on_refresh, outputs=[gpu, checks], api_name="system_status")
+    ).then(on_answer_checks, outputs=[gpu, checks], api_visibility="private")
+    refresh.click(on_check_again, outputs=[gpu, checks], api_name="system_status")
