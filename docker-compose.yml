@@ -92,6 +92,10 @@ services:
       CHROMA_HOST: chromadb
       CHROMA_PORT: 8000
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Cloud models, offered only when both are set in .env. Changing either recreates this
+      # container, which empties the library.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODELS: ${ANTHROPIC_MODELS:-}
 
     # The reranker runs inside this container, on the GPU when configured to.
     deploy:

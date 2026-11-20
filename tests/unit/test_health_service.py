@@ -4,9 +4,13 @@ from types import SimpleNamespace
 import pytest
 
 from app.errors import ModelNotFoundError, ServiceUnavailableError
+from app.generation.choices import ModelChoices
+from app.generation.cloud import ProviderCheck
+from app.generation.factory import CloudSetup, MissingSetting
 from app.services.health_service import HealthService
 from app.utils.gpu import GpuStatus
 from app.utils.ollama_runtime import LoadedModel, ModelInfo
+from tests.fakes import FakeCloud, FakeLLM
 
 
 def model_info(name, embedding_length=None, capabilities=("completion", "thinking"), context_length=131072):
@@ -74,6 +78,11 @@ def run_checks(settings, runtime=None, chroma=None, gpu=GPU, inference=False, in
         settings, runtime or FakeRuntime(settings), chroma or FakeChroma(), indexes or FakeIndexes(), lambda: gpu
     )
     return {result.name: result for result in service.run(inference=inference)}
+
+
+def check_list(settings, models, providers):
+    service = HealthService(settings, FakeRuntime(settings), FakeChroma(), FakeIndexes(), lambda: GPU, models=models)
+    return service.run(providers=providers)
 
 
 @pytest.mark.parametrize("inference", [False, True])
@@ -149,3 +158,52 @@ def test_a_missing_gpu_is_reported(settings):
 
     assert not results["gpu"].ok
     assert results["gpu"].detail == "no GPU visible to the application: the reranker stays on the CPU"
+
+
+# Cloud providers (specs/008-cloud-llm-providers, research.md R12)
+
+ROWS = [ProviderCheck("fakecloud fc-a", True, "a fake model"), ProviderCheck("fakecloud fc-b", False, "unknown")]
+
+
+def cloud_choices(settings, checks=ROWS, problems=()):
+    provider = FakeCloud(checks=checks)
+    setup = CloudSetup(
+        providers=((provider, ("fc-a", "fc-b")),), problems=tuple(problems), kinds={"fakecloud": "FakeCloud"}
+    )
+    return ModelChoices(FakeLLM(["ready"], model=settings.llm.model), setup), provider
+
+
+def test_the_checks_after_an_answer_contact_no_provider(settings):
+    models, provider = cloud_choices(settings)
+
+    results = check_list(settings, models, providers=False)
+
+    assert [result.name for result in results] == [result.name for result in check_list(settings, None, False)]
+    assert provider.check_calls == []
+
+
+def test_a_check_asked_for_adds_each_providers_rows_and_the_setting_problems(settings):
+    missing = MissingSetting("othercloud", "OtherCloud", present="OTHERCLOUD_MODELS", missing="OTHERCLOUD_API_KEY")
+    models, provider = cloud_choices(settings, problems=[missing])
+
+    results = check_list(settings, models, providers=True)
+
+    added = [(result.name, result.ok, result.detail) for result in results[-3:]]
+    assert added == [
+        (
+            "othercloud",
+            False,
+            "OTHERCLOUD_MODELS is set and OTHERCLOUD_API_KEY isn't: no model of OtherCloud's is offered",
+        ),
+        ("fakecloud fc-a", True, "a fake model"),
+        ("fakecloud fc-b", False, "unknown"),
+    ]
+    assert provider.check_calls == [["fc-a", "fc-b"]]
+
+
+def test_without_any_provider_set_a_check_asked_for_has_todays_rows(settings):
+    local_only = ModelChoices.local_only(FakeLLM(["ready"], model=settings.llm.model))
+
+    asked = check_list(settings, local_only, providers=True)
+
+    assert asked == check_list(settings, None, providers=False)

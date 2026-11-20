@@ -3,8 +3,11 @@
 import html
 import math
 from collections.abc import Sequence
+from typing import Literal
 
-from app.generation.base import GenerationStats, Message
+from app.errors import AllModelsFailedError
+from app.generation.base import Attempt, AttemptFailed, GenerationStats, Message
+from app.generation.choices import ModelChoices, ModelOption
 from app.generation.citations import Citation
 from app.generation.question_answering import Answer
 from app.generation.summarization import ChapterSummary
@@ -110,12 +113,67 @@ def passages_markdown(passages: Sequence[Passage], citations: Sequence[Citation]
     return "\n\n".join(sections) if sections else "No passages."
 
 
-def timing_markdown(answer: Answer) -> str:
-    timing = f"Answered in **{answer.total_seconds:.1f} s**"
-    if answer.generation is None:
-        return timing
-    stats = answer.generation.stats
-    return f"{timing} · {stats.completion_tokens} tokens at {stats.tokens_per_second:.0f} tokens/s"
+Subject = Literal["question", "chapter"]
+
+
+def option_label(option: ModelOption) -> str:
+    """How the Model dropdown lists a model: `<model> · <provider label>`, `local` for the local model."""
+    return f"{option.name} · {option.provider_label}"
+
+
+def model_notice(options: Sequence[ModelOption], subject: Subject) -> str:
+    """What a sequence sends, and where, said before anything is sent (FR-008, FR-010).
+
+    Empty for the local model alone, which sends nothing anywhere.
+    """
+    cloud = [option for option in options if not option.local]
+    if not cloud:
+        return ""
+    parts: list[str] = []
+    label = None
+    for option in cloud:
+        parts.append(option.name if option.provider_label == label else f"{option.provider_label}: {option.name}")
+        label = option.provider_label
+    sent = "The question and the passages found go to" if subject == "question" else "The chapter's text goes to"
+    failing = "If it fails" if len(cloud) == 1 else "If they fail"
+    done = "answers" if subject == "question" else "summarizes it"
+    return f"{sent} {', then '.join(parts)}. {failing}, {options[-1].name} {done}, locally."
+
+
+def found_status(count: int, first: ModelOption) -> str:
+    """The Chat tab's status line once the passages are found, naming a cloud model asked first."""
+    if first.local:
+        return f"Found {count} passages. Writing the answer…"
+    return f"Found {count} passages. Asking {first.name} ({first.provider_label})…"
+
+
+def failure_status(event: AttemptFailed, models: ModelChoices) -> str:
+    """The Chat tab's status line when a model fails and the next one is asked."""
+    return f"⚠️ {event.attempt.describe(models.label_of(event.attempt.provider))} Asking {event.next_model}…"
+
+
+def every_model_failed_status(error: AllModelsFailedError) -> str:
+    """The Chat tab's status line when the last model of a sequence failed too: every failure."""
+    return f"⚠️ {error}"
+
+
+def timing_markdown(answer: Answer, models: ModelChoices | None = None) -> str:
+    """The Chat tab's last status line. It names the model that answered when it is a cloud model
+    or another one failed first, with a line per failure (FR-018)."""
+    timing = f"in **{answer.total_seconds:.1f} s**"
+    if answer.generation is not None:
+        stats = answer.generation.stats
+        timing = f"{timing} · {stats.completion_tokens} tokens at {stats.tokens_per_second:.0f} tokens/s"
+    if models is None or answer.generation is None or not _named(answer, models):
+        return f"Answered {timing}"
+    lines = [f"Answered by {answer.model} ({models.label_of(answer.provider)}) {timing}"]
+    lines += [f"⚠️ {attempt.describe(models.label_of(attempt.provider))}" for attempt in answer.attempts]
+    return "\n\n".join(lines)
+
+
+def _named(answer: Answer, models: ModelChoices) -> bool:
+    """Whether an answer names its model: a cloud model's, or one that came after a failure."""
+    return models.is_cloud_provider(answer.provider) or bool(answer.attempts)
 
 
 def score_rows(answer: Answer) -> list[list[object]]:
@@ -146,13 +204,29 @@ def _score(value: float | None) -> str:
     return "" if value is None else f"{value:.3f}"
 
 
-def run_markdown(answer: Answer, llm: str, embedding: str, reranker: str) -> str:
-    """Report a question's models, counts and timings."""
+def run_markdown(answer: Answer, embedding: str, reranker: str, models: ModelChoices | None = None) -> str:
+    """Report a question's models, counts and timings.
+
+    The LLM is the one that answered, or, when none was called, the one picked. A cloud model's
+    answer, or one that came after a failure, names its provider and each failure first; a cloud
+    model's measures that its provider doesn't report read "unavailable", and those the app takes
+    itself say so, since they include the network (FR-024, FR-025).
+    """
     retrieval = answer.retrieval
+    named = models is not None and _named(answer, models)
+    llm = f"`{answer.model}`"
+    if named:
+        llm = f"{llm} ({models.label_of(answer.provider)})"
     lines = [
         "| Measure | Value |",
         "| --- | --- |",
-        f"| LLM | `{llm}` |",
+        f"| LLM | {llm} |",
+    ]
+    if named:
+        for attempt in answer.attempts:
+            failure = attempt.reason.describe(attempt.detail)
+            lines.append(f"| Failed first | `{attempt.model}` ({models.label_of(attempt.provider)}): {failure} |")
+    lines += [
         f"| Embedding model | `{embedding}` |",
         f"| Reranker | `{reranker}` |",
         f"| Candidates retrieved | {len(retrieval.candidates)} |",
@@ -161,22 +235,44 @@ def run_markdown(answer: Answer, llm: str, embedding: str, reranker: str) -> str
         f"| Reranking | {retrieval.rerank_seconds:.2f} s |",
     ]
     if answer.generation is not None:
-        lines.extend(_generation_rows(answer.generation.stats))
+        cloud = models is not None and models.is_cloud_provider(answer.provider)
+        lines.extend(_generation_rows(answer.generation.stats, measured_by_app=cloud))
     lines.append(f"| Total | {answer.total_seconds:.2f} s |")
     return "\n".join(lines)
 
 
-def _generation_rows(stats: GenerationStats) -> list[str]:
+def _generation_rows(stats: GenerationStats, measured_by_app: bool = False) -> list[str]:
+    """The inference's rows. A measure the provider doesn't report reads "unavailable"; the app's own
+    measures of a cloud model say so."""
+    by_app = " (measured by the app)" if measured_by_app else ""
     return [
         f"| Prompt tokens | {stats.prompt_tokens} |",
         f"| Generated tokens | {stats.completion_tokens} |",
         f"| Time to first token | {stats.time_to_first_token:.2f} s |",
-        f"| Generation speed | {stats.tokens_per_second:.1f} tokens/s |",
-        f"| Model loading | {stats.load_seconds:.2f} s |",
-        f"| Prompt processing | {stats.prompt_seconds:.2f} s |",
-        f"| Generation | {stats.generation_seconds:.2f} s |",
+        f"| Generation speed | {stats.tokens_per_second:.1f} tokens/s{by_app} |",
+        f"| Model loading | {_seconds(stats.load_seconds)} |",
+        f"| Prompt processing | {_seconds(stats.prompt_seconds)} |",
+        f"| Generation | {stats.generation_seconds:.2f} s{by_app} |",
         f"| Finished because | {stats.finish_reason} |",
     ]
+
+
+def _seconds(value: float | None) -> str:
+    return "unavailable" if value is None else f"{value:.2f} s"
+
+
+def reasoning_label(answer: Answer, models: ModelChoices) -> str:
+    """The label of a reasoning that the provider summarized, or nothing for one shown as it is."""
+    if answer.generation is None or not answer.generation.thinking_summarized:
+        return ""
+    return f"A summary of the reasoning, as {models.label_of(answer.provider)} returns it"
+
+
+def reasoning_text(answer: Answer, models: ModelChoices) -> str:
+    """The reasoning, or, for a cloud model that returned none, that none came back (FR-025)."""
+    if not answer.thinking and answer.generation is not None and models.is_cloud_provider(answer.provider):
+        return "None came back."
+    return answer.thinking
 
 
 def gpu_markdown(gpu: GpuStatus | None, loaded: Sequence[LoadedModel]) -> str:
@@ -199,13 +295,27 @@ def _count(number: int, noun: str) -> str:
     return f"{number} {noun}" if number == 1 else f"{number} {noun}s"
 
 
-def summary_report(summary: ChapterSummary) -> str:
-    """Say how a summary was made, and what the reader should distrust about it."""
-    lines = [
+def summary_report(summary: ChapterSummary, models: ModelChoices | None = None) -> str:
+    """Say how a summary was made, and what the reader should distrust about it.
+
+    A summary that a cloud model wrote, or that came after a failure, names its provider, and a
+    cloud model's adds the tokens it spent; a line per failed attempt follows (FR-022). A local
+    summary with no failure reads as before.
+    """
+    cloud = models is not None and models.is_cloud_provider(summary.provider)
+    how = f"{summary.strategy}, `{summary.model}`"
+    if models is not None and (cloud or summary.attempts):
+        how = f"{how}, {models.label_of(summary.provider)}"
+    first = (
         f"Read **{summary.chunks_covered} of {summary.chunks_total}** chunks of the chapter, "
         f"in {_count(summary.steps, 'step')} and {summary.total_seconds:.0f} s "
-        f"({summary.strategy}, `{summary.model}`). Cites {_count(len(summary.citations), 'passage')}."
-    ]
+        f"({how}). Cites {_count(len(summary.citations), 'passage')}."
+    )
+    if cloud:
+        first += f" Read {summary.prompt_tokens:,} tokens and generated {summary.completion_tokens:,}."
+    lines = [first]
+    if models is not None:
+        lines += [f"⚠️ {summary_attempt_line(attempt, models)}" for attempt in summary.attempts]
     lost = summary.chunks_total - summary.chunks_covered
     if lost:
         lines.append(f"⚠️ {_count(lost, 'chunk')} cut off by the token limit.")
@@ -218,6 +328,32 @@ def summary_report(summary: ChapterSummary) -> str:
     if summary.verification:
         lines.append(f"**Claim check:** {summary.verification}")
     return "\n\n".join(lines)
+
+
+def summary_attempt_line(attempt: Attempt, models: ModelChoices, separators: bool = True) -> str:
+    """A summary's failed attempt, with the tokens a cloud attempt spent before it failed, which
+    were billed too: "<model> (<provider label>) failed at step 3: it limited the rate, after reading
+    9,120 tokens and generating 1,804." """
+    where = f" at step {attempt.step}" if attempt.step else ""
+    label = models.label_of(attempt.provider)
+    line = f"{attempt.model} ({label}) failed{where}: {attempt.reason.describe(attempt.detail)}"
+    if models.is_cloud_provider(attempt.provider) and attempt.prompt_tokens:
+        read, generated = attempt.prompt_tokens, attempt.completion_tokens or 0
+        if separators:
+            line += f", after reading {read:,} tokens and generating {generated:,}"
+        else:
+            line += f", after reading {read} tokens and generating {generated}"
+    return f"{line}."
+
+
+def kept_summaries_notice(report: ReindexReport) -> str:
+    """The summaries that a rebuild left as a cloud model wrote them, or nothing (FR-023)."""
+    if not report.summaries_kept:
+        return ""
+    return (
+        f"Kept as they were, written by a cloud model: {'; '.join(report.summaries_kept)}. Their references "
+        "may name sections that the rebuild changed: summarize a chapter again to refresh its summary."
+    )
 
 
 # The progress of library operations (specs/004-library-progress). The services report the stages,

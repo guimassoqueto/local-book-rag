@@ -10,6 +10,9 @@ from contextlib import contextmanager
 import chromadb
 
 from app.config.settings import Settings
+from app.container import CLOUD_PROVIDERS
+from app.generation.choices import ModelChoices
+from app.generation.factory import create_cloud_providers
 from app.generation.summarization import ChapterSummarizer
 from app.ingestion.base import DocumentFormat
 from app.ingestion.chunker import Chunker
@@ -36,9 +39,10 @@ MARKDOWN = f"# One\n\n{TEXT}\n\n## Sub\n\n{TEXT}\n\n# Two\n\n{TEXT}\n"
 class Library:
     """Everything a process would build at startup, so a new one acts like a restart."""
 
-    def __init__(self, settings: Settings, data, embedder=None):
+    def __init__(self, settings: Settings, data, embedder=None, environ=None):
         self.root = data
         self.settings = settings
+        self.environ = environ or {}
         self.runtime = FakeRuntime()
         self.embedder = embedder or FakeEmbedder()
         self.server = ChromaServer("embedded", 0, client=chromadb.PersistentClient(path=str(data / "chroma")))
@@ -60,8 +64,10 @@ class Library:
         self.books = BookService(self.data, self.guard, self.ingestion, self.indexes, max_upload_bytes=2**20)
         self.retrieval = RetrievalService(settings, self.catalog, self.indexes, self.processed, FakeReranker())
         self.llm = FakeLLM(["## Chapter overview\nA summary with enough words to look up."])
+        # As the container builds them: every provider kind known, those the environment sets offered.
+        self.models = ModelChoices(self.llm, create_cloud_providers(settings, self.environ, CLOUD_PROVIDERS))
         self.summarizer = ChapterSummarizer(
-            settings, self.llm, self.catalog, self.processed, self.summary_documents, self.retrieval
+            settings, self.models, self.catalog, self.processed, self.summary_documents, self.retrieval
         )
         self.library = LibraryService(self.data, self.guard, self.ingestion, self.indexes, self.summarizer)
         self.resets = ResetService(self.data, self.guard)
@@ -76,7 +82,10 @@ class Library:
         """The same data seen by a process started with another configuration."""
         current = getattr(self.settings, section)
         return Library(
-            self.settings.model_copy(update={section: current.model_copy(update=values)}), self.root, self.embedder
+            self.settings.model_copy(update={section: current.model_copy(update=values)}),
+            self.root,
+            self.embedder,
+            self.environ,
         )
 
 

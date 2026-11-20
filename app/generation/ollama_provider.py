@@ -32,6 +32,8 @@ class OllamaLLMProvider:
         timeout: float,
     ) -> None:
         self.model = config.model
+        self.provider = "ollama"
+        self.check_abstentions = profile.check_abstentions
         self._config = config
         self._profile = profile
         self._runtime = runtime

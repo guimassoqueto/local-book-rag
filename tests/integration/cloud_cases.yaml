@@ -1,0 +1,61 @@
+# What every Claude model in ANTHROPIC_MODELS is checked on before it is trusted
+# (specs/008-cloud-llm-providers, SC-003, FR-033; constitution V). test_cloud_generation.py reads
+# the replies as the application does.
+#
+# The excerpt was written for this test: no book holds it, so no model can answer from memory.
+# Each section is one passage. The answerable questions name the section that answers them; the
+# unanswerable ones ask for what the excerpt never says.
+
+excerpt:
+  book_title: The Keeper of Kessar Point
+  chapter_title: The Light and the Harbor
+  sections:
+    - title: The Keeper
+      text: >-
+        Marta Ilves kept the Kessar Point lighthouse for twenty-two years, from 1931 to 1953. She
+        inherited the post from her father, who had kept the light for nearly as long before her.
+        Every night she climbed ninety-six steps to wind the clockwork that turned the lens, and
+        she climbed them again at two in the morning to wind it a second time.
+    - title: The Lamp
+      text: >-
+        The lamp burned paraffin until 1948, when the harbor board paid for an electric lamp and a
+        diesel generator to run it. Marta distrusted the generator, and kept a paraffin lamp
+        trimmed beside the new one through the winter storms. The diesel failed twice in its first
+        winter, and both times the old lamp was lit within minutes.
+    - title: The Harbor
+      text: >-
+        Kessar's harbor sheltered about forty fishing boats. Their owners paid a light due of one
+        shilling per boat each quarter, which the harbor board collected and from which it paid the
+        keeper's wage. When the herring catch failed in 1937, the board halved the due for a year,
+        and Marta's wage was halved with it.
+    - title: The Logbook
+      text: >-
+        Marta's logbook records every ship she saw pass the point, with the weather and the hour.
+        Its best-known entry, for 14 March 1944, notes a convoy of eleven ships passing in thick
+        fog, and her decision to sound the foghorn every ninety seconds instead of every three
+        minutes. The convoy's commander later wrote to thank her.
+    - title: After the Light
+      text: >-
+        When the light was automated in 1953, Marta moved into the town, where she taught
+        navigation to the fishermen's children until she retired. Her logbooks went to the county
+        archive in 1960.
+
+answerable:
+  - question: How long did Marta Ilves keep the Kessar Point lighthouse?
+    section: The Keeper
+  - question: Why did Marta keep a paraffin lamp beside the electric one?
+    section: The Lamp
+  - question: Where did the money for the keeper's wage come from?
+    section: The Harbor
+  - question: What did Marta change on 14 March 1944, and why?
+    section: The Logbook
+  - question: What did Marta do after the light was automated?
+    section: After the Light
+
+unanswerable:
+  - question: What was the name of Marta's father?
+  - question: How much did the electric lamp and the generator cost the harbor board?
+  - question: What was the name of the convoy's commander?
+
+# The excerpt is also the short chapter that each model summarizes, its statements cited by lookup.
+summary_type: brief

@@ -355,6 +355,126 @@ dataset's six. A new spec would be needed, since this one is delivered. The read
 gpt-oss making more errors than gemma4 in its multi-section answers, 10 of 15 against 5. The
 judge's scores didn't show that, and they still decide.
 
+## Cloud models
+
+**Answers and summaries may come from a cloud model, picked per request.** Departs from the first
+version's spec, which put local-first at the top of its design principles, and from the
+constitution before 3.0.0, which kept all inference local. The owner wanted Claude beside the local
+model for answers and chapter summaries (`specs/008-cloud-llm-providers`). Constitution 3.0.0 made
+it an opt-in: the local model stays the default, and a cloud model answers only a request that
+picks it, since a cloud call sends a book's text to a third party. That is the user's choice each
+time, not a setting left on, and the request carries no more than it needs: the question and its
+passages, or the chapter. Embeddings, reranking, benchmarks and judges stay local: a cloud model
+has no digest and no seed, so nothing that the index or a comparison rests on can depend on one.
+
+**Cloud models are allowed in the environment, with one profile per provider.** Two settings per
+provider, `ANTHROPIC_API_KEY` and `ANTHROPIC_MODELS`, the fewest the owner could set, and read apart
+from `Settings` and `EnvironmentSettings`, so that the key reaches nothing that records or copies
+them, such as a benchmark's result. Allowing a model takes one name in `.env`, where an entry in
+`config/` would take a rebuild. What a provider's models share is one profile,
+`cloud_profiles.anthropic`, validated at startup with the rest of `config/`. Changing either
+setting still recreates the app container, which empties the library: the README says so where it
+explains them.
+
+**The local model ends every sequence.** Whatever fails before it, a request gets an answer from
+the model that runs here, unless that one fails too. A fallback list can't name it: it is always
+last.
+
+**A summary is written by one model.** When a step fails, the summary starts again from its first
+step with the next model, instead of finishing with another: a summary whose parts came from one
+model and whose final step from another would make its record false. The failed attempt's tokens
+are recorded too, since they were billed.
+
+**Only the sequence's models answer.** Anthropic's API can fall back to another model on its own,
+which its reference advises turning on for Claude Opus 5.5 and Sonnet 5.5. It stays off: it would
+answer a declined request with a model that the user didn't put in the sequence.
+
+**`reindex-all` leaves a cloud summary as it was.** Writing the saved summaries again calls no
+cloud model. A summary that names a cloud provider stays, whether or not that provider is
+configured now, and is listed, with a caveat: its references were made from the chunks before the
+rebuild, and summarizing the chapter again refreshes them. Writing it again with the local model
+would replace a summary the owner paid for with another model's, behind their back.
+
+**No temperature, and no seed.** The current Claude models refuse any sampling setting with a 400,
+so `config/generation.yaml`'s temperature doesn't apply to them; its token limits do, with the
+profile's room for reasoning added. The API has no seed, which is one more reason benchmarks don't
+run cloud models.
+
+**A silent model gets 120 seconds, once.** The SDK's own retries are off: they would try a timeout
+again too, turning 120 seconds of silence into six minutes. The provider tries a request again
+itself, at most twice, after a rate limit, an overload or a lost connection, waiting 2 then 6
+seconds, or the API's `retry-after` when it is shorter than 10, and only before anything has
+streamed. A timeout is never tried again, so the profile's `request_timeout_seconds` is the
+longest a sequence waits on one model. The owner chose 120 seconds.
+
+**Tokens are counted with an approximation, which runs low.** Claude's tokenizer isn't public, so
+`o200k_base` stands in. On the real models it ran about a third low: Claude counted 3,801 tokens in
+a question's prompt that the app estimated at 2,543, and 4,803 in a chapter summary's estimated at
+3,143, 1.49 and 1.53 times as many, more than `generation.context.safety_margin` absorbs. Nothing
+is lost to it: Principle V's rule exists because Ollama cuts a prompt silently, while the API
+refuses one that doesn't fit, and the models' own window, a million tokens, is far above the
+profile's. What changes is the cap: `context_size: 65536` limits a request to about 100K of
+Claude's own tokens, not 64K. Counting exactly would cost a request for each passage fitted.
+
+**The profile's values.** `reasoning: low`, since the tasks read passages and write a short answer
+or a summary; `reasoning_tokens: 4000`, room for the reasoning beside task limits set for
+`gpt-oss`; `context_size: 65536`, a cap on what one request sends, and so on its cost;
+`request_timeout_seconds: 120`; and `check_abstentions`, planned off, since a check costs a call
+per answer, and turned on by the first run on the real models (below). Each stays while the checks
+on the real models pass: a case that a higher effort passes raises the effort, a reply that stops
+at its limit without text raises the room for reasoning, and a reply that abstains in words turns
+the abstention check on.
+
+**Checked on Claude Haiku 5.5, Sonnet 5.5 and Opus 5.5 (2026-11-20).** `doctor` found the three,
+each with a window of a million tokens, taking the profile's effort and adaptive reasoning. The
+integration tests ran each on an excerpt written for them, five questions it answers, three it
+doesn't, and a short summary, and the quickstart's checks ran on *On Liberty*. What they write
+differently from the local models:
+- **They cite as the app asks**, `[1]`, where `gpt-oss` writes `【3】`. Every citation resolved,
+  none was invented, and each answer cited the passage that holds its answer.
+- **Haiku abstains in words.** Sonnet and Opus opened all three unanswerable replies with the
+  no-evidence marker. Haiku did once, and twice wrote the abstention without it: "The passages
+  don't say how much the electric lamp and the diesel generator cost the harbor board", and "The
+  passages do not give the name of the convoy's commander". So `check_abstentions` is on for the
+  provider. Given those two replies, Haiku's own check read both as abstentions, and with the
+  check on, the 9 unanswerable cases and the 15 answerable ones came out right on all three
+  models. It costs one more short call per answer without the marker.
+- **They write more.** Answers ran 750 to 1,000 tokens, reasoning included, against `gpt-oss`'s
+  200 to 280 for the same question, with bold labels in Markdown ("**Society as a tyrant.**").
+  Asked in Portuguese, Sonnet answered in Portuguese.
+- **They are fast to start.** Haiku's first token came in 1.5 s, and its answers in 12 to 17 s in
+  all, Sonnet's in 19 s; `gpt-oss` took 15 s once loaded. No request came near the 120-second
+  timeout, and no reply stopped at its limit, so `reasoning: low` and `reasoning_tokens: 4000`
+  held.
+- **A summary fits in one step.** Haiku summarized a 7-chunk chapter in one step, reading 4,803
+  tokens and generating 1,737, with 5 of 33 statements close to no passage. The longest chapter of
+  *On Liberty*, 22,274 tokens by the app's count, fits the 52,177 that `context_size: 65536` leaves
+  a one-step summary, so that value held too.
+
+**A command marks the text it can't take back.** The Chat tab removes what a failed model wrote
+before the next one starts. A terminal can't, so `ask` says on standard error that the text above
+is discarded, and which model answers from the start. Holding a cloud answer back until it is
+whole would leave nothing to withdraw, but would stream nothing either.
+
+**The provider reads three things the plan's mapping left out.** The SDK reports an error that
+arrives inside a stream, such as an overload after the request was accepted, with the stream's HTTP
+status, 200, so the API's error type decides its reason: an overload or an API error is an outage, a
+rate limit a rate limit, an authentication, permission or billing error a refused key, and any
+other a rejected request. A reply that stops because it filled the model's window
+(`model_context_window_exceeded`) is read like one that stopped at its token limit: an answer when
+it has text. And a check that can't reach Anthropic, or gets nothing in time, ends with one row, as
+a refused key does, instead of waiting the profile's 120 seconds once for each allowed model.
+
+**Benchmark results from now on have another configuration hash.** `Settings` gained
+`cloud_profiles`, which every result records with the rest of the configuration, so a run of the
+same local setup has another `configuration_sha256` than one made before. Nothing in the code
+compares the two.
+
+**Anthropic's SDK is its 2.x line.** The plan expected 1.x; `uv add` resolved 2.12.0, which runs on
+`httpx2` as planned, apart from the `httpx` that Ollama's client and LlamaIndex use, so neither
+constrains the other. Its model descriptions come back as typed objects, which the provider check
+reads for the effort and the adaptive reasoning that the profile sends.
+
 ## Library lifecycle
 
 **Chunks carry a book revision.** A replacement is indexed next to the live revision and one SQLite

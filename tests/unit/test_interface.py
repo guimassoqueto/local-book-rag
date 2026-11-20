@@ -1,3 +1,5 @@
+import dataclasses
+import json
 import threading
 import time
 
@@ -6,11 +8,13 @@ import pytest
 
 from app.config.settings import EnvironmentSettings
 from app.container import Container
-from app.errors import BookNotFoundError, ServiceUnavailableError
-from app.generation.base import Generation, Message
+from app.errors import BookNotFoundError, ModelFailedError, ServiceUnavailableError
+from app.generation.base import Attempt, FailureReason, Generation, Message
+from app.generation.choices import ModelChoices
 from app.generation.citations import citation_for
+from app.generation.factory import CloudSetup
 from app.generation.question_answering import Answer, QuestionAnsweringService
-from app.generation.summarization import ChapterSummary
+from app.generation.summarization import ChapterSummarizer, ChapterSummary
 from app.interface import formatting
 from app.interface.common import follow, reports_errors
 from app.interface.gradio_app import build_interface
@@ -22,7 +26,7 @@ from app.storage.catalog import Book, BookStatus, IndexRecord
 from app.utils.gpu import GpuStatus
 from app.utils.ollama_runtime import LoadedModel
 from app.utils.progress import Outcome, Progress, ProgressView, StageSpec, StageView
-from tests.fakes import FakeLLM, make_chunk, make_stats
+from tests.fakes import FakeCloud, FakeLLM, make_chunk, make_stats
 from tests.library import Library, other_text, upload
 
 
@@ -69,6 +73,8 @@ def answer(passages=None, citations=None, candidates=None, generation=True, **ov
         "thinking": "",
         "generation": Generation("An answer [1].", "", stats) if generation else None,
         "total_seconds": 12.5,
+        "model": "fake-llm",
+        "provider": "ollama",
     }
     return Answer(**(values | overrides))
 
@@ -93,6 +99,7 @@ def summary(**overrides):
         "verification": None,
         "model": "m",
         "total_seconds": 30.0,
+        "provider": "ollama",
     }
     return ChapterSummary(**(values | overrides))
 
@@ -184,7 +191,7 @@ def test_scores_show_every_stage_with_the_best_first():
 
 
 def test_the_run_report_covers_what_the_spec_asks_for():
-    text = formatting.run_markdown(answer(), "llm-model", "embedding-model", "reranker-model")
+    text = formatting.run_markdown(answer(model="llm-model"), "embedding-model", "reranker-model")
 
     for expected in (
         "llm-model",
@@ -258,19 +265,24 @@ def library(settings, tmp_path):
 
 @pytest.fixture
 def interface(library):
-    llm = FakeLLM(["An answer about the dog [1]."])
+    return interface_on(library, ModelChoices.local_only(FakeLLM(["An answer about the dog [1]."])))
+
+
+def interface_on(library, models, summarizer=None):
+    """The whole interface, its questions going to the given models, and its summaries too if given."""
     container = Container(
         settings=library.settings,
         environment=EnvironmentSettings(),
         runtime=library.runtime,
-        health=HealthService(library.settings, library.runtime, library.server, library.indexes),
+        health=HealthService(library.settings, library.runtime, library.server, library.indexes, models=models),
         indexes=library.indexes,
         books=library.books,
         library=library.library,
         resets=library.resets,
         retrieval=library.retrieval,
-        questions=QuestionAnsweringService(library.settings, library.retrieval, llm),
-        summaries=library.summarizer,
+        questions=QuestionAnsweringService(library.settings, library.retrieval, models),
+        summaries=summarizer or library.summarizer,
+        models=models,
     )
     return build_interface(container)
 
@@ -893,3 +905,374 @@ def test_each_picker_refuses_a_pdf_before_any_handler_runs(interface, tmp_path):
     for picker in pickers(interface):
         with pytest.raises(gr.Error, match="Invalid file type"):
             picker.preprocess(FileData(path=str(pdf), orig_name="book.pdf"))
+
+
+# Cloud models in the Chat tab (specs/008-cloud-llm-providers, research.md R13, contracts/interface.md)
+
+RATE_LIMITED = ModelFailedError("fc-a", "fakecloud", FailureReason.RATE_LIMITED, label="FakeCloud")
+
+
+def cloud_models():
+    """The local model, and FakeCloud's fc-a, which fails after two words, and fc-b, which answers."""
+    local = FakeLLM(["An answer about the dog [1]."])
+    failing = FakeLLM(model="fc-a", provider="fakecloud", cloud=True, fail=RATE_LIMITED, text_before_failure="Half an")
+    answering = FakeLLM(["A cloud answer about the dog [1]."], model="fc-b", provider="fakecloud", cloud=True)
+    provider = FakeCloud(models={"fc-a": failing, "fc-b": answering})
+    return ModelChoices(local, CloudSetup(((provider, ("fc-a", "fc-b")),), (), {"fakecloud": "FakeCloud"}))
+
+
+@pytest.fixture
+def cloud_interface(library):
+    models = cloud_models()
+    summarizer = ChapterSummarizer(
+        library.settings, models, library.catalog, library.processed, library.summary_documents, library.retrieval
+    )
+    return interface_on(library, models, summarizer)
+
+
+def model_dropdowns(interface):
+    return [block for block in interface.blocks.values() if isinstance(block, gr.Dropdown) and block.label == "Model"]
+
+
+def model_change(interface):
+    return next(fn.fn for fn in interface.fns.values() if fn.fn.__name__ == "on_model_change")
+
+
+def test_without_cloud_models_no_model_choice_shows(interface):
+    assert model_dropdowns(interface)
+    assert not any(dropdown.visible for dropdown in model_dropdowns(interface))
+
+
+def test_with_cloud_models_the_choice_lists_them_and_starts_on_the_local_model(cloud_interface):
+    [dropdown, *_] = model_dropdowns(cloud_interface)
+
+    assert dropdown.visible
+    assert dropdown.choices == [
+        ("fake-llm · local", "fake-llm"),
+        ("fc-a · FakeCloud", "fc-a"),
+        ("fc-b · FakeCloud", "fc-b"),
+    ]
+    assert dropdown.value == "fake-llm"
+
+
+def test_picking_a_cloud_model_shows_what_goes_where(cloud_interface):
+    _, notice = model_change(cloud_interface)("fc-b")
+    _, back = model_change(cloud_interface)("fake-llm")
+
+    assert notice.value == (
+        "The question and the passages found go to FakeCloud: fc-b. If it fails, fake-llm answers, locally."
+    )
+    assert notice.visible
+    assert (back.value, back.visible) == ("", False)
+
+
+def ask_with(interface, model):
+    ask = handler(interface, "ask")
+    return list(ask("Where is the dog?", [], formatting.ALL_CHAPTERS, "Same as the question", model))
+
+
+def test_a_cloud_answer_names_its_model(cloud_interface, library, tmp_path):
+    library.add(tmp_path)
+
+    updates = ask_with(cloud_interface, "fc-b")
+
+    assert any(update[0].startswith("Found") and update[0].endswith("Asking fc-b (FakeCloud)…") for update in updates)
+    status, text, *_ = updates[-1]
+    assert status.startswith("Answered by fc-b (FakeCloud) in **")
+    assert text == "A cloud answer about the dog [1]."
+
+
+def test_a_failed_model_s_text_is_withdrawn_and_the_failure_said(cloud_interface, library, tmp_path):
+    library.add(tmp_path)
+
+    updates = ask_with(cloud_interface, "fc-a")
+
+    written = [update[1] for update in updates if isinstance(update[1], str)]
+    assert "Half an " in written
+    failure = "⚠️ fc-a (FakeCloud) failed: it limited the rate. Asking fake-llm…"
+    position = next(index for index, update in enumerate(updates) if update[0] == failure)
+    assert updates[position][1] == ""
+    status, text, *_ = updates[-1]
+    assert text == "An answer about the dog [1]."
+    assert status.startswith("Answered by fake-llm (local) in **")
+    assert status.endswith("\n\n⚠️ fc-a (FakeCloud) failed: it limited the rate.")
+
+
+def test_a_local_answer_without_failures_reads_as_today(cloud_interface, library, tmp_path):
+    library.add(tmp_path)
+
+    status, *_ = ask_with(cloud_interface, "fake-llm")[-1]
+
+    assert status.startswith("Answered in **")
+
+
+# Cloud models in the Summarization and Library tabs (specs/008-cloud-llm-providers, contracts/interface.md)
+
+
+def model_changes(interface):
+    return [fn.fn for fn in interface.fns.values() if fn.fn.__name__ == "on_model_change"]
+
+
+def test_each_tab_keeps_its_own_model_choice(cloud_interface):
+    chat, summaries = model_dropdowns(cloud_interface)
+
+    assert chat is not summaries
+    assert chat.visible and summaries.visible
+    assert (chat.value, summaries.value) == ("fake-llm", "fake-llm")
+
+
+def test_the_summarization_notice_speaks_of_the_chapter(cloud_interface):
+    _, summaries = model_changes(cloud_interface)
+
+    assert summaries("fc-b")[1].value == (
+        "The chapter's text goes to FakeCloud: fc-b. If it fails, fake-llm summarizes it, locally."
+    )
+
+
+def test_a_cloud_summary_names_its_provider_and_its_tokens(cloud_interface, library, tmp_path):
+    book = library.add(tmp_path)
+
+    report, text, generated, _ = handler(cloud_interface, "summarize")(
+        book.book_id, 1, "brief", "Same as the book", "fc-b"
+    )
+
+    first = report.split("\n\n")[0]
+    assert "(direct, `fc-b`, FakeCloud)" in first
+    assert first.endswith("Read 100 tokens and generated 20.")
+    assert (generated.model, generated.provider) == ("fc-b", "fakecloud")
+
+
+def test_a_summary_after_a_failure_lists_it_with_the_tokens_it_spent():
+    attempt = Attempt("fc-a", "fakecloud", FailureReason.RATE_LIMITED, "", 9120, 1804, step=3)
+
+    text = formatting.summary_report(summary(model="fake-llm", attempts=(attempt,)), cloud_models())
+
+    assert "(map_reduce, `fake-llm`, local)" in text
+    assert (
+        "⚠️ fc-a (FakeCloud) failed at step 3: it limited the rate, after reading 9,120 tokens and generating 1,804."
+        in text.split("\n\n")
+    )
+
+
+def test_a_local_summary_without_failures_reports_as_before():
+    local_only = ModelChoices.local_only(FakeLLM(["A summary."], model="m"))
+
+    assert formatting.summary_report(summary(), local_only) == formatting.summary_report(summary())
+    assert "Read 0 tokens" not in formatting.summary_report(summary(), local_only)
+
+
+KEPT = "book_001, chapter_04_standard (claude-sonnet-5-5, Anthropic)"
+
+
+def test_the_summaries_kept_by_a_rebuild_are_said_with_their_references_caveat():
+    report = ReindexReport(2, "c", "m", 1, 3, (), (), 1, (), (KEPT,))
+
+    assert formatting.kept_summaries_notice(report) == (
+        "Kept as they were, written by a cloud model: book_001, chapter_04_standard (claude-sonnet-5-5, "
+        "Anthropic). Their references may name sections that the rebuild changed: summarize a chapter again to "
+        "refresh its summary."
+    )
+    assert formatting.kept_summaries_notice(ReindexReport(2, "c", "m", 1, 3, (), (), 1, ())) == ""
+
+
+def test_the_library_tab_tells_of_the_summaries_kept(interface, library, tmp_path, monkeypatch):
+    book = library.add(tmp_path)
+    library.summarizer.save(library.summarizer.summarize(book.book_id, 1, "brief"))
+    path = library.root / "summaries" / book.book_id / "chapter_01_brief.json"
+    metadata = json.loads(path.read_text(encoding="utf-8")) | {"provider": "anthropic", "model": "claude-sonnet-5-5"}
+    path.write_text(json.dumps(metadata), encoding="utf-8")
+    told = []
+    monkeypatch.setattr(gr, "Info", told.append)
+
+    list(handler(interface, "reindex_all")(True))
+
+    kept = "Kept as they were, written by a cloud model: book_001, chapter_01_brief (claude-sonnet-5-5, Anthropic)."
+    assert any(message.startswith(kept) for message in told)
+
+
+# Fallbacks in the tabs (specs/008-cloud-llm-providers, US3, research.md R13)
+
+
+def fallbacks_change(interface):
+    return next(fn.fn for fn in interface.fns.values() if fn.fn.__name__ == "on_fallbacks_change")
+
+
+def test_the_fallbacks_show_once_a_cloud_model_is_picked_offering_the_other_ones(cloud_interface):
+    fallbacks = [
+        block
+        for block in cloud_interface.blocks.values()
+        if isinstance(block, gr.Dropdown) and block.label == "If it fails, then"
+    ]
+    picked, _ = model_change(cloud_interface)("fc-a")
+    local, _ = model_change(cloud_interface)("fake-llm")
+
+    assert len(fallbacks) == 2 and not any(dropdown.visible for dropdown in fallbacks)
+    assert all(dropdown.multiselect for dropdown in fallbacks)
+    assert "local model answers last" in fallbacks[0].info
+    assert picked.visible and picked.choices == [("fc-b · FakeCloud", "fc-b")] and picked.value == []
+    assert not local.visible
+
+
+def test_the_notice_follows_the_sequence_in_its_order(cloud_interface):
+    notice = fallbacks_change(cloud_interface)("fc-b", ["fc-a"])
+
+    assert notice.value == (
+        "The question and the passages found go to FakeCloud: fc-b, then fc-a. If they fail, fake-llm answers, locally."
+    )
+
+
+def test_a_refused_list_shows_its_refusal_in_place_of_the_notice(cloud_interface):
+    notice = fallbacks_change(cloud_interface)("fc-b", ["fc-b"])
+
+    assert notice.value.startswith("fc-b is given more than once. Offered: fake-llm (local), fc-a (FakeCloud)")
+    assert notice.visible
+
+
+def test_the_fallbacks_reach_the_service_in_their_order(cloud_interface, library, tmp_path):
+    library.add(tmp_path)
+    ask = handler(cloud_interface, "ask")
+
+    updates = list(ask("Where is the dog?", [], formatting.ALL_CHAPTERS, "Same as the question", "fc-a", ["fc-b"]))
+
+    status, text, *_ = updates[-1]
+    assert text == "A cloud answer about the dog [1]."
+    assert status.startswith("Answered by fc-b (FakeCloud) in **")
+    assert "⚠️ fc-a (FakeCloud) failed: it limited the rate." in status
+
+
+def test_each_tab_changes_only_its_own_components(cloud_interface):
+    names = ("on_model_change", "on_fallbacks_change")
+    changes = [fn for fn in cloud_interface.fns.values() if fn.fn.__name__ in names]
+
+    outputs = [{id(component) for component in fn.outputs} for fn in changes]
+    chat = outputs[0] | outputs[1]
+    summaries = outputs[2] | outputs[3]
+    assert len(changes) == 4 and not chat & summaries
+
+
+# The Research tab (specs/008-cloud-llm-providers, US4, contracts/interface.md)
+
+MAIN_RUN = """| Measure | Value |
+| --- | --- |
+| LLM | `fake-llm` |
+| Embedding model | `embedding-model` |
+| Reranker | `reranker-model` |
+| Candidates retrieved | 1 |
+| Passages in the context | 1 of 1 selected |
+| Retrieval | 0.50 s |
+| Reranking | 4.00 s |
+| Prompt tokens | 2000 |
+| Generated tokens | 500 |
+| Time to first token | 0.10 s |
+| Generation speed | 2500.0 tokens/s |
+| Model loading | 0.00 s |
+| Prompt processing | 0.10 s |
+| Generation | 0.20 s |
+| Finished because | stop |
+| Total | 12.50 s |"""
+
+
+def cloud_answer(thinking="He weighs the passages."):
+    """fc-b's answer, after fc-a failed, with the stats and the reasoning a cloud provider gives."""
+    stats = make_stats(prompt_tokens=2000, completion_tokens=500, model="fc-b", cloud=True)
+    attempt = Attempt("fc-a", "fakecloud", FailureReason.UNKNOWN_MODEL)
+    generation = Generation("An answer [1].", thinking, stats, thinking_summarized=True)
+    cloud = answer(thinking=thinking, model="fc-b", provider="fakecloud", attempts=(attempt,))
+    return dataclasses.replace(cloud, generation=generation)
+
+
+def test_a_local_answer_without_failures_reports_as_on_main():
+    local_only = ModelChoices.local_only(FakeLLM(["An answer."]))
+
+    assert formatting.run_markdown(answer(), "embedding-model", "reranker-model", local_only) == MAIN_RUN
+
+
+def test_a_cloud_answer_names_its_model_its_failures_and_what_its_provider_doesnt_report():
+    rows = formatting.run_markdown(cloud_answer(), "embedding-model", "reranker-model", cloud_models()).splitlines()
+
+    assert rows[2:4] == [
+        "| LLM | `fc-b` (FakeCloud) |",
+        "| Failed first | `fc-a` (FakeCloud): it doesn't know this model |",
+    ]
+    assert "| Model loading | unavailable |" in rows and "| Prompt processing | unavailable |" in rows
+    assert "| Generation speed | 2500.0 tokens/s (measured by the app) |" in rows
+    assert "| Generation | 0.20 s (measured by the app) |" in rows
+    assert "| Prompt tokens | 2000 |" in rows and "| Generated tokens | 500 |" in rows
+
+
+def test_with_nothing_retrieved_the_model_picked_is_named_and_no_generation_shows():
+    nothing = answer(generation=False, model="fc-a", provider="fakecloud")
+
+    text = formatting.run_markdown(nothing, "embedding-model", "reranker-model", cloud_models())
+
+    assert "| LLM | `fc-a` (FakeCloud) |" in text.splitlines()
+    assert "Prompt tokens" not in text and "Finished because" not in text
+
+
+def test_a_cloud_models_reasoning_is_labeled_a_summary_or_said_missing():
+    models = cloud_models()
+
+    assert formatting.reasoning_label(cloud_answer(), models) == "A summary of the reasoning, as FakeCloud returns it"
+    assert formatting.reasoning_text(cloud_answer(), models) == "He weighs the passages."
+    assert formatting.reasoning_text(cloud_answer(thinking=""), models) == "None came back."
+    assert formatting.reasoning_label(answer(), models) == ""
+
+
+def checks_after_an_answer(interface):
+    return next(fn.fn for fn in interface.fns.values() if fn.fn.__name__ == "on_answer_checks")
+
+
+def test_the_checks_after_an_answer_leave_the_providers_alone_and_check_again_asks_them(library, monkeypatch):
+    provider = FakeCloud(models={"fc-b": FakeLLM(["A cloud answer."], model="fc-b", provider="fakecloud")})
+    models = ModelChoices(FakeLLM(["An answer."]), CloudSetup(((provider, ("fc-b",)),), (), {"fakecloud": "FakeCloud"}))
+    interface = interface_on(library, models)
+    monkeypatch.setattr("app.interface.diagnostics.query_gpu", lambda: None)
+
+    _, after_answer = checks_after_an_answer(interface)()
+    asked = provider.check_calls[:]
+    _, again = handler(interface, "system_status")()
+
+    assert asked == [] and not any(row[0].startswith("fakecloud") for row in after_answer)
+    assert provider.check_calls == [["fc-b"]]
+    assert ["fakecloud fc-b", "yes", "a fake model"] in again
+
+
+# The last model's text, when every model fails (specs/008, Phase 9: Convergence, T075; FR-017)
+
+
+def failing_after(words, error):
+    return FakeLLM(fail=error, text_before_failure=words)
+
+
+def collect(stream, error_match):
+    updates = []
+    with pytest.raises(gr.Error, match=error_match):
+        for update in stream:
+            updates.append(update)
+    return updates
+
+
+def test_when_every_model_fails_the_last_ones_text_is_withdrawn_before_the_error(library, tmp_path):
+    library.add(tmp_path)
+    local = failing_after("Half a local answer", ServiceUnavailableError("Ollama went away."))
+    cloud = FakeLLM(model="fc-a", provider="fakecloud", cloud=True, fail=RATE_LIMITED)
+    provider = FakeCloud(models={"fc-a": cloud})
+    models = ModelChoices(local, CloudSetup(((provider, ("fc-a",)),), (), {"fakecloud": "FakeCloud"}))
+    ask = handler(interface_on(library, models), "ask")
+
+    updates = collect(ask("Where is the dog?", [], formatting.ALL_CHAPTERS, "Same as the question", "fc-a"), "No model")
+
+    assert any(update[1] == "Half a local answer " for update in updates)
+    status, text, *_ = updates[-1]
+    assert text == ""
+    assert status.startswith("⚠️ No model could answer. fc-a (FakeCloud) failed: it limited the rate.")
+
+
+def test_the_local_model_failing_alone_leaves_its_text_as_on_main(library, tmp_path):
+    library.add(tmp_path)
+    local = failing_after("Half a local answer", ServiceUnavailableError("Ollama went away."))
+    ask = handler(interface_on(library, ModelChoices.local_only(local)), "ask")
+
+    updates = collect(ask("Where is the dog?", [], formatting.ALL_CHAPTERS, "Same as the question"), "Ollama went away")
+
+    assert updates[-1][1] == "Half a local answer "

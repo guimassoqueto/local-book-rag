@@ -10,15 +10,24 @@ summary is looked up among the chapter's chunks, and cites the passage it actual
 This works the same for every model.
 """
 
+import logging
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
-from typing import Protocol
+from typing import Any, Protocol
 
-from app.config.settings import Settings
-from app.errors import ChapterNotFoundError, ConfigurationError, GenerationError
-from app.generation.base import FINISHED_BY_LENGTH, Generation, GenerationParameters, LLMProvider, Message
+from app.config.settings import Settings, SummaryTypeConfig
+from app.errors import BookRagError, ChapterNotFoundError, ConfigurationError, GenerationError
+from app.generation.base import (
+    FINISHED_BY_LENGTH,
+    Attempt,
+    Generation,
+    GenerationParameters,
+    LLMProvider,
+    Message,
+)
+from app.generation.choices import ModelChoices, failed_attempt, moves_on
 from app.generation.citations import Citation, citation_for
 from app.generation.prompts import (
     collapse_messages,
@@ -28,7 +37,7 @@ from app.generation.prompts import (
 )
 from app.ingestion.chunker import Chunk, split_sentences
 from app.retrieval.bm25 import ChunkSource
-from app.storage.catalog import BookCatalog
+from app.storage.catalog import Book, BookCatalog
 from app.storage.repositories import SummaryDocuments
 from app.utils.logging import get_logger, log_event, operation
 
@@ -75,8 +84,12 @@ class ChapterSummary:
         steps: how many inferences it took.
         incomplete_steps: steps cut off by their token limit, which may have lost content.
         verification: the verification step's report, if enabled.
-        model: the model that wrote it.
+        model: the model that wrote it, alone (FR-019), as its provider reported it.
         total_seconds: the whole operation.
+        provider: the model's provider.
+        attempts: the models that failed before it, each with the tokens of the steps it finished.
+        prompt_tokens: the tokens its steps read, added up.
+        completion_tokens: the tokens its steps generated, reasoning included, added up.
     """
 
     book_id: str
@@ -97,13 +110,17 @@ class ChapterSummary:
     verification: str | None
     model: str
     total_seconds: float
+    provider: str
+    attempts: tuple[Attempt, ...] = ()
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
 
 
 class ChapterSummarizer:
     def __init__(
         self,
         settings: Settings,
-        llm: LLMProvider,
+        models: ModelChoices,
         catalog: BookCatalog,
         chunks: ChunkSource,
         documents: SummaryDocuments,
@@ -112,7 +129,7 @@ class ChapterSummarizer:
         self._config = settings.generation.summarization
         self._llm_defaults = settings.llm
         self._safety_margin = settings.generation.context.safety_margin
-        self._llm = llm
+        self._models = models
         self._catalog = catalog
         self._chunks = chunks
         self._documents = documents
@@ -121,6 +138,13 @@ class ChapterSummarizer:
     def summary_types(self) -> list[str]:
         return list(self._config.types)
 
+    def cloud_written(self, provider: str | None) -> bool:
+        """Whether a saved summary's provider is a cloud one, configured now or not."""
+        return self._models.is_cloud_provider(provider)
+
+    def label_of(self, provider: str) -> str:
+        return self._models.label_of(provider)
+
     def summarize(
         self,
         book_id: str,
@@ -128,23 +152,33 @@ class ChapterSummarizer:
         summary_type: str,
         language: str | None = None,
         on_progress: Callable[[str], None] | None = None,
+        model: str | None = None,
+        fallbacks: Sequence[str] = (),
     ) -> ChapterSummary:
         """Summarize a chapter.
+
+        Each model of the sequence makes the whole summary, until one finishes: when a step
+        fails, the summary starts again from its first step with the next model (FR-019).
 
         Args:
             book_id: the book.
             chapter_number: the chapter, as a position in the book.
             summary_type: one of summary_types().
             language: the language to write in. None means the book's.
-            on_progress: told what is happening, for long chapters.
+            on_progress: told what is happening, for long chapters, failures included.
+            model: the model picked for the summary. None means the local model.
+            fallbacks: the cloud models to ask, in order, if it fails, before the local model.
 
         Raises:
+            ModelChoiceError: the sequence is refused, before the chapter is read.
             ChapterNotFoundError: the book has no such chapter.
             ConfigurationError: the summary type doesn't exist.
-            GenerationError: the model produced no text at some step.
+            AllModelsFailedError: the local model failed after other models did.
+            GenerationError: the local model, asked alone, produced no text at some step.
         """
-        with operation(logger, "summarize_chapter", book_id=book_id, chapter=chapter_number, model=self._llm.model):
-            return self._summarize(book_id, chapter_number, summary_type, language, on_progress)
+        sequence = self._models.sequence(model, fallbacks)
+        with operation(logger, "summarize_chapter", book_id=book_id, chapter=chapter_number, model=sequence[0].model):
+            return self._summarize(book_id, chapter_number, summary_type, language, on_progress, sequence)
 
     def _summarize(
         self,
@@ -153,6 +187,7 @@ class ChapterSummarizer:
         summary_type: str,
         language: str | None,
         on_progress: Callable[[str], None] | None,
+        sequence: Sequence[LLMProvider],
     ) -> ChapterSummary:
         started = perf_counter()
         report = on_progress or (lambda message: None)
@@ -172,7 +207,63 @@ class ChapterSummarizer:
         if not chunks:
             raise ChapterNotFoundError(f"{book_id} has no chapter {chapter_number}.")
 
-        run = _Run(self._llm, book.language, language, chunks[0].chapter_title)
+        attempts: list[Attempt] = []
+        for position, llm in enumerate(sequence, start=1):
+            run = _Run(llm, book.language, language, chunks[0].chapter_title)
+            try:
+                summary = self._write(run, book, chunks, summary_type, style, report)
+            except BookRagError as exc:
+                last = position == len(sequence)
+                if (last and not attempts) or not (last or moves_on(exc)):
+                    raise
+                attempt = failed_attempt(llm, exc, run.steps, run.prompt_tokens, run.completion_tokens)
+                attempts.append(attempt)
+                log_event(
+                    logger,
+                    "model failed",
+                    logging.WARNING,
+                    provider=attempt.provider,
+                    model=attempt.model,
+                    reason=attempt.reason.value,
+                    position=position,
+                )
+                if last:
+                    raise self._models.all_failed(attempts, exc) from exc
+                described = attempt.describe(self._models.label_of(attempt.provider))
+                report(f"{described} Starting again with {sequence[position].model}.")
+                continue
+
+            tokens: dict[str, Any] = {}
+            if self._models.is_cloud_provider(llm.provider):
+                tokens = {"prompt_tokens": run.prompt_tokens, "completion_tokens": run.completion_tokens}
+            log_event(
+                logger,
+                "chapter summarized",
+                chunks=len(chunks),
+                lost_chunks=run.lost_sources,
+                strategy=summary.strategy,
+                steps=run.steps,
+                citations=len(summary.citations),
+                # The operation's own model is the first one asked, which a fallback may have replaced.
+                model=summary.model,
+                provider=llm.provider,
+                failed_attempts=len(attempts),
+                **tokens,
+            )
+            return replace(summary, attempts=tuple(attempts), total_seconds=perf_counter() - started)
+        raise AssertionError("a sequence always ends with the local model")
+
+    def _write(
+        self,
+        run: "_Run",
+        book: Book,
+        chunks: list[Chunk],
+        summary_type: str,
+        style: SummaryTypeConfig,
+        report: Callable[[str], None],
+    ) -> ChapterSummary:
+        """One model's whole summary: its budgets, counts and steps are the run's model's."""
+        book_id, chapter_number, language = book.book_id, chunks[0].chapter_number, run.language
         sources = [chunk.text for chunk in chunks]
         final_tokens = style.max_tokens or self._config.max_tokens or self._llm_defaults.max_tokens
 
@@ -181,13 +272,13 @@ class ChapterSummarizer:
                 book.title, run.chapter, material, style.target_words, style.style, language, book.language
             )
 
-        final_budget = self._budget(final_tokens) - self._frame_tokens(final_messages(""))
+        final_budget = self._budget(run, final_tokens) - self._frame_tokens(run, final_messages(""))
         whole = _PARTS_SEPARATOR.join(sources)
-        if self._llm.count_tokens(whole) <= final_budget:
+        if run.llm.count_tokens(whole) <= final_budget:
             strategy, material = "direct", whole
         else:
             strategy = "map_reduce"
-            batches = self._batches(sources)
+            batches = self._batches(run, sources)
             max_words = self._partial_words(final_budget, len(batches))
             partials: list[str] = []
             for position, batch in enumerate(batches, start=1):
@@ -207,15 +298,6 @@ class ChapterSummarizer:
             report("Checking the claims against the sources")
             verification = self._verify(run, final.text, citations, chunks)
 
-        log_event(
-            logger,
-            "chapter summarized",
-            chunks=len(chunks),
-            lost_chunks=run.lost_sources,
-            strategy=strategy,
-            steps=run.steps,
-            citations=len(citations),
-        )
         return ChapterSummary(
             book_id=book_id,
             book_title=book.title,
@@ -233,14 +315,21 @@ class ChapterSummarizer:
             steps=run.steps,
             incomplete_steps=run.incomplete_steps,
             verification=verification,
-            model=self._llm.model,
-            total_seconds=perf_counter() - started,
+            model=final.stats.model,
+            total_seconds=0.0,
+            provider=run.llm.provider,
+            prompt_tokens=run.prompt_tokens,
+            completion_tokens=run.completion_tokens,
         )
 
     def save(self, summary: ChapterSummary) -> str:
-        """Keep a summary with the book's other derived data, and return where it went."""
+        """Keep a summary with the book's other derived data, and return where it went.
+
+        Its JSON file records the provider and the failed attempts always, and the tokens of a
+        cloud model's attempts, which were billed (FR-022).
+        """
         name = f"chapter_{summary.chapter_number:02d}_{summary.summary_type}"
-        metadata = {
+        metadata: dict[str, Any] = {
             "book_title": summary.book_title,
             "chapter_title": summary.chapter_title,
             "summary_type": summary.summary_type,
@@ -254,15 +343,31 @@ class ChapterSummarizer:
             "steps": summary.steps,
             "incomplete_steps": summary.incomplete_steps,
             "verification": summary.verification,
+            "provider": summary.provider,
+            "failed_attempts": [self._attempt_record(attempt) for attempt in summary.attempts],
         }
+        if self._models.is_cloud_provider(summary.provider):
+            metadata["tokens"] = {"read": summary.prompt_tokens, "generated": summary.completion_tokens}
         return str(self._documents.save(summary.book_id, name, summary.text, metadata))
 
-    def _budget(self, max_tokens: int) -> int:
-        """How many tokens a prompt may take, after reserving the reply and a margin."""
-        return int(self._llm.context_size() * (1 - self._safety_margin)) - max_tokens
+    def _attempt_record(self, attempt: Attempt) -> dict[str, Any]:
+        record: dict[str, Any] = {
+            "model": attempt.model,
+            "provider": attempt.provider,
+            "reason": attempt.reason.value,
+            "detail": attempt.detail,
+            "step": attempt.step,
+        }
+        if self._models.is_cloud_provider(attempt.provider):
+            record["tokens"] = {"read": attempt.prompt_tokens, "generated": attempt.completion_tokens}
+        return record
 
-    def _frame_tokens(self, messages: Sequence[Message]) -> int:
-        return sum(self._llm.count_tokens(message.content) for message in messages)
+    def _budget(self, run: "_Run", max_tokens: int) -> int:
+        """How many tokens a prompt may take in the run's model, after reserving the reply and a margin."""
+        return int(run.llm.context_size() * (1 - self._safety_margin)) - max_tokens
+
+    def _frame_tokens(self, run: "_Run", messages: Sequence[Message]) -> int:
+        return sum(run.llm.count_tokens(message.content) for message in messages)
 
     def _parameters(self, max_tokens: int) -> GenerationParameters:
         temperature = self._config.temperature
@@ -271,19 +376,19 @@ class ChapterSummarizer:
             max_tokens=max_tokens,
         )
 
-    def _batches(self, sources: list[str]) -> list[list[str]]:
+    def _batches(self, run: "_Run", sources: list[str]) -> list[list[str]]:
         """Group consecutive sources into batches that a reply can do justice to.
 
         The context window would hold far more, but the reply is what has to carry it all.
         """
-        frame = self._frame_tokens(map_messages("", "", 0, None, None))
-        available = self._budget(self._config.map_max_tokens) - frame
+        frame = self._frame_tokens(run, map_messages("", "", 0, None, None))
+        available = self._budget(run, self._config.map_max_tokens) - frame
         budget = min(available, self._config.map_max_tokens * _MAP_INPUT_RATIO)
         batches: list[list[str]] = []
         current: list[str] = []
         tokens = 0
         for source in sources:
-            cost = self._llm.count_tokens(source)
+            cost = run.llm.count_tokens(source)
             if current and tokens + cost > budget:
                 batches.append(current)
                 current, tokens = [], 0
@@ -320,28 +425,29 @@ class ChapterSummarizer:
         rounds at the shortest length stop condensing too, the summary ends: more would only take time.
         """
         material = _PARTS_SEPARATOR.join(partials)
-        size = self._llm.count_tokens(material)
+        size = run.llm.count_tokens(material)
         share = 1.0  # of the length the parts could have, what the merges ask for
         while size > budget:
             report(f"Combining {len(partials)} partial summaries")
-            groups = self._groups(partials)
+            groups = self._groups(run, partials)
             words = max(_MIN_PARTIAL_WORDS, int(self._partial_words(budget, len(groups)) * share))
             partials = [merged for group in groups for merged in self._merge(run, group, words)]
             material = _PARTS_SEPARATOR.join(partials)
-            previous, size = size, self._llm.count_tokens(material)
+            previous, size = size, run.llm.count_tokens(material)
             if size > budget and size > previous * _MIN_ROUND_SHRINK:
                 if words <= _MIN_PARTIAL_WORDS:
                     raise GenerationError("The partial summaries are too long to combine in this context window.")
                 share /= 2
         return material
 
-    def _groups(self, partials: list[str]) -> list[list[str]]:
+    def _groups(self, run: "_Run", partials: list[str]) -> list[list[str]]:
         """Consecutive partials, a few at a time, as many as one prompt holds with room for the reply."""
-        budget = self._budget(self._merge_limit()) - self._frame_tokens(collapse_messages("", "", 0, None, None))
+        frame = self._frame_tokens(run, collapse_messages("", "", 0, None, None))
+        budget = self._budget(run, self._merge_limit()) - frame
         groups: list[list[str]] = []
         tokens = 0
         for partial in partials:
-            cost = self._llm.count_tokens(partial)
+            cost = run.llm.count_tokens(partial)
             if groups and len(groups[-1]) < _COLLAPSE_FAN_IN and tokens + cost <= budget:
                 groups[-1].append(partial)
                 tokens += cost
@@ -359,7 +465,7 @@ class ChapterSummarizer:
         messages = collapse_messages(run.chapter, merged, words, run.language, run.book_language)
         generation = run.step(messages, self._parameters(self._merge_limit()), retried_if_cut_off=True)
         if generation.stats.finish_reason != FINISHED_BY_LENGTH:
-            if self._llm.count_tokens(generation.text) >= self._llm.count_tokens(merged):
+            if run.llm.count_tokens(generation.text) >= run.llm.count_tokens(merged):
                 return partials
             return [generation.text]
         if len(partials) == 1:
@@ -403,11 +509,11 @@ class ChapterSummarizer:
     def _verify(self, run: "_Run", summary: str, citations: list[Citation], chunks: list[Chunk]) -> str:
         """Check the summary against the passages it cites, as many of them as fit."""
         max_tokens = self._config.map_max_tokens
-        budget = self._budget(max_tokens) - self._frame_tokens(verification_messages(summary, ""))
+        budget = self._budget(run, max_tokens) - self._frame_tokens(run, verification_messages(summary, ""))
         cited: list[str] = []
         for citation in citations:
             source = chunks[citation.number - 1].text
-            budget -= self._llm.count_tokens(source)
+            budget -= run.llm.count_tokens(source)
             if budget < 0:
                 break
             cited.append(source)
@@ -415,16 +521,25 @@ class ChapterSummarizer:
 
 
 class _Run:
-    """What one summary needs at every step, and the counts of how they went."""
+    """What one model's summary needs at every step, and the counts of how they went.
+
+    Attributes:
+        llm: the model that makes the whole summary; its window sets every budget.
+        steps: the steps begun, the failing one included.
+        prompt_tokens: what the steps that returned read, added up, since they were billed.
+        completion_tokens: what they generated.
+    """
 
     def __init__(self, llm: LLMProvider, book_language: str | None, language: str | None, chapter: str) -> None:
-        self._llm = llm
+        self.llm = llm
         self.book_language = book_language
         self.language = language
         self.chapter = chapter
         self.steps = 0
         self.incomplete_steps = 0
         self.lost_sources = 0
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
 
     def step(
         self, messages: Sequence[Message], parameters: GenerationParameters, retried_if_cut_off: bool = False
@@ -436,8 +551,10 @@ class _Run:
             parameters: temperature and limit.
             retried_if_cut_off: the caller redoes this step if the reply hits the limit.
         """
-        generation = self._llm.generate(messages, parameters)
         self.steps += 1
+        generation = self.llm.generate(messages, parameters)
+        self.prompt_tokens += generation.stats.prompt_tokens
+        self.completion_tokens += generation.stats.completion_tokens
         cut_off = generation.stats.finish_reason == FINISHED_BY_LENGTH
         if cut_off and retried_if_cut_off:
             return generation

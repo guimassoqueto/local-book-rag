@@ -2,7 +2,7 @@
 
 import logging
 import re
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Iterator, Sequence
 from dataclasses import dataclass, replace
 from time import perf_counter
 
@@ -10,12 +10,15 @@ from app.config.settings import RetrievalConfig, Settings
 from app.errors import BookRagError, GenerationError
 from app.generation.base import (
     FINISHED_BY_LENGTH,
+    Attempt,
+    AttemptFailed,
     Generation,
     GenerationParameters,
     LLMProvider,
     Message,
     TextDelta,
 )
+from app.generation.choices import ModelChoices, failed_attempt, moves_on
 from app.generation.citations import Citation, normalize_citations, resolve_citations
 from app.generation.prompts import (
     NO_EVIDENCE_MARKER,
@@ -66,6 +69,10 @@ class Answer:
         thinking: the model's reasoning, for inspection.
         generation: the inference's statistics. None when no inference was needed.
         total_seconds: the whole operation.
+        model: the model that wrote the answer, as its provider reported it; when none was
+            called, the first of the sequence.
+        provider: its provider's name.
+        attempts: the failures before it, in order.
     """
 
     question: str
@@ -79,6 +86,9 @@ class Answer:
     thinking: str
     generation: Generation | None
     total_seconds: float
+    model: str
+    provider: str
+    attempts: tuple[Attempt, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -102,9 +112,7 @@ def read_reply(generation: Generation | None, chunks: Sequence[Chunk]) -> Reply:
     return Reply(text, tuple(citations), tuple(invented), insufficient)
 
 
-def check_abstention(
-    llm: LLMProvider, settings: Settings, question: str, reply: Reply, parameters: GenerationParameters
-) -> Reply:
+def check_abstention(llm: LLMProvider, question: str, reply: Reply, parameters: GenerationParameters) -> Reply:
     """Read a reply without the marker again for an abstention in words, if the model's profile asks.
 
     gemma4 and qwen3.5 sometimes abstain without the no-evidence marker: asked who did something,
@@ -117,13 +125,12 @@ def check_abstention(
     reply an answer, and is logged: a check must never cost the reader an answer.
 
     Args:
-        llm: the model that wrote the reply.
-        settings: its settings, whose profile says whether to check.
+        llm: the model that wrote the reply, whose profile says whether to check.
         question: what was asked.
         reply: the reply, as read_reply() read it.
         parameters: the reply's parameters. The check keeps its token limit, at temperature 0.
     """
-    if reply.insufficient_evidence or not settings.llm_profile.check_abstentions:
+    if reply.insufficient_evidence or not llm.check_abstentions:
         return reply
     messages = abstention_check_messages(question, reply.text)
     needed = sum(llm.count_tokens(message.content) for message in messages) + parameters.max_tokens
@@ -142,10 +149,10 @@ def check_abstention(
 
 
 class QuestionAnsweringService:
-    def __init__(self, settings: Settings, retrieval: RetrievalService, llm: LLMProvider) -> None:
+    def __init__(self, settings: Settings, retrieval: RetrievalService, models: ModelChoices) -> None:
         self._settings = settings
         self._retrieval = retrieval
-        self._llm = llm
+        self._models = models
 
     def answer(
         self,
@@ -153,9 +160,11 @@ class QuestionAnsweringService:
         filters: RetrievalFilters,
         language: str | None = None,
         retrieval_config: RetrievalConfig | None = None,
+        model: str | None = None,
+        fallbacks: Sequence[str] = (),
     ) -> Answer:
         """Answer a question. See stream()."""
-        for event in self.stream(question, filters, language, retrieval_config):
+        for event in self.stream(question, filters, language, retrieval_config, model, fallbacks):
             if isinstance(event, Answer):
                 return event
         raise AssertionError("stream() always ends with an Answer")
@@ -166,48 +175,115 @@ class QuestionAnsweringService:
         filters: RetrievalFilters,
         language: str | None = None,
         retrieval_config: RetrievalConfig | None = None,
-    ) -> Iterator[RetrievalResult | TextDelta | Answer]:
+        model: str | None = None,
+        fallbacks: Sequence[str] = (),
+    ) -> Iterator[RetrievalResult | TextDelta | AttemptFailed | Answer]:
         """Answer a question, reporting progress as it happens.
+
+        The search runs once, and each model of the sequence gets its passages, in the same order,
+        fitted to its own context, until one answers (FR-011, FR-017).
 
         Args:
             question: what was asked.
             filters: where to look.
             language: the language to answer in. None means the question's.
             retrieval_config: a strategy other than the configured one, for experiments.
+            model: the model picked for the question. None means the local model.
+            fallbacks: the cloud models to ask, in order, if it fails, before the local model.
 
         Yields:
-            The retrieval result, then the text as it arrives, then the Answer.
+            The retrieval result; then, for each model asked, its text as it arrives and, if it
+            fails, an AttemptFailed, which withdraws that text; then the Answer.
 
         Raises:
-            GenerationError: the model produced no answer.
+            ModelChoiceError: the sequence is refused, before anything is searched or sent.
+            AllModelsFailedError: the local model failed after other models did.
+            GenerationError: the local model, asked alone, produced no answer; it raises what it
+                raises on its own otherwise.
         """
         started = perf_counter()
+        sequence = self._models.sequence(model, fallbacks)
+        execution_id = new_execution_id()
         result = self._retrieval.search(question, filters, retrieval_config)
         yield result
 
-        passages = self._fit_in_context(question, result.passages, language)
-        if not passages:
+        attempts: list[Attempt] = []
+        for position, llm in enumerate(sequence, start=1):
+            passages = self._fit_in_context(llm, question, result.passages, language)
+            if not passages:
+                yield self._nothing_retrieved(question, result, llm, attempts, started)
+                return
+            chunks = [passage.chunk for passage in passages]
+            messages = question_answering_messages(question, chunks, language)
+            try:
+                generation, reply = yield from self._reply(llm, question, messages, chunks)
+            except BookRagError as exc:
+                last = position == len(sequence)
+                if (last and not attempts) or not (last or moves_on(exc)):
+                    raise
+                attempt = failed_attempt(llm, exc)
+                attempts.append(attempt)
+                log_event(
+                    logger,
+                    "model failed",
+                    logging.WARNING,
+                    execution_id=execution_id,
+                    provider=attempt.provider,
+                    model=attempt.model,
+                    reason=attempt.reason.value,
+                    position=position,
+                )
+                if last:
+                    raise self._models.all_failed(attempts, exc) from exc
+                following = sequence[position]
+                yield AttemptFailed(attempt, following.model, following.provider)
+                continue
+
+            # One event at the end: Gradio resumes this generator from different contexts, which
+            # rules out the `operation` context manager. It never carries the text of a book or a
+            # question.
+            log_event(
+                logger,
+                "question answered",
+                execution_id=execution_id,
+                operation="answer_question",
+                books=sorted({chunk.book_id for chunk in chunks}),
+                model=generation.stats.model,
+                provider=llm.provider,
+                failed_attempts=len(attempts),
+                retrieved_passages=len(result.candidates),
+                context_passages=len(passages),
+                prompt_tokens=generation.stats.prompt_tokens,
+                completion_tokens=generation.stats.completion_tokens,
+                insufficient_evidence=reply.insufficient_evidence,
+                duration_seconds=perf_counter() - started,
+            )
             yield Answer(
                 question=question,
-                text=NOTHING_RETRIEVED,
-                citations=(),
-                invented_citations=(),
-                insufficient_evidence=True,
+                text=reply.text,
+                citations=reply.citations,
+                invented_citations=reply.invented_citations,
+                insufficient_evidence=reply.insufficient_evidence,
                 retrieval=result,
-                passages=(),
-                messages=(),
-                thinking="",
-                generation=None,
+                passages=tuple(passages),
+                messages=tuple(messages),
+                thinking=generation.thinking,
+                generation=generation,
                 total_seconds=perf_counter() - started,
+                model=generation.stats.model,
+                provider=llm.provider,
+                attempts=tuple(attempts),
             )
             return
 
-        chunks = [passage.chunk for passage in passages]
-        messages = question_answering_messages(question, chunks, language)
+    def _reply(
+        self, llm: LLMProvider, question: str, messages: Sequence[Message], chunks: Sequence[Chunk]
+    ) -> Generator[TextDelta, None, tuple[Generation, Reply]]:
+        """Stream one model's reply through the marker and citation filters, then read it."""
         generation: Generation | None = None
         marker = _MarkerFilter()
         citations = _CitationFilter()
-        for event in self._llm.stream(messages, self._parameters()):
+        for event in llm.stream(messages, self._parameters()):
             if isinstance(event, Generation):
                 generation = event
             elif visible := citations.feed(marker.feed(event.text)):
@@ -216,35 +292,28 @@ class QuestionAnsweringService:
             yield TextDelta(leftover)
 
         reply = read_reply(generation, chunks)
-        reply = check_abstention(self._llm, self._settings, question, reply, self._parameters())
-        # One event at the end: Gradio resumes this generator from different contexts, which rules
-        # out the `operation` context manager. It never carries the text of a book or a question.
-        log_event(
-            logger,
-            "question answered",
-            execution_id=new_execution_id(),
-            operation="answer_question",
-            books=sorted({chunk.book_id for chunk in chunks}),
-            model=self._llm.model,
-            retrieved_passages=len(result.candidates),
-            context_passages=len(passages),
-            prompt_tokens=generation.stats.prompt_tokens,
-            completion_tokens=generation.stats.completion_tokens,
-            insufficient_evidence=reply.insufficient_evidence,
-            duration_seconds=perf_counter() - started,
-        )
-        yield Answer(
+        reply = check_abstention(llm, question, reply, self._parameters())
+        assert generation is not None  # read_reply() raises without one
+        return generation, reply
+
+    def _nothing_retrieved(
+        self, question: str, result: RetrievalResult, llm: LLMProvider, attempts: Sequence[Attempt], started: float
+    ) -> Answer:
+        return Answer(
             question=question,
-            text=reply.text,
-            citations=reply.citations,
-            invented_citations=reply.invented_citations,
-            insufficient_evidence=reply.insufficient_evidence,
+            text=NOTHING_RETRIEVED,
+            citations=(),
+            invented_citations=(),
+            insufficient_evidence=True,
             retrieval=result,
-            passages=tuple(passages),
-            messages=tuple(messages),
-            thinking=generation.thinking,
-            generation=generation,
+            passages=(),
+            messages=(),
+            thinking="",
+            generation=None,
             total_seconds=perf_counter() - started,
+            model=llm.model,
+            provider=llm.provider,
+            attempts=tuple(attempts),
         )
 
     def _parameters(self) -> GenerationParameters:
@@ -255,19 +324,22 @@ class QuestionAnsweringService:
             max_tokens=task.max_tokens or llm.max_tokens,
         )
 
-    def _fit_in_context(self, question: str, passages: tuple[Passage, ...], language: str | None) -> list[Passage]:
-        """Keep the best passages that fit, since Ollama silently cuts a prompt that doesn't.
+    def _fit_in_context(
+        self, llm: LLMProvider, question: str, passages: tuple[Passage, ...], language: str | None
+    ) -> list[Passage]:
+        """Keep the best passages that fit the model's context, since Ollama silently cuts a prompt
+        that doesn't.
 
         A cut prompt would still get an answer, from whatever text happened to survive.
         """
         margin = self._settings.generation.context.safety_margin
-        budget = int(self._llm.context_size() * (1 - margin)) - self._parameters().max_tokens
+        budget = int(llm.context_size() * (1 - margin)) - self._parameters().max_tokens
         frame = question_answering_messages(question, [], language)
-        budget -= sum(self._llm.count_tokens(message.content) for message in frame)
+        budget -= sum(llm.count_tokens(message.content) for message in frame)
 
         selected: list[Passage] = []
         for number, passage in enumerate(passages, start=1):
-            cost = self._llm.count_tokens(format_passage(number, passage.chunk))
+            cost = llm.count_tokens(format_passage(number, passage.chunk))
             if cost > budget:
                 break
             budget -= cost

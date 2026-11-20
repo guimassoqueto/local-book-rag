@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from app.config.settings import Settings
 from app.errors import BookRagError
+from app.generation.choices import ModelChoices
 from app.services.index_service import IndexService
 from app.storage.chroma import ChromaServer
 from app.utils.gpu import GpuStatus, query_gpu
@@ -28,23 +29,33 @@ class HealthService:
         chroma: ChromaServer,
         indexes: IndexService,
         gpu_probe: Callable[[], GpuStatus | None] = query_gpu,
+        models: ModelChoices | None = None,
     ) -> None:
         self._settings = settings
         self._runtime = runtime
         self._chroma = chroma
         self._indexes = indexes
         self._gpu_probe = gpu_probe
+        self._models = models
 
-    def run(self, inference: bool = False) -> list[CheckResult]:
+    def run(self, inference: bool = False, providers: bool = False) -> list[CheckResult]:
         """Run every check, without stopping at the first failure.
 
         Args:
-            inference: also run both models for real, which loads them into memory.
+            inference: also run both local models for real, which loads them into memory. A cloud
+                model never runs here.
+            providers: also check the cloud providers, which sends each configured one its key and
+                its allowed models' names, and runs no inference (FR-021). A provider with one
+                setting only gets a failing row, with no request.
         """
         checks = [self._ollama, self._chromadb, self._llm_model, self._embedding_model, self._gpu, self._index]
         if inference:
             checks += [self._embedding_inference, self._llm_inference]
-        return [self._guarded(check) for check in checks]
+        results = [self._guarded(check) for check in checks]
+        if providers and self._models is not None:
+            rows = self._models.setting_problems() + self._models.check()
+            results += [CheckResult(row.name, row.ok, row.detail) for row in rows]
+        return results
 
     def _guarded(self, check: Callable[[], CheckResult]) -> CheckResult:
         try:

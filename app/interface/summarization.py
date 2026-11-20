@@ -8,6 +8,7 @@ from app.container import Container
 from app.generation.summarization import ChapterSummary
 from app.interface.common import reports_errors
 from app.interface.formatting import chapter_choices, summary_report
+from app.interface.model_choice import build_model_choice
 
 SAME_AS_BOOK = "Same as the book"
 
@@ -29,6 +30,7 @@ def build_summarization_tab(container: Container) -> SummarizationTab:
             default = "standard" if "standard" in types else None
             summary_type = gr.Radio(label="Summary type", choices=types, value=default)
             language = gr.Dropdown(label="Write in", choices=languages, value=SAME_AS_BOOK)
+        choice = build_model_choice(container.models, "chapter")
         generate = gr.Button("Generate the summary", variant="primary")
 
         report = gr.Markdown()
@@ -48,18 +50,23 @@ def build_summarization_tab(container: Container) -> SummarizationTab:
         number: int | None,
         chosen_type: str,
         target: str,
+        model: str | None = None,
+        fallbacks: list[str] | None = None,
         progress: gr.Progress = gr.Progress(),  # noqa: B008
     ) -> tuple[str, str, ChapterSummary, gr.Button]:
         if not book_id or number is None:
             raise gr.Error("Choose a book and a chapter first.")
+        # The progress shows what the service says, a model's failure and the next one included.
         summary = container.summaries.summarize(
             book_id,
             number,
             chosen_type,
             None if target == SAME_AS_BOOK else target,
             on_progress=lambda message: progress(0, desc=message),
+            model=model,
+            fallbacks=tuple(fallbacks or ()),
         )
-        return summary_report(summary), summary.text, summary, gr.Button(interactive=True)
+        return summary_report(summary, container.models), summary.text, summary, gr.Button(interactive=True)
 
     @reports_errors
     def on_save(summary: ChapterSummary | None) -> None:
@@ -70,7 +77,7 @@ def build_summarization_tab(container: Container) -> SummarizationTab:
     book.change(on_book_change, inputs=book, outputs=chapter, api_visibility="private")
     generate.click(
         on_generate,
-        inputs=[book, chapter, summary_type, language],
+        inputs=[book, chapter, summary_type, language, choice.model, choice.fallbacks],
         outputs=[report, summary_text, current, save],
         api_name="summarize",
     )

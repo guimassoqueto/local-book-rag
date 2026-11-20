@@ -1,5 +1,7 @@
 """Rebuilding and resetting the whole library."""
 
+import json
+
 import pytest
 
 from app.errors import (
@@ -11,12 +13,13 @@ from app.errors import (
     ServiceUnavailableError,
     UnsupportedLanguageError,
 )
+from app.generation import anthropic_provider
 from app.retrieval.base import RetrievalFilters
 from app.storage.catalog import BookCatalog, BookStatus
 from app.storage.chroma import ChromaServer
 from app.storage.repositories import OriginalDocuments, ProcessedDocuments, SummaryDocuments
 from app.utils.progress import Outcome, Progress
-from tests.fakes import FakeEmbedder
+from tests.fakes import FakeAnthropicClient, FakeEmbedder
 from tests.library import Library, library_state, other_text, progress_log, trace_journal, upload
 
 
@@ -704,3 +707,56 @@ def test_a_reset_with_the_wrong_phrase_shows_no_progress(library, tmp_path, name
         getattr(library.resets, name)("yes", progress=progress)
 
     assert progress.snapshot() is None
+
+
+# Summaries written by a cloud model (specs/008-cloud-llm-providers, research.md R11, FR-023)
+
+
+def save_as(library, book, summary_type, provider):
+    """A saved summary, as a model of `provider` would have saved it; None saves it as before 008."""
+    library.summarizer.save(library.summarizer.summarize(book.book_id, 1, summary_type))
+    path = library.root / "summaries" / book.book_id / f"chapter_01_{summary_type}.json"
+    metadata = json.loads(path.read_text(encoding="utf-8"))
+    if provider is None:
+        del metadata["provider"], metadata["failed_attempts"]
+    else:
+        metadata["provider"] = provider
+    if provider == "anthropic":
+        metadata["model"] = "claude-sonnet-5-5"
+        metadata["tokens"] = {"read": 18204, "generated": 1377}
+    path.write_text(json.dumps(metadata), encoding="utf-8")
+    return path
+
+
+def test_a_cloud_summary_is_kept_as_it_was_and_the_others_are_written_again_locally(library, tmp_path):
+    book = library.add(tmp_path)
+    cloud = save_as(library, book, "brief", "anthropic")
+    save_as(library, book, "standard", "ollama")
+    save_as(library, book, "analytical", None)
+    kept = {path: path.read_bytes() for path in (cloud, cloud.with_suffix(".md"))}
+    calls = len(library.llm.calls)
+
+    report = library.library.reindex_all(regenerate_summaries=True)
+
+    assert report.summaries_regenerated == 2
+    assert report.summaries_kept == (f"{book.book_id}, chapter_01_brief (claude-sonnet-5-5, Anthropic)",)
+    assert all(path.read_bytes() == content for path, content in kept.items())
+    assert len(library.llm.calls) > calls
+    for summary_type in ("standard", "analytical"):
+        path = library.root / "summaries" / book.book_id / f"chapter_01_{summary_type}.json"
+        assert json.loads(path.read_text(encoding="utf-8"))["provider"] == "ollama"
+
+
+def test_with_anthropics_settings_regenerating_still_calls_no_cloud_model(settings, tmp_path, monkeypatch):
+    client = FakeAnthropicClient()
+    monkeypatch.setattr(anthropic_provider.anthropic, "Anthropic", client.factory)
+    environ = {"ANTHROPIC_API_KEY": "sk-ant-test", "ANTHROPIC_MODELS": "claude-sonnet-5-5"}
+    library = Library(settings, tmp_path / "data", environ=environ)
+    book = library.add(tmp_path)
+    save_as(library, book, "brief", "anthropic")
+    save_as(library, book, "standard", "ollama")
+
+    report = library.library.reindex_all(regenerate_summaries=True)
+
+    assert (report.summaries_regenerated, len(report.summaries_kept)) == (1, 1)
+    assert client.calls == 0

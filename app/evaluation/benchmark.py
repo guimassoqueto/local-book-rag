@@ -404,7 +404,7 @@ class BenchmarkRunner:
                 try:
                     generation = llm.generate(messages, parameters)
                     reply = read_reply(generation, chunks)
-                    reply = check_abstention(llm, settings, question.question, reply, parameters)
+                    reply = check_abstention(llm, question.question, reply, parameters)
                     answers.append((question, generation, reply))
                 except BookRagError as exc:
                     self._say(f"  {question.id}: {exc}")

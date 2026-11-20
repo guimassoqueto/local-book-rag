@@ -1,14 +1,26 @@
 import json
+import logging
 import re
 
 import pytest
 
-from app.errors import ChapterNotFoundError, ConfigurationError, GenerationError
-from app.generation.base import FINISHED_BY_LENGTH
+from app.errors import (
+    AllModelsFailedError,
+    ChapterNotFoundError,
+    ConfigurationError,
+    GenerationError,
+    ModelChoiceError,
+    ModelFailedError,
+    ServiceUnavailableError,
+)
+from app.generation.base import FINISHED_BY_LENGTH, Attempt, FailureReason
+from app.generation.choices import ModelChoices
+from app.generation.factory import CloudSetup
 from app.generation.summarization import ChapterSummarizer, _Run
 from app.storage.catalog import Book, BookCatalog, BookStatus
 from app.storage.repositories import SummaryDocuments
-from tests.fakes import FakeChunks, FakeLLM, make_chunk
+from app.utils.logging import INFERENCE_LOGGER, configure_logging
+from tests.fakes import FakeChunks, FakeCloud, FakeLLM, make_chunk
 
 FINAL = """## Chapter overview
 The chapter explains how costs work in practice.
@@ -77,9 +89,11 @@ def catalog(tmp_path):
 
 
 def summarizer(settings, llm, catalog, chunks, tmp_path, locator=None):
+    """The summarizer, on the local model alone, or on given choices."""
+    models = llm if isinstance(llm, ModelChoices) else ModelChoices.local_only(llm)
     return ChapterSummarizer(
         settings,
-        llm,
+        models,
         catalog,
         FakeChunks(chunks),
         SummaryDocuments(tmp_path / "summaries"),
@@ -251,7 +265,8 @@ def test_a_merge_prompt_leaves_room_for_its_reply(settings, catalog, tmp_path):
     llm = FakeLLM(["Unused."])
     partials = [" ".join(["partial"] * 2000)] * 5
 
-    groups = summarizer(settings, llm, catalog, chapter(1), tmp_path)._groups(partials)
+    run = _Run(llm, "en", "en", "A chapter")
+    groups = summarizer(settings, llm, catalog, chapter(1), tmp_path)._groups(run, partials)
 
     reply = settings.generation.summarization.map_max_tokens * 2
     assert [len(group) for group in groups] == [2, 2, 1]
@@ -547,3 +562,202 @@ def test_a_summary_can_be_saved_with_how_it_was_made(settings, catalog, tmp_path
     metadata = json.loads((tmp_path / "summaries/book_001/chapter_04_brief.json").read_text(encoding="utf-8"))
     assert metadata["model"] == "fake-llm"
     assert metadata["chunks_covered"] == 2
+
+
+# Cloud models (specs/008-cloud-llm-providers, research.md R8)
+
+RATE_LIMITED = ModelFailedError("fc-a", "fakecloud", FailureReason.RATE_LIMITED, label="FakeCloud")
+
+
+def cloud(name="fc-a", replies=(FINAL,), context_size=65536 - 4000, **options):
+    return FakeLLM(list(replies), model=name, provider="fakecloud", cloud=True, context_size=context_size, **options)
+
+
+def choices(local_llm, *cloud_llms):
+    """The local model, and FakeCloud offering each given model, scripted."""
+    provider = FakeCloud(models={llm.model: llm for llm in cloud_llms})
+    names = tuple(llm.model for llm in cloud_llms)
+    return ModelChoices(local_llm, CloudSetup(((provider, names),), (), {"fakecloud": "FakeCloud"}))
+
+
+def test_without_a_model_the_local_model_writes_it_and_says_so(settings, catalog, tmp_path):
+    local, fc = FakeLLM([FINAL]), cloud()
+
+    summary = summarizer(settings, choices(local, fc), catalog, chapter(2, words=100), tmp_path).summarize(
+        "book_001", 4, "standard"
+    )
+
+    assert (summary.model, summary.provider, summary.attempts) == ("fake-llm", "ollama", ())
+    assert fc.calls == []
+
+
+def test_a_cloud_model_makes_it_as_a_local_one_does_within_its_own_window(settings, catalog, tmp_path):
+    chunks = chapter(30)
+    local, fc = FakeLLM(respond=lambda messages, parameters: FINAL), cloud()
+
+    by_local = summarizer(settings, local, catalog, chunks, tmp_path).summarize("book_001", 4, "standard")
+    by_cloud = summarizer(settings, choices(FakeLLM([FINAL]), fc), catalog, chunks, tmp_path).summarize(
+        "book_001", 4, "standard", model="fc-a"
+    )
+
+    assert (by_local.strategy, by_cloud.strategy) == ("map_reduce", "direct")
+    assert (by_cloud.model, by_cloud.provider, by_cloud.attempts) == ("fc-a", "fakecloud", ())
+    assert (by_cloud.steps, by_cloud.prompt_tokens, by_cloud.completion_tokens) == (1, 100, 20)
+    assert by_cloud.citations and by_cloud.statements
+
+
+def test_a_cloud_model_failing_at_its_second_step_hands_the_whole_summary_on(settings, catalog, tmp_path):
+    chunks = chapter(30)
+    local = FakeLLM(respond=lambda messages, parameters: FINAL)
+    fc = cloud(context_size=8192, fail=RATE_LIMITED, fail_after_calls=1, respond=lambda messages, parameters: FINAL)
+    progress = []
+
+    summary = summarizer(settings, choices(local, fc), catalog, chunks, tmp_path).summarize(
+        "book_001", 4, "standard", on_progress=progress.append, model="fc-a"
+    )
+
+    assert "fc-a (FakeCloud) failed: it limited the rate. Starting again with fake-llm." in progress
+    assert (summary.model, summary.provider) == ("fake-llm", "ollama")
+    assert summary.attempts == (Attempt("fc-a", "fakecloud", FailureReason.RATE_LIMITED, "", 100, 20, step=2),)
+    assert "passage0" in prompts(local)[0]
+    assert len(fc.calls) == 2
+
+
+def test_a_saved_summary_records_its_provider_its_failures_and_a_cloud_models_tokens(settings, catalog, tmp_path):
+    chunks = chapter(30)
+    failing = cloud(
+        context_size=8192, fail=RATE_LIMITED, fail_after_calls=1, respond=lambda messages, parameters: FINAL
+    )
+    service = summarizer(settings, choices(FakeLLM([FINAL]), failing, cloud("fc-b")), catalog, chunks, tmp_path)
+
+    service.save(service.summarize("book_001", 4, "brief", model="fc-a", fallbacks=["fc-b"]))
+    by_cloud = json.loads((tmp_path / "summaries/book_001/chapter_04_brief.json").read_text(encoding="utf-8"))
+    service.save(service.summarize("book_001", 4, "standard"))
+    by_local = json.loads((tmp_path / "summaries/book_001/chapter_04_standard.json").read_text(encoding="utf-8"))
+
+    assert (by_cloud["model"], by_cloud["provider"], by_cloud["tokens"]) == (
+        "fc-b",
+        "fakecloud",
+        {"read": 100, "generated": 20},
+    )
+    assert by_cloud["failed_attempts"] == [
+        {
+            "model": "fc-a",
+            "provider": "fakecloud",
+            "reason": "rate limited",
+            "detail": "",
+            "step": 2,
+            "tokens": {"read": 100, "generated": 20},
+        }
+    ]
+    assert (by_local["provider"], by_local["failed_attempts"]) == ("ollama", [])
+    assert "tokens" not in by_local
+
+
+def test_a_refused_sequence_stops_before_the_chapter_is_read(settings, catalog, tmp_path):
+    source = FakeChunks(chapter(2, words=100))
+    service = ChapterSummarizer(
+        settings, choices(FakeLLM([FINAL]), cloud()), catalog, source, SummaryDocuments(tmp_path), FirstChunkLocator([])
+    )
+
+    with pytest.raises(ModelChoiceError, match="fc-x isn't offered"):
+        service.summarize("book_001", 4, "standard", model="fc-x")
+
+    assert source.loads == 0
+
+
+def test_when_every_model_fails_each_failure_is_listed_the_local_one_last(settings, catalog, tmp_path):
+    local = FakeLLM([FINAL], fail=ServiceUnavailableError("Ollama is down."))
+
+    with pytest.raises(AllModelsFailedError) as failed:
+        summarizer(settings, choices(local, cloud(fail=RATE_LIMITED)), catalog, chapter(2), tmp_path).summarize(
+            "book_001", 4, "standard", model="fc-a"
+        )
+
+    assert [(attempt.model, attempt.step) for attempt in failed.value.attempts] == [("fc-a", 1), ("fake-llm", 1)]
+    assert str(failed.value).endswith("fake-llm (local) failed: Ollama is down.")
+
+
+def test_the_summary_is_logged_with_its_provider_and_no_text_or_reasoning(settings, catalog, tmp_path):
+    configure_logging("DEBUG", "DEBUG", tmp_path / "logs", console=False)
+    fc = cloud(thinking="A private line of reasoning.")
+    try:
+        summarizer(settings, choices(FakeLLM([FINAL]), fc), catalog, chapter(2, words=100), tmp_path).summarize(
+            "book_001", 4, "standard", model="fc-a"
+        )
+    finally:
+        for name in ("book_rag", INFERENCE_LOGGER):
+            for handler in logging.getLogger(name).handlers:
+                handler.close()
+            logging.getLogger(name).handlers.clear()
+
+    logged = (tmp_path / "logs" / "app.jsonl").read_text(encoding="utf-8")
+    [event] = [json.loads(line) for line in logged.splitlines() if '"chapter summarized"' in line]
+    assert (event["provider"], event["failed_attempts"]) == ("fakecloud", 0)
+    assert (event["prompt_tokens"], event["completion_tokens"]) == (100, 20)
+    assert "private line of reasoning" not in logged
+    assert "passage0" not in logged and "Chapter overview" not in logged
+
+
+# Sequences of fallbacks (specs/008-cloud-llm-providers, US3, SC-006)
+
+UNKNOWN = {
+    name: ModelFailedError(name, "fakecloud", FailureReason.UNKNOWN_MODEL, label="FakeCloud")
+    for name in ("fc-a", "fc-b")
+}
+
+
+def test_a_working_fallback_writes_the_summary_and_the_local_model_isnt_called(settings, catalog, tmp_path):
+    local = FakeLLM([FINAL])
+    models = choices(local, cloud("fc-a", fail=UNKNOWN["fc-a"]), cloud("fc-b"))
+
+    summary = summarizer(settings, models, catalog, chapter(2, words=100), tmp_path).summarize(
+        "book_001", 4, "standard", model="fc-a", fallbacks=["fc-b"]
+    )
+
+    assert (summary.model, [attempt.model for attempt in summary.attempts]) == ("fc-b", ["fc-a"])
+    assert local.calls == []
+
+
+def test_when_every_fallback_fails_the_local_model_writes_it_listing_them_in_order(settings, catalog, tmp_path):
+    models = choices(FakeLLM([FINAL]), cloud("fc-a", fail=UNKNOWN["fc-a"]), cloud("fc-b", fail=UNKNOWN["fc-b"]))
+
+    summary = summarizer(settings, models, catalog, chapter(2, words=100), tmp_path).summarize(
+        "book_001", 4, "standard", model="fc-a", fallbacks=["fc-b"]
+    )
+
+    assert summary.model == "fake-llm"
+    assert [attempt.model for attempt in summary.attempts] == ["fc-a", "fc-b"]
+
+
+# The model that wrote a summary (specs/008, Phase 8: Convergence, T071 and T072)
+
+
+def test_a_summary_records_the_model_its_provider_reported(settings, catalog, tmp_path):
+    fc = cloud(reported_model="fc-a-20261101")
+
+    summary = summarizer(settings, choices(FakeLLM([FINAL]), fc), catalog, chapter(2, words=100), tmp_path).summarize(
+        "book_001", 4, "standard", model="fc-a"
+    )
+
+    assert (summary.model, summary.provider) == ("fc-a-20261101", "fakecloud")
+
+
+def test_after_a_fallback_the_summary_is_logged_with_the_model_that_wrote_it(settings, catalog, tmp_path):
+    configure_logging("INFO", "INFO", tmp_path / "logs", console=False)
+    models = choices(FakeLLM([FINAL]), cloud(fail=RATE_LIMITED))
+    try:
+        summarizer(settings, models, catalog, chapter(2, words=100), tmp_path).summarize(
+            "book_001", 4, "standard", model="fc-a"
+        )
+    finally:
+        for name in ("book_rag", INFERENCE_LOGGER):
+            for handler in logging.getLogger(name).handlers:
+                handler.close()
+            logging.getLogger(name).handlers.clear()
+
+    entries = [json.loads(line) for line in (tmp_path / "logs" / "app.jsonl").read_text(encoding="utf-8").splitlines()]
+    [failed] = [entry for entry in entries if entry["message"] == "model failed"]
+    [summarized] = [entry for entry in entries if entry["message"] == "chapter summarized"]
+    assert (failed["model"], failed["provider"]) == ("fc-a", "fakecloud")
+    assert (summarized["model"], summarized["provider"], summarized["failed_attempts"]) == ("fake-llm", "ollama", 1)

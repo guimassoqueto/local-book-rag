@@ -11,16 +11,24 @@ pass in its Constitution Check. A change without a plan, such as a bug fix, keep
 
 ### I. Local-first and model-independent
 
-- No inference leaves this machine. Answers, summaries, embeddings, reranking and benchmark judging
-  all run on local models, in Ollama or inside the app.
-- Model names live in configuration: `config/models.yaml`, and the experiments in
-  `benchmarks/experiments/` that override it. The code in `app/` names a model only in a comment
-  or docstring that explains a workaround, and never branches on one.
+- Inference is local by default. Embeddings, reranking, benchmarks and their judges always run on
+  local models, in Ollama or inside the app. So do answers and chapter summaries, unless the user
+  picks a cloud model for that request.
+- A cloud model is offered only when its provider's API key and allowed models are set in the
+  environment. Nothing goes to a provider without the user's choice, and then only what the
+  request needs: the question and its passages, or the chapter being summarized. The key stays in
+  the environment: nothing writes it to the logs, the library or a result.
+- Model names live in configuration: local ones in `config/models.yaml` and in the experiments in
+  `benchmarks/experiments/` that override it, cloud ones in their provider's allow-list in the
+  environment. The code in `app/` names a model only in a comment or docstring that explains a
+  workaround, and never branches on one.
 - All of `config/` is validated at startup, and an unknown key is an error, so a typo stops the
   app instead of being ignored.
 - What differs between models lives in their profiles in `config/models.yaml`, keyed by model
   name: `llm_profiles` for tokenizer and reasoning, `embedding_profiles` for tokenizer and
-  templates. A model without a profile stops the app at startup.
+  templates. A cloud provider has a single profile there, which holds what every model in its
+  allow-list shares. A local model without a profile, or an allowed cloud model whose provider
+  has none, stops the app at startup.
 - Models, like every external service, sit behind provider interfaces, and `app/container.py` is
   the only place that knows the concrete classes.
 
@@ -28,12 +36,22 @@ pass in its Constitution Check. A change without a plan, such as a bug fix, keep
 embedding models and retrieval strategies under controlled conditions, without touching the code.
 The first version's spec put local-first at the top of its design principles, and asked that
 changing an LLM never require changing business logic. With profiles, switching a model is one
-line, and a model without one fails at startup instead of embedding without its instructions.
+line, and a model without one fails at startup instead of embedding without its instructions. The
+owner has since chosen to let answers and summaries use a cloud model, and `docs/decisions.md`
+records the departure. A cloud call sends a book's text to a third party, so it happens only when
+the user chooses it, and carries no more than the request needs. A cloud model has no digest or
+seed, so its results can't be reproduced: embeddings, reranking, benchmarks and their judges,
+which the index, every search and every comparison rest on, stay local. With one profile per
+provider, allowing a cloud model takes one name in the environment.
 
-**Check.** The plan calls no inference API outside this machine, judges included. A model it adds
-or switches to is named only in configuration, and an LLM or embedding model gets a profile.
-Whatever has to differ between models is a profile setting, not a condition in code. A setting it
-adds is validated at startup like the rest.
+**Check.** The plan sends nothing to a cloud provider unless the user picked one of its models for
+the request, and then only what the request needs. Embeddings, reranking, benchmarks and judges
+stay on local models. Without a provider's key and allowed models in the environment, the app
+works as if the provider didn't exist, and nothing writes a key to the logs, the library or a
+result. A local model it adds or switches to is named only in configuration and gets a profile; a
+cloud model is named only in its provider's allow-list, and the provider gets a profile. Whatever
+has to differ between models is a profile setting, not a condition in code. A setting it adds is
+validated at startup like the rest.
 
 ### II. The library is never at risk
 
@@ -241,8 +259,9 @@ first finds out from `docs/decisions.md` why it is that way.
   else no release.
 - **The benchmark dataset and experiments** aren't kept in `benchmarks/`, which git ignores. The
   dataset's last version is in `specs/005-markdown-only/benchmarks/`, with the experiment that
-  feature added. The other experiments' last versions are at `c7bb785`. They run once copied into
-  the app container (`README.md`, Benchmarks). After editing the dataset's `questions.jsonl`, run
+  feature added, and `no_reranking`'s is in `specs/007-retrieval-rows/benchmarks/`. The other
+  experiments' last versions are at `c7bb785`. They run once copied into the app container
+  (`README.md`, Benchmarks). After editing the dataset's `questions.jsonl`, run
   `book-rag validate-benchmark`: every evidence quote has to be in its book exactly as written.
 - **Spec Kit** takes every change that isn't trivial, and `AGENTS.md` says which flow fits which
   change.
@@ -272,4 +291,4 @@ first finds out from `docs/decisions.md` why it is that way.
   rewords without changing what is required. The ratification date stays, and the amendment date
   is the date of the latest version.
 
-**Version**: 2.0.2 | **Ratified**: 2026-11-08 | **Last Amended**: 2026-11-19
+**Version**: 3.0.0 | **Ratified**: 2026-11-08 | **Last Amended**: 2026-11-20

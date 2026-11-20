@@ -1,11 +1,17 @@
 """Composition root: the one place that builds the application's object graph."""
 
+import logging
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from app.config.loader import load_settings
 from app.config.settings import EnvironmentSettings, Settings
 from app.embeddings.factory import create_embedding_provider
-from app.generation.factory import create_llm_provider
+from app.generation.anthropic_provider import AnthropicCloud
+from app.generation.choices import ModelChoices
+from app.generation.cloud import CloudProvider
+from app.generation.factory import create_cloud_providers, create_llm_provider
 from app.generation.question_answering import QuestionAnsweringService
 from app.generation.summarization import ChapterSummarizer
 from app.ingestion.base import DocumentFormat
@@ -26,9 +32,16 @@ from app.services.retrieval_service import RetrievalService
 from app.storage.catalog import BookCatalog
 from app.storage.chroma import ChromaServer
 from app.storage.repositories import OriginalDocuments, ProcessedDocuments, SummaryDocuments
-from app.utils.logging import configure_logging
+from app.utils.logging import configure_logging, get_logger, log_event
 from app.utils.ollama_runtime import OllamaRuntime
 from app.utils.tokenization import create_token_counter
+
+logger = get_logger("container")
+
+# Each cloud provider kind the app implements, under the name that keys its profile in
+# cloud_profiles and prefixes its settings (ANTHROPIC_API_KEY, ANTHROPIC_MODELS). The only place
+# that names a cloud provider's class (Principle I).
+CLOUD_PROVIDERS: dict[str, type[CloudProvider]] = {"anthropic": AnthropicCloud}
 
 
 @dataclass(frozen=True)
@@ -44,6 +57,7 @@ class Container:
     retrieval: RetrievalService
     questions: QuestionAnsweringService
     summaries: ChapterSummarizer
+    models: ModelChoices
 
 
 def build_container(console_logs: bool = False) -> Container:
@@ -57,21 +71,30 @@ def build_container(console_logs: bool = False) -> Container:
     configure_logging(
         environment.log_level, settings.logging.inference_level, environment.logs_dir, console=console_logs
     )
-    return assemble(settings, environment)
+    return assemble(settings, environment, environ=os.environ)
 
 
 def assemble(
-    settings: Settings, environment: EnvironmentSettings, collection_prefix: str = COLLECTION_PREFIX
+    settings: Settings,
+    environment: EnvironmentSettings,
+    collection_prefix: str = COLLECTION_PREFIX,
+    environ: Mapping[str, str] | None = None,
 ) -> Container:
     """Wire the application together for given settings.
 
     Benchmarks build several of these, each over its own data directory and collection prefix,
-    so that nothing they do can reach the real library.
+    so that nothing they do can reach the real library. They pass no environment, so they hold no
+    cloud provider: benchmarks run on local models only (Principle I).
 
     Args:
         settings: the configuration.
         environment: the services and directories.
         collection_prefix: what this library's ChromaDB collections start with.
+        environ: where the cloud providers' settings are read; none offers no cloud model.
+
+    Raises:
+        ConfigurationError: cloud_profiles names a provider kind the app doesn't implement, or a
+            provider's models are allowed without a profile. Nothing contacts a provider.
     """
     runtime = OllamaRuntime(environment.ollama_base_url, settings.ollama.request_timeout_seconds)
     chroma = ChromaServer(environment.chroma_host, environment.chroma_port)
@@ -97,19 +120,25 @@ def assemble(
     )
     retrieval = RetrievalService(settings, catalog, indexes, processed, CrossEncoderReranker(settings.reranker))
     llm = create_llm_provider(settings, runtime)
-    summarizer = ChapterSummarizer(settings, llm, catalog, processed, data.summaries, retrieval)
+    models = ModelChoices(llm, create_cloud_providers(settings, environ or {}, CLOUD_PROVIDERS))
+    for problem in models.cloud_setup.problems:
+        log_event(
+            logger, "cloud provider not offered", logging.WARNING, provider=problem.provider, missing=problem.missing
+        )
+    summarizer = ChapterSummarizer(settings, models, catalog, processed, data.summaries, retrieval)
     return Container(
         settings=settings,
         environment=environment,
         runtime=runtime,
-        health=HealthService(settings, runtime, chroma, indexes),
+        health=HealthService(settings, runtime, chroma, indexes, models=models),
         indexes=indexes,
         books=BookService(data, guard, ingestion, indexes, settings.uploads.max_size_mb * 2**20),
         library=LibraryService(data, guard, ingestion, indexes, summarizer),
         resets=ResetService(data, guard),
         retrieval=retrieval,
-        questions=QuestionAnsweringService(settings, retrieval, llm),
+        questions=QuestionAnsweringService(settings, retrieval, models),
         summaries=summarizer,
+        models=models,
     )
 
 

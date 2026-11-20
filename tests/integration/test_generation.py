@@ -108,6 +108,6 @@ def test_the_check_reads_known_replies_as_they_were_labeled(settings, runtime, c
     )
     reply = Reply(case["reply"], (), (), insufficient_evidence=False)
 
-    checked = check_abstention(create_llm_provider(settings, runtime), settings, case["question"], reply, parameters)
+    checked = check_abstention(create_llm_provider(settings, runtime), case["question"], reply, parameters)
 
     assert checked.insufficient_evidence == (case["label"] == "abstention"), case["source"]
