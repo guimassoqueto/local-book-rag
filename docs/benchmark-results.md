@@ -400,6 +400,9 @@ full generation run was made.
 
 ## The quiz
 
+The quiz was removed in v0.6.0 (`specs/006-remove-chapter-quiz`), so these runs are the record of
+what it measured.
+
 The Quiz tab's measurement (`specs/003-chapter-quiz`), on 2026-11-11, with gpt-oss:20b, on the same
 machine and Ollama. Its experiment files are in `specs/003-chapter-quiz/benchmarks/`. Every run was
 on the feature's uncommitted code, recorded as `753f205-dirty`. The six chapters are Capítulo 1, 3
@@ -563,15 +566,10 @@ would cost.
   500 tokens: see Retrieval.
 - **A publisher's back matter is indexed as the book's.** In *História econômica global*'s e-book,
   the catalog record, the copyright notice and five advertisements for other books ("Compre agora e
-  leia") came in as part of its last chapter, "Lista de tabelas". gpt-oss wrote quiz questions from
-  3 of the 5 advertisements, and one reached a 20-question whole-book quiz (SC-006 of
-  `specs/003-chapter-quiz`). Chat can retrieve them as well. Ingestion is to set them apart, in a
-  fix of its own, which will need a reindex. The owner's Markdown conversion keeps them too, after
-  a "Table of Contents" heading at the end of the book.
-- **The quiz experiments still name the PDF.** Their local book, in
-  `specs/003-chapter-quiz/benchmarks/`, is the PDF of *História econômica global*, which the library
-  no longer reads, and their known cases quote that PDF's text. They weren't run on the Markdown
-  books.
+  leia") came in as part of its last chapter, "Lista de tabelas". So questions, in the Chat tab or
+  with `ask`, and `search` can retrieve them. Ingestion is to set them apart, in a fix of its own,
+  which will need a reindex. The owner's Markdown conversion keeps them too, after a "Table of
+  Contents" heading at the end of the book.
 
 ## Changes these benchmarks led to
 

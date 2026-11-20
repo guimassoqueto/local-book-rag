@@ -35,6 +35,15 @@ the repository no longer has `data/` or `logs/` folders. What it costs:
   running container with `docker compose cp`, since the rebuild that would bring it empties the
   library.
 
+**The app stops on SIGTERM, and Gradio's cache is swept.** The app is the container's first
+process, and ignored the SIGTERM of `docker compose restart` until it was killed 10 s later, so
+Gradio never shut down, and the files in its cache outlived the restart. `serve()` turns SIGTERM
+into the interrupt Gradio closes on: a restart takes 1 s, and Gradio deletes its cache as it
+closes. That cache holds a copy of every upload, such as a book added in the Library tab, up to
+the upload limit. `delete_cache=(600, 3000)` also removes the copies older than 50 minutes every
+10, so none waits for a restart. Gradio 6.32 sweeps uploads with the rest: `upload_file_set` is
+one of the `temp_file_sets` that its sweep goes through.
+
 **CUDA 13.4 torch.** The RTX 5060 Ti is a Blackwell GPU, which older CUDA builds can't drive.
 
 ## Dependencies
@@ -82,9 +91,9 @@ for a later feature that may read one. A single top-level heading is still the b
 for the structure rules, so its text shows nowhere.
 
 **Pages were dropped, not read from markers in the Markdown.** Only PDFs ever gave pages, and the
-conversions have none. Citations, the passages shown, the quiz's pointers and the prompt's passage
-header locate a passage by book, chapter and section; the excerpt a summary's references quote is how
-to find it in the text. Constitution VII was amended for it (2.0.1). The chunk metadata lost its two
+conversions have none. Citations, the passages shown and the prompt's passage header locate a
+passage by book, chapter and section; the excerpt a summary's references quote is how to find it in
+the text. Constitution VII was amended for it (2.0.1). The chunk metadata lost its two
 page fields, so its schema version, which the index fingerprint holds, went to 2.
 
 **The benchmark's books are pinned to their conversion.** They are the owner's Markdown conversions,
@@ -322,78 +331,6 @@ dataset's six. A new spec would be needed, since this one is delivered. The read
 gpt-oss making more errors than gemma4 in its multi-section answers, 10 of 15 against 5. The
 judge's scores didn't show that, and they still decide.
 
-**A quiz question is written from one passage, by one call.** The assessment's probe asked for 9 or
-10 questions from a batch of passages: 14 of 18 came from the batch's first 3 passages, and one
-unreadable reply lost 6 of 30 questions. One call per passage lets the application choose the
-passages, retry or replace one question, and show each as soon as it is ready
-(`specs/003-chapter-quiz`, research R2).
-
-**The model never chooses a letter.** In the probe the key was never D or E. The writer replies with
-the question, the right answer, four wrong ones and an explanation, and the application puts the
-right one on a letter from a balanced set, shuffled over the quiz, so every letter is the key as
-often as any other, in every quiz (R3, R7). The order is a random permutation, drawn again when it
-matches the text's (R7).
-
-**The application chooses the passages.** A chapter is cut into as many contiguous strata as
-questions, and one passage is drawn from each, drawn again when a third of the chapter would have
-none. A whole book is divided among its chapters by their share of its words, by largest
-remainder, so each is within one of its share (R6). A refused question is written again from the
-same passage up to three times, then from another passage of its stratum, then from the nearest.
-
-**A quiz's default length follows the text's.** One question per 300 words of the chosen text,
-rounded half up, at least 1 and at most 20, and never more than the text's passages, the most it
-can hold (at most 50). The words are counted over the chunks, overlaps included, which runs about
-15% above the plain text: that is the count behind the spec's examples, 10 questions for the 3,115
-words of *História econômica global*'s Capítulo 1. The rounding is written out, since Python's
-`round` rounds half to even (R8).
-
-**The Quiz tab builds its question slots up front.** It has `max_questions` slots, each hidden
-until a question fills it, and the preparing handler is a generator that fills one slot at a time
-and leaves the others alone (`gr.skip()`), so answers already chosen stay while the rest of the
-quiz arrives. `gr.render` would rebuild every slot on each change, and clear them. Stop cancels a
-preparation through `cancels`, which closes the service's generator at once; Prepare is inactive
-meanwhile, since Gradio runs one call of an event at a time and would queue a second Prepare
-behind the first instead of replacing it (R9).
-
-**Questions don't point to their passage.** In the probe, numbered passages under book, chapter,
-section and page headers led 20 of 24 questions to say "segundo o trecho 7" or the like. The writer
-now gets its passage with nothing to point at, and the reader refuses what still points: a word for
-the passage with a number or a pointer ("segundo o trecho", "the passage", "ao fim do trecho"), a
-page, a section or, in a whole-book quiz, the chapter. A title counts only quoted, after a word for
-chapter or section, or with its number: *História econômica global*'s section titles are mostly
-subjects, such as "Japão", that a question may well ask about. "Trecho" alone also means a stretch
-of road, and "the passage of" an act is its passing, so neither counts (R4).
-
-**An empty fifth wrong answer is no answer.** gpt-oss:20b ended the list of wrong answers with an
-empty string in 3 of its first 4 replies, which were all refused for not having four. The reader
-drops blank entries before counting; three or five written ones are still refused (R4).
-
-**The model skips a passage with nothing to ask about.** The catalog keeps a chapter's number and
-title only, and this book's references and lists came in as chapters, so content decides, not
-titles. A chapter whose first two passages tried are both skipped is left out (R5). A publisher's
-advertisements for other books still get questions, when ingestion leaves them in a chapter: see
-`docs/benchmark-results.md`, Known limitations.
-
-**Preparing a quiz logs its own operation lines.** `operation()` tags every line logged inside it
-through a context variable, set at the start and reset at the end. A quiz is prepared by a
-generator, whose steps Gradio runs in worker threads, each in a context of its own, so the reset at
-the end would fail. `QuizService.prepare()` logs the same started, finished and failed lines itself,
-plus stopped when Stop closes it, and the lines logged inside it go without its execution ID.
-
-**The quiz's key check reasons on a provider of its own.** Reasoning is a profile setting, sent with
-every call, so the check runs on a provider built for `check.model` with `check.reasoning`, even on
-the writer's model: gpt-oss writes at `low` and checks at `medium` (R11, R13).
-
-**The download is the service's file, and Gradio's copy goes on shutdown.** The tab writes nothing:
-`QuizService.export()` writes the result into `data/quiz_downloads`, which it empties whenever a
-quiz is prepared and at each start. Gradio serves its own copy, and deletes it only when its
-server shuts down. The app is the container's first process, and ignored the SIGTERM of `docker
-compose restart` until it was killed 10 s later, so Gradio never shut down and the copies outlived
-the restart. `serve()` now turns SIGTERM into the interrupt Gradio closes on: the restart takes 1 s,
-and a Gradio app with the same settings then deleted its copy. `delete_cache=(600, 3000)` removes
-copies older than 50 minutes every 10, so none lasts an hour; hourly copies older than an hour let
-one last almost two (R9).
-
 ## Library lifecycle
 
 **Chunks carry a book revision.** A replacement is indexed next to the live revision and one SQLite
@@ -443,9 +380,10 @@ lines in the log are where it would start from.
 bar draws over an event's outputs, and the Library tab's events had none, so its
 `progress(0, desc=…)` calls most likely showed nowhere; it also estimates the whole operation from
 the event's earlier runs, and disappears when the event ends. The service can't be a generator
-instead: the library lock belongs to the thread that took it, and `operation()`'s log context
-can't be reset across the worker threads that run a Gradio generator's steps, which the quiz
-found first. So the handler starts the call in a daemon thread, as Gradio's own worker threads
+instead: the library lock belongs to the thread that took it, and `operation()`'s log context,
+a context variable set at the start and reset at the end, can't be reset across the worker threads
+that run a Gradio generator's steps, each in a context of its own. So the handler starts the call
+in a daemon thread, as Gradio's own worker threads
 are, and renders `Progress.snapshot()` every half second. A page closed midway only stops the
 polling: the operation runs to its end.
 
@@ -491,8 +429,8 @@ nothing they do can reach the real library.
 the folder was mounted into the app with them, and its result files went too. The experiments are
 still in commit `c7bb785`. The dataset's last version, whose books became Markdown in v0.5.0, is in
 `specs/005-markdown-only/benchmarks/`, with the experiment that compared it with the originals:
-recorded where it was made, as the quiz's experiments are in `specs/003`, so that its corrected
-quotes and the checksum its results carry point at files. The README's Benchmarks section restores
+recorded where it was made, so that its corrected quotes and the checksum its results carry point
+at files. The README's Benchmarks section restores
 both, and `docs/benchmark-results.md` remains the record of what the runs found. The runner, the
 metrics and the report stay, with the unit tests of how they work, which now write their own
 datasets. The tests of the removed files went with them: that the experiments covered every
@@ -582,37 +520,6 @@ Questions keep the modern one, as a reader would type it.
 the same five passages. They would differ only with a final context of another size, so the
 duplicate column is expected, not a bug.
 
-**The quiz measurement pairs runs by seed.** The `quiz` experiment prepares quizzes on six chapters
-through the same `QuizService` as the tab, with a seed that fixes passages, letters and order, so
-models and prompt rounds compare question by question. It can index `local_books`: the owner's copy
-of a book that isn't public, checked against its checksum and never fetched. Each run writes
-`reading.csv`, every question with its passage, to be marked by FR-020's rubric; it stays with the
-results, out of the repository. The known cases of the key check hold a quote of at most 30 words
-instead of their passage.
-
-**The quiz's length bias is measured both ways.** gpt-oss:20b wrote the right answer as the longest
-option in 85% of questions, and answered 85% right without the passage. Asking for five alike
-answers, the right one never the longest, brought that to 53% (−0.32, interval −0.42 to −0.22);
-writing the wrong ones first brought it back to 88%. The target is 35%, and the owner accepted the
-miss for now. gemma4:12b's right answer is never the longest but is the shortest in 97% of its
-questions, which counting only the longest hid: `key_is_shortest` is measured too.
-
-**The quiz's key check ships switched off, unproven.** About a quarter of gpt-oss's quiz keys aren't
-stated by their passage: 65 of round 2's 88 were marked sound by the agent's reading, not yet
-reviewed, against a target of 90%. Most give
-the author an argument the passage only reports or rejects. The check reads each question again
-against its passage, and rejects it unless the passage supports exactly its key. On development
-cases, at `medium`, it caught 12 of 27 flawed keys and rejected 2 of 85 sound ones, where the writer
-answering with the passage caught 2. Like any judge, it has to prove itself before it decides
-anything (constitution VI): FR-027's rule, on test cases from runs no wording was tried on. The
-owner left that proof to a later feature, so the check stays off, and the passage shown after
-submission remains the reader's safeguard.
-
-**A comparator answers in JSON, not in words.** The key check is proved against the writer answering
-each known case with its passage. Searching a reply for a letter would read the article in "A
-resposta é C" as the answer, so it replies `{"answer": "C"}`, and an answer that can't be read is
-left out and counted, not scored as wrong.
-
 ## Process
 
 **Spec Kit drives every change after v0.1.0.** `.TASK/task.md` specified the whole first version,
@@ -686,3 +593,26 @@ that went, each with the failure that taught it.
   "Glossary", "Exercises" and "Debugging" headings had been dropped as running heads.
 - **Docling, with OCR for scanned PDFs, was the alternative PDF reader**: its layout models were
   slower than PyMuPDF and suited complex layouts.
+
+## Removed: the chapter quiz (v0.6.0)
+
+**The chapter quiz was removed in v0.6.0** (`specs/006-remove-chapter-quiz`). Its tab, added in
+v0.3.0 (`specs/003-chapter-quiz`), wrote a multiple-choice quiz on a chapter or a whole book, one
+question per passage. The owner tried it for a while, didn't use it, and wasn't satisfied with it,
+and its measurements agreed:
+- **Keys the passage doesn't state.** About a quarter of gpt-oss's keys weren't stated by their
+  passage: the agent's reading, never reviewed, found 65 of 88 sound, against a target of 90%. The
+  key check meant to catch the others never proved itself, so it shipped switched off.
+- **The right answer stood out.** It was the longest option in about half the questions, 53%
+  against a target of 35%.
+
+Improving it would have taken the key check's proof and a rule against a key that stands out by its
+length. The owner chose to remove it instead, so both follow-ups were dropped. The tab, the service,
+the writer and its prompts, the key check, the `generation.quiz` settings, the `quiz` and
+`quiz_check` experiment kinds with their metrics, and the provider factory's per-task model and
+reasoning, which only the key check used, all went. Its decisions were deleted rather than
+shortened. Their reasoning stays in `specs/003-chapter-quiz`, in the assessment that led to it
+(`.specify/assessments/chapter-quiz/`), and in the code at the tag `v0.5.0`, the last release with
+the quiz. What it taught that still applies stayed where it applies: the stop on SIGTERM and
+Gradio's cache sweep (Infrastructure), and the Library tab's operation thread (Library
+lifecycle).

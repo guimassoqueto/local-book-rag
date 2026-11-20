@@ -1,6 +1,7 @@
 """The commands' progress on the error stream (specs/004-library-progress, US4, contracts/commands.md)."""
 
 import argparse
+import json
 import re
 
 import pytest
@@ -32,7 +33,6 @@ def container(library):
         retrieval=library.retrieval,
         questions=None,
         summaries=library.summarizer,
-        quizzes=None,
     )
 
 
@@ -149,3 +149,16 @@ def test_fetching_the_benchmark_books_is_gone(capsys):
         main._build_parser().parse_args(["fetch-benchmark-books"])
 
     assert "invalid choice: 'fetch-benchmark-books'" in capsys.readouterr().err
+
+
+def test_a_report_on_a_kind_the_benchmark_doesnt_run_fails_and_prints_nothing(container, monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr(main, "build_container", lambda console_logs=False: container)
+    experiment = {"name": "old", "kind": "extraction", "description": "An old run."}
+    (tmp_path / "results.json").write_text(json.dumps({"experiment": experiment}), encoding="utf-8")
+    (tmp_path / "reading.csv").write_text("variant,question,mark\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as stopped:
+        main.main(["benchmark-report", str(tmp_path)])
+
+    assert "'extraction' kind" in stopped.value.code
+    assert capsys.readouterr().out == ""

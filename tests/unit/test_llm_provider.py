@@ -183,7 +183,7 @@ def test_running_out_of_memory_reaches_the_user():
         provider().generate(MESSAGES, PARAMETERS)
 
 
-# create_llm_provider: a model other than llm.model, and a reasoning of its own (generation.quiz.check)
+# create_llm_provider: the provider for llm.model, with that model's profile
 
 
 def sent_reasoning(llm):
@@ -192,30 +192,23 @@ def sent_reasoning(llm):
     return json.loads(route.calls[-1].request.content).get("think")
 
 
+def with_llm_model(settings, model):
+    """The settings with another llm.model, as a benchmark variant's overrides give them."""
+    return settings.model_copy(update={"llm": settings.llm.model_copy(update={"model": model})})
+
+
 @respx.mock
 def test_the_factory_builds_a_named_model_from_its_own_profile(settings):
     mock_model()
     runtime = OllamaRuntime(BASE_URL, timeout=5)
 
-    llm = create_llm_provider(settings, runtime, model="gemma4:12b")
+    llm = create_llm_provider(with_llm_model(settings, "gemma4:12b"), runtime)
 
     assert llm.model == "gemma4:12b"
     assert sent_reasoning(llm) is False  # gemma4's profile, not gpt-oss's "low"
     assert llm._counter._name == "o200k_base"  # gemma4's tokenizer, not gpt-oss's o200k_harmony
 
 
-@respx.mock
-def test_a_reasoning_level_replaces_the_profiles_for_that_provider_only(settings):
-    mock_model()
-    runtime = OllamaRuntime(BASE_URL, timeout=5)
-
-    checker = create_llm_provider(settings, runtime, model=settings.llm.model, reasoning="medium")
-    writer = create_llm_provider(settings, runtime)
-
-    assert sent_reasoning(checker) == "medium"
-    assert sent_reasoning(writer) == "low"
-
-
 def test_a_model_without_a_profile_is_refused(settings):
     with pytest.raises(ConfigurationError, match="unknown-model"):
-        create_llm_provider(settings, OllamaRuntime(BASE_URL, timeout=5), model="unknown-model")
+        create_llm_provider(with_llm_model(settings, "unknown-model"), OllamaRuntime(BASE_URL, timeout=5))
