@@ -19,7 +19,7 @@ Unknown fields are still refused (`extra="forbid"`).
 
 | Command | Change |
 | ------- | ------ |
-| `book-rag benchmark EXPERIMENT [--limit N] [--commit C]` | An experiment of kind `quiz` or `quiz_check`, or one that sets a removed field, is refused when it loads, before any workspace is opened: `error: Invalid experiment <path>: …`, naming the four allowed kinds and each field the model doesn't know. Otherwise unchanged |
+| `book-rag benchmark EXPERIMENT [--limit N] [--commit C]` | An experiment of kind `quiz` or `quiz_check`, or of any kind with a removed field, is refused when it loads, before any workspace is opened or any model is called: `error: Invalid experiment <path>: …`, naming the four allowed kinds and each field the model doesn't know. The dataset is read first, as today, so a missing dataset is reported before the experiment. Otherwise unchanged |
 | `book-rag benchmark-report RESULTS [--baseline V]` | Refuses a result whose kind isn't one of the four (below). Never reads `reading.csv`. Renders the four kinds as on `main`, byte for byte, with or without `--baseline` |
 | `book-rag validate-benchmark` | unchanged |
 | `make benchmark EXPERIMENT=… [LIMIT=…]` | unchanged |

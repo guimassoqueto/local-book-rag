@@ -129,7 +129,10 @@ outlived a restart without the handler.
 An experiment file of a removed kind is refused by `load_experiment`, before any workspace is
 opened. Pydantic names the allowed kinds, and `extra="forbid"` names the fields the model no
 longer has (`targets`, `seed`, `local_books`, `known_cases`, `case_set`), all in one
-`ConfigurationError`: "Invalid experiment <path>: …".
+`ConfigurationError`: "Invalid experiment <path>: …". So is an experiment of a remaining kind that
+sets one of those fields, by the same `extra="forbid"`. `BenchmarkRunner` reads the dataset when it
+is built, before the experiment is loaded, so a missing dataset is still reported first (spec,
+US3).
 
 **Rationale.** FR-011. Only the quiz's experiment files set any of these fields: the three in
 `specs/003-chapter-quiz/benchmarks/` and their copies in the host's `benchmarks/experiments/`.
@@ -194,22 +197,32 @@ forbids ignoring a key, and the repository's configuration loses the section in 
 
 ## R8. Proving the prompts unchanged
 
-**Decision.** Two checks, both before the pull request:
+**Decision.** Three checks, all before the pull request:
 
 1. **The diff.** `git diff main -- app/generation/prompts.py` removes lines and adds none. The
    modules that hold the judges' prompts, `app/evaluation/summary_metrics.py` and
    `app/evaluation/ragas_llm.py`, aren't in the diff at all, nor are `question_answering.py`,
    `summarization.py` and `citations.py`.
-2. **The prompts themselves (SC-002).** A throwaway script builds the messages of every remaining
-   builder in `prompts.py` from fixed inputs, for an English and a Portuguese question and
-   passage: `question_answering_messages`, `abstention_check_messages`, `map_messages`,
-   `collapse_messages`, `final_summary_messages` and `verification_messages`. It also formats the
-   summary judge's two prompts with fixed values. It prints one SHA-256 per prompt, and runs on a
-   `git worktree` of `main` and on the branch, each on its own tree, with the same `.venv`. The
-   outputs are identical.
+2. **The prompts themselves (SC-002).** A throwaway script builds every remaining prompt from
+   fixed inputs, an English and a Portuguese question and passage:
+   - `question_answering_messages` and `abstention_check_messages`, with no language (the
+     question's own) and with a named one;
+   - `map_messages`, `collapse_messages`, `final_summary_messages` and `verification_messages`,
+     for each of the four summary types in `config/generation.yaml` (`brief`, `standard`,
+     `comprehensive`, `analytical`), in the book's language and in a named one;
+   - the summary judge's two prompts, `_COVERAGE_PROMPT` and `_RATING_PROMPT` in
+     `summary_metrics.py`, formatted with fixed values.
 
-The script stays outside the repository, in the session's scratchpad, and the record of its
-result goes to the spec's results section.
+   RAGAS's judges aren't built by the application: the package writes their prompts, and neither
+   its version nor its adapter changes.
+3. **The report (US3).** The same script renders the host's retrieval results
+   (`markdown_books_*`), the only kind the host holds, without and with a baseline. The other
+   kinds rest on `test_report.py`'s tests of them, which don't change.
+
+The script prints one SHA-256 per prompt and per rendering, and runs on a `git worktree` of
+`main` and on the branch, each on its own tree, with the same `.venv`. The outputs are identical.
+It stays outside the repository, in the session's scratchpad, and its result is recorded in the
+spec, under "Results of the implementation".
 
 **Rationale.** SC-002 asks for the prompts built on both versions from the same inputs. The diff
 alone shows the code is the same, and the script shows the outputs are.
@@ -221,12 +234,19 @@ alone shows the code is the same, and the script shows the outputs are.
 
 ## R9. Proving the index and the catalog untouched
 
-**Decision.** SC-006 is shown by what the diff doesn't touch. None of the fingerprint's inputs
-changes: `app/services/index_service.py` (`current_configuration`, `METADATA_SCHEMA_VERSION`),
-`app/ingestion/chunker.py`, `app/ingestion/pipeline.py`, `config/ingestion.yaml`,
-`config/models.yaml` and the embedding providers. Nor does the catalog's schema in
-`app/storage/catalog.py`. `git diff main --stat` lists none of these files, and their unit tests
-pass unchanged.
+**Decision.** SC-006 is shown by what the diff touches, as a positive rule: `git diff main
+--name-only` lists only the files that `plan.md`'s Project Structure names, the records
+(`README.md`, `docs/decisions.md`, `docs/benchmark-results.md`) and this spec's folder. None of
+them is an input of the fingerprint:
+- `app/services/index_service.py` (`current_configuration`, `METADATA_SCHEMA_VERSION`);
+- the embedding providers in `app/embeddings/`, and their profiles, templates and tokenizers in
+  `config/models.yaml` and `app/utils/tokenization.py`;
+- `app/ingestion/chunker.py`, `app/ingestion/pipeline.py` and `config/ingestion.yaml`.
+
+Nor is the catalog's schema in `app/storage/catalog.py`. `app/ingestion/language.py` is in the
+list, but only loses `confident_reply_language`, which ingestion never calls. A file outside the
+list stops the check until the plan names it, which also shows US1's "nothing else moves". The
+unit tests of the fingerprint and the catalog pass unchanged.
 
 **Rationale.** FR-010. The quiz read chunks and wrote nothing to the library, so nothing in the
 library's code needs to move.
@@ -314,7 +334,8 @@ works; why the quiz went is `docs/decisions.md`'s (R12).
   - at the end, a section "Removed: the chapter quiz (v0.6.0)" with one entry: what was removed;
     why, which is the owner's use and the two measured shortfalls of the spec's Context; the
     follow-ups dropped; and where the reasoning lives, in `specs/003-chapter-quiz`,
-    `.specify/assessments/chapter-quiz/` and `main` at `56600c7`, the last commit with the quiz.
+    `.specify/assessments/chapter-quiz/` and the tag `v0.5.0`, the last release with the quiz,
+    which no later merge moves.
     It says the quiz's decisions were deleted rather than shortened.
 
 Four entries hold no word "quiz" and are quiz-only all the same: "The application chooses the
@@ -346,8 +367,9 @@ record of the runs (Principle VIII), and the owner kept the history (spec, Input
 
 ## R14. The host's files
 
-**Decision.** After the checks that use them, these are deleted from the host's `benchmarks/`,
-which git ignores:
+**Decision.** Last, after the check on the stack that renders one of the quiz's results
+(quickstart § 6, spec FR-013), these are deleted from the host's `benchmarks/`, which git
+ignores:
 - `experiments/quiz.yaml`, `quiz_models.yaml`, `quiz_check.yaml` and `key_cases.yaml`;
 - the seven result folders `results/quiz_20261111T130111197357Z`, `…T131123067024Z`,
   `…T131922236657Z`, `…T155628394801Z`, `results/quiz_check_20261111T133933416099Z`,
@@ -356,8 +378,8 @@ which git ignores:
 
 **Rationale.** FR-013 and the owner's answer (Clarifications). The application refuses the
 experiments (R5) and the results (R6), and `docs/benchmark-results.md` keeps what they found.
-The host's other files stay: the dataset, the books, the four remaining experiments and the
-retrieval results.
+The host's other files stay: the dataset, the books (the PDF of *História econômica global* and the
+EPUB originals among them), the eight remaining experiment files and the other results.
 
 **Alternatives considered.** *Keep the results*: the owner chose deletion.
 
@@ -385,8 +407,15 @@ every `book_chunks_v*` collection.
 
 **Decision.** The pull request's title is `feat: remove the chapter quiz`, without `!`, and its
 description has no `BREAKING CHANGE` footer. The release workflow then makes v0.6.0, which the
-records name (R12, R13). If another release comes first, the records are corrected to the version
-this merge produces before it merges.
+records name (R12, R13).
+- **The branch's commits.** None has `!` after its type or a `BREAKING CHANGE` footer. The squash
+  merge copies their messages into its body, where commitizen reads a footer at the start of a
+  line. `specs/005`'s `feat!:` commit appeared there as `* feat!: …` and the release stayed minor,
+  but a footer would have made it major.
+- **The check before the merge.** `git fetch --tags` and
+  `git describe --tags --abbrev=0 origin/main` show `v0.5.0`, so the merge makes v0.6.0. If
+  another release came first, the records are corrected to the version this merge produces,
+  before it merges.
 
 **Rationale.** FR-018 and the owner's answer (Clarifications).
 

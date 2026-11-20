@@ -175,13 +175,16 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
 1. **Given** an experiment of the `retrieval`, `generation`, `summarization` or `performance`
    kind, **When** it runs, **Then** it runs as on `main`, and its result records the same fields.
 2. **Given** an experiment file of the `quiz` or `quiz_check` kind, **When** `benchmark` loads
-   it, **Then** it is refused as an unknown kind, as any other unknown kind is, before anything
-   runs.
+   it, **Then** it is refused as an unknown kind, as any other unknown kind is, before any
+   workspace is opened or any model is called. The dataset is read first, as today, so a missing
+   dataset is still reported before the experiment's kind.
 3. **Given** a result of the `quiz` or `quiz_check` kind kept from before, **When**
    `benchmark-report` reads it, **Then** it refuses it with a message that names the kind, and
    prints no partial report.
 4. **Given** the result of a run of a remaining kind, **When** `benchmark-report` renders it,
    with or without `--baseline`, **Then** its output is the same as `main`'s for the same file.
+   The host holds results of the retrieval kind only, so those are compared byte for byte, and the
+   other kinds rest on the report's unit tests, which don't change.
 
 ---
 
@@ -196,7 +199,10 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
 - **A model with a profile only for the key check** doesn't exist: `check.model` is null today,
   so `config/models.yaml` doesn't change.
 - **An experiment of a removed kind** is refused when it is loaded, before any workspace is
-  opened.
+  opened or any model is called.
+- **An experiment of a remaining kind that sets a removed field**, such as a retrieval experiment
+  with `seed` or `local_books`, is refused the same way, naming the field, as any unknown field is
+  (FR-011).
 - **A quiz run's result folder**, with `reading.csv` beside its `results.json`, is refused by
   `benchmark-report` for its kind. Nothing reads `reading.csv` any more.
 - **The word in Portuguese**: "quiz" in book text and in the benchmark dataset is 19th-century
@@ -231,6 +237,27 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
   files set them (R5).
 - FR-012 also refuses the results of the `extraction` kind, which `specs/005` left renderable.
   None exists, on the host or in the container (R6).
+
+### Corrections from the requirements checklist, 2026-11-19
+
+The owner approved every fix that `checklists/removal-and-records.md` proposed:
+- **What is measured.** SC-001 also covers the quiz-only names without the word (CHK001), and
+  says what the two documents may still hold (CHK019). SC-002 lists the prompts it compares, says
+  why RAGAS's count as unchanged, and where the result is recorded (CHK009, CHK010). SC-006 is
+  shown by a positive rule on the diff (CHK011). SC-004 names the command and the app's state
+  (CHK013). US3's report comparison covers the retrieval results the host holds (CHK012).
+- **The refusals.** An experiment is refused before any workspace or model call, after the
+  dataset is read (CHK005), and one of a remaining kind that sets a removed field is refused too
+  (CHK008).
+- **The records.** The stop on SIGTERM and the cache sweep move to Infrastructure (CHK014), the
+  removal entry points to the tag `v0.5.0` (CHK016), and the README keeps the `--commit` advice
+  and counts four tabs (CHK015). The advertisements' limitation names every way to retrieve them
+  (CHK019).
+- **The release.** The latest tag is checked right before the merge (CHK017), and no commit on the
+  branch has `!` or a `BREAKING CHANGE` footer (CHK018).
+- **Order and leftovers.** The host's quiz files go after SC-005's check (CHK021), the rebuild is
+  followed by `reset-everything` (CHK022), and the history is kept as a record, not kept running
+  (CHK004).
 
 ## Requirements *(mandatory)*
 
@@ -284,7 +311,8 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
   their report sections, the experiment fields that only they read (quiz targets, the seed, known
   cases and case sets, and local books, which no other kind indexes), and `benchmark-report`'s
   reading of `reading.csv`. An experiment of either kind MUST be refused as an unknown kind, as
-  any other unknown kind is.
+  any other unknown kind is. An experiment of a remaining kind that sets one of those fields MUST
+  be refused too, naming the field.
 - **FR-012**: `benchmark-report` MUST refuse a result whose experiment kind isn't one of the four
   that remain, with a message that names the kind, and print nothing else. A result of a
   remaining kind MUST render as on `main`.
@@ -293,36 +321,44 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
   was with PDF and EPUB, since the application refuses them. So MUST the result folders of the
   quiz's seven runs in `benchmarks/results/` (`quiz_*`, `quiz_models_*` and `quiz_check_*`), the
   agent's unreviewed marks among them. Nothing will read them, and `docs/benchmark-results.md`
-  keeps what they found (FR-016). Both are outside the repository, so only the host changes.
+  keeps what they found (FR-016). Both are outside the repository, so only the host changes. They
+  are deleted last, after SC-005's check on the stack, which renders one of these results.
 
 #### Records
 
 - **FR-014**: `README.md` MUST describe the application without the quiz. The interface's table
-  loses the Quiz row, and the "Quizzes" section goes. The Benchmarks section loses the two kinds,
-  their experiments, how to restore them, and the reading. The configuration table's row for
-  `config/generation.yaml` stops naming the quiz.
+  loses the Quiz row, and its count of tabs becomes four. The "Quizzes" section goes. The
+  Benchmarks section loses the two kinds, their experiments, how to restore them, and the
+  reading. The configuration table's row for `config/generation.yaml` stops naming the quiz.
+  Text in the removed passages that holds for the rest stays, moved where it belongs: the advice
+  to pass `--commit` to `benchmark`, since the container holds no `.git`.
 - **FR-015**: `docs/decisions.md` MUST record the removal: what was removed, in which release
   (FR-018), and why, which is the owner's use and the measured shortfalls of the Context. The
   decisions that explain only the quiz MUST be deleted, not kept as a closing section as
   `specs/005` kept PDF and EPUB's: their full reasoning stays in `specs/003-chapter-quiz` and in
-  the repository's history. Lessons that still apply stay where they are, worded without the
-  quiz:
+  the repository's history, which the removal entry points to by the tag `v0.5.0`, the last
+  release with the quiz. Lessons that still apply stay, worded without the quiz, each where it is
+  but one:
   - pages dropped (Ingestion), which names the quiz's pointers among the places pages left;
-  - the stop on SIGTERM and the cache sweep (FR-007), which today sit in the quiz's entry about
-    its download;
+  - the stop on SIGTERM and the cache sweep (FR-007), whose only entry is the quiz's download.
+    That entry goes, so they move to an entry of their own, under Infrastructure;
   - the Library tab's operation thread (Library lifecycle);
   - where the benchmark's experiment files are recorded (Evaluation), which cites the quiz's.
 - **FR-016**: `docs/benchmark-results.md` MUST keep the quiz's runs as history, with a line
   saying that the quiz was removed, and in which release (FR-018). Its Known limitations MUST
   keep the publisher's advertisements indexed as part of a book, worded by what still retrieves
-  them, the Chat tab. They MUST drop the limitation about the quiz's experiments naming a PDF.
+  them: questions, in the Chat tab or with `ask`, and `search`. They MUST drop the limitation
+  about the quiz's experiments naming a PDF.
 - **FR-017**: The history MUST NOT be edited: `specs/003-chapter-quiz`,
   `.specify/assessments/chapter-quiz/`, and the mentions of the quiz in `specs/001` to `specs/005`
   (Principle VIII).
 - **FR-018**: The pull request's title MUST be a `feat:`, without `!`, and its description MUST
-  have no `BREAKING CHANGE` footer, so that the release is v0.6.0. The records MUST name v0.6.0 as
-  the release that removed the quiz. Should another release come out first, they name the version
-  this merge produces instead.
+  have no `BREAKING CHANGE` footer, so that the release is v0.6.0. Nor may any commit on the branch
+  have a `!` after its type or a `BREAKING CHANGE` footer, since a squash merge copies their
+  messages into its body. The records MUST name v0.6.0 as the release that removed the quiz.
+  Right before the merge, `main`'s latest tag is checked: if it is still `v0.5.0`, the merge makes
+  v0.6.0. If another release came first, the records are corrected to the version this merge
+  produces, before it merges.
 
 ### Key Entities
 
@@ -338,31 +374,47 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
 
 - **SC-001**: Outside `docs/decisions.md`, `docs/benchmark-results.md`, `specs/` and
   `.specify/assessments/`, a search of the repository's tracked files for "quiz", in any case,
-  finds nothing. In `docs/decisions.md`, it finds only the entry that records the removal
-  (FR-015). In `docs/benchmark-results.md`, it finds only the quiz's runs, kept as history, and
-  the line saying that it was removed (FR-016).
-- **SC-002**: For the same inputs, the prompts that the application builds for an answer, for
-  each step of a chapter summary, and for the benchmark's judges are identical, byte for byte, on
-  `main` and on this branch, built on both from the same fixed inputs.
+  finds nothing. Nor does a search for the names that only the quiz used and that don't contain
+  the word, as `research.md` R2 and R5 list them, such as `NothingToAskError`, `LocalBook` and
+  `_WHOLE_BOOK`. In `docs/decisions.md`, the word is found only in the entry that records the
+  removal (FR-015). In `docs/benchmark-results.md`, it is found only in the quiz's section, kept
+  as history with the line saying that the quiz was removed (FR-016), and not in Known
+  limitations.
+- **SC-002**: For the same inputs, the prompts that the application builds are identical, byte
+  for byte, on `main` and on this branch, built on both from the same fixed inputs:
+  - an answer and its abstention check, in the question's language and in a named one;
+  - each step of a chapter summary (map, collapse, final, and the claims' verification), for each
+    summary type in `config/generation.yaml`, in the book's language and in a named one;
+  - the summary judge's two prompts.
+
+  RAGAS's judges build their prompts inside the package, which doesn't change, nor does the
+  adapter that sends them. The result is recorded in this spec, under "Results of the
+  implementation".
 - **SC-003**: `make test` and `make test-integration` pass, and `doctor` reports no failure on the
   running stack.
 - **SC-004**: On the running stack, with this branch's image:
   - the interface shows the Library, Chat, Summarization and Research tabs, and no other;
   - a book added in the Library tab appears in the Chat and Summarization tabs' lists;
   - a question is answered with its citations, and a chapter summary is saved;
-  - restarting the app container takes under 2 s.
+  - `time docker compose restart app`, run while no library operation is in progress, reports
+    under 2 s of wall-clock time.
 - **SC-005**: Each refusal holds: the app started with a `quiz` section in
   `config/generation.yaml` stops and names the key; a `quiz` and a `quiz_check` experiment are
   refused as unknown kinds; and `benchmark-report` refuses a quiz result, naming its kind.
 - **SC-006**: For the same configuration, the index fingerprint and the catalog's schema are the
-  same as `main`'s, so an index that `main` built would be current on this branch.
+  same as `main`'s, so an index that `main` built would be current on this branch. The diff shows
+  it: against `main`, it changes only the files that `plan.md`'s Project Structure lists and the
+  records (`README.md`, `docs/`, this spec's folder), and none of them is an input of the
+  fingerprint or the catalog's schema. The same rule shows US1's "nothing else moves".
 
 ## Assumptions
 
 - **No data migrates.** The quiz stored nothing in the catalog or the index. Its download folder
   and Gradio's copies of it live in the app container, which the first `make up` recreates. That
   empties the library, as any change to the code does (Principle II), and the owner adds their
-  books again afterwards.
+  books again afterwards. ChromaDB, in its own container, keeps its `book_chunks_v*` collections,
+  while the new catalog numbers its indexes from 1 again. So `reset-everything` comes before the
+  first book (`docs/decisions.md`, Infrastructure).
 - **No benchmark measures this change.** It claims no gain in quality or speed, and changes no
   default of what remains (Principle VI). The prompts and parsers of what remains don't change,
   which SC-002 checks, so no run on the real models is needed beyond `make test-integration`
@@ -372,4 +424,7 @@ refused. Render a retrieval result, and compare it with `main`'s rendering of th
   publisher's advertisements stays open, since the Chat tab retrieves them too.
 - **The history is kept** (Principle VIII): the quiz's spec, its assessment, its experiments and
   known cases recorded in `specs/003-chapter-quiz/`, and its runs in `docs/benchmark-results.md`.
+  It is kept as a record, not kept running: the assessment's probe script and `specs/003`'s
+  experiments aren't used by the application or its tests, and the application refuses those
+  experiments (FR-011).
 - **The constitution and `AGENTS.md` don't change.** Neither mentions the quiz.

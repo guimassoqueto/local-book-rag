@@ -41,39 +41,43 @@ Expected:
 ## 2. Nothing left (SC-001)
 
 ```bash
-git grep -i -l quiz -- . ':!docs/decisions.md' ':!docs/benchmark-results.md' ':!specs/' ':!.specify/assessments/'
+OUTSIDE=(-- . ':!docs/decisions.md' ':!docs/benchmark-results.md' ':!specs/' ':!.specify/assessments/')
+git grep -i -l quiz "${OUTSIDE[@]}"
+git grep -n -E 'NothingToAskError|LocalBook|_WHOLE_BOOK|_MIN_REPLY_CONFIDENCE|confident_reply_language|lettered_options|REFUSAL_KINDS|known_cases|case_set|local_books' "${OUTSIDE[@]}"
 git grep -i -n quiz -- docs/decisions.md docs/benchmark-results.md
 ```
 
-Expected: the first prints nothing. The second finds, in `docs/decisions.md`, only the section
-"Removed: the chapter quiz (v0.6.0)", and in `docs/benchmark-results.md` only the quiz's section,
-with its removal line (FR-015, FR-016). The dataset's "não quiz fitar" is under `specs/`, and the
-books aren't in the repository.
+Expected: the first two print nothing: neither the word nor the quiz-only names that lack it
+(`research.md`, R2 and R5). The third finds, in `docs/decisions.md`, only the section "Removed:
+the chapter quiz (v0.6.0)", and in `docs/benchmark-results.md` only the quiz's section, with its
+removal line, and nothing in Known limitations (FR-015, FR-016). The dataset's "não quiz fitar"
+is under `specs/`, and the books aren't in the repository.
 
 ## 3. The same as `main` (SC-002, SC-006, US3)
 
 **The diff.**
 
 ```bash
-git diff main --stat
+git diff main --name-only
 git diff main -U0 -- app/generation/prompts.py | grep '^+[^+]'
 ```
 
 Expected:
-- `--stat` lists none of `app/services/index_service.py`, `app/storage/catalog.py`,
-  `app/ingestion/chunker.py`, `app/ingestion/pipeline.py`, `config/ingestion.yaml`,
-  `config/models.yaml`, `config/retrieval.yaml`, `app/evaluation/summary_metrics.py`,
-  `app/evaluation/ragas_llm.py`, `app/generation/question_answering.py`,
-  `app/generation/summarization.py` and `app/generation/citations.py` (R8, R9).
+- `--name-only` lists only the files of `plan.md`'s Project Structure, `README.md`,
+  `docs/decisions.md`, `docs/benchmark-results.md` and `specs/006-remove-chapter-quiz/`. A file
+  outside that list stops the check until the plan names it (SC-006, R9).
 - The `grep` prints nothing: `prompts.py` only lost lines.
 
 **The prompts and a report, built on both trees.** A throwaway script, kept in the session's
 scratchpad and never committed (R8), prints:
 - `app.__file__`, to show which tree it loaded;
-- one SHA-256 per prompt, for fixed inputs: every builder left in `prompts.py`, on an English and
-  a Portuguese question and passage, and the summary judge's two prompts with fixed values;
+- one SHA-256 per prompt, for fixed inputs, an English and a Portuguese question and passage:
+  - the answer and its abstention check, in the question's language and in a named one;
+  - the map, collapse, final and verification steps, for `brief`, `standard`, `comprehensive` and
+    `analytical`, in the book's language and in a named one;
+  - the summary judge's two prompts;
 - the SHA-256 of `render()` on a retrieval result from the host's `benchmarks/results/`
-  (`markdown_books_*`), without and with `--baseline`'s comparison.
+  (`markdown_books_*`), the only kind it holds, without and with `--baseline`'s comparison.
 
 It runs on a worktree of `main` and on the branch, with the branch's `.venv`. `PYTHONPATH` puts
 each tree's `app` before the editable install's:
@@ -86,7 +90,8 @@ diff "$SCRATCH/main.txt" "$SCRATCH/branch.txt"   # only the app.__file__ line di
 git worktree remove "$SCRATCH/main-tree"
 ```
 
-Expected: every hash is the same on both. The results go to the spec's results section.
+Expected: every hash is the same on both. The result is recorded in the spec, under "Results of
+the implementation" (SC-002).
 
 ## 4. The rebuild, and what it deletes
 
@@ -111,7 +116,8 @@ make test-integration
 time docker compose restart app
 ```
 
-Expected: the integration tests pass without `test_quiz.py`, and the restart takes under 2 s.
+Expected: the integration tests pass without `test_quiz.py`. The restart, timed while no library
+operation is in progress, takes under 2 s of wall-clock time (SC-004).
 
 In the browser, at <http://localhost:7860>:
 1. The tabs are Library, Chat, Summarization and Research, and no other.
@@ -175,3 +181,14 @@ is ignored.
 - `docs/benchmark-results.md`: the quiz's section kept with its removal line, and the Known
   limitations of R13.
 - § 2's search, run again: still the same.
+
+## 9. Before the merge (FR-018)
+
+```bash
+git log main..HEAD --format='%B' | grep -n -E '^[a-z]+(\(.+\))?!:|^BREAKING[ -]CHANGE'
+git fetch --tags && git describe --tags --abbrev=0 origin/main
+```
+
+Expected: the first prints nothing, since no commit of the branch is breaking. The second prints
+`v0.5.0`, so a `feat:` merge makes v0.6.0, which the records name. If it prints anything else,
+the records are corrected to the version this merge produces before it merges.

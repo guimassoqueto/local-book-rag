@@ -51,3 +51,7 @@
 - Planning, 2026-11-19: both settled and written into the spec, under "Corrections during
   planning": the cache sweep stays, and local books go. FR-004 gained the second quiz-only
   error. All items still pass.
+- Requirements checklist, 2026-11-19: `checklists/removal-and-records.md` led to seventeen fixes,
+  recorded in the spec under "Corrections from the requirements checklist". They made SC-001,
+  SC-002, SC-004 and SC-006 more measurable and settled the order of the deletions and the
+  release check. Re-checked: all items still pass.
