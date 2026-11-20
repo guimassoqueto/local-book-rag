@@ -520,3 +520,7 @@ Each checkpoint leaves `make lint-check` and `make test` passing.
 ## Phase 7: Convergence
 
 - [X] T037 In `README.md`, Benchmarks, make the intro's sentence on where the benchmark's files live name `specs/007-retrieval-rows/benchmarks/` for `no_reranking`, beside `specs/005-markdown-only/benchmarks/` and commit `c7bb785`, which no longer hold every other experiment, per FR-016 and Constitution VIII (partial)
+
+## Phase 8: Convergence
+
+- [X] T038 In `docs/benchmark-results.md`, make the opening paragraph's dates cover the runs of 2026-11-20 that the page now records, and where it says the experiments' last versions are in commit `c7bb785`, name `specs/007-retrieval-rows/benchmarks/` for `no_reranking`, per FR-018 and Constitution VIII (partial)

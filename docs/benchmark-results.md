@@ -1,12 +1,12 @@
 # Benchmark results
 
-What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 11, and on 2026-11-19
-for the Markdown books. The result files are no longer kept, and `benchmarks/` isn't in the
-repository: the experiments' last versions are in commit `c7bb785`, and the dataset's, whose books
-became Markdown in v0.5.0, in `specs/005-markdown-only/benchmarks/`. So this page is the record of
-the runs. Until "The Markdown books", every run read the original PDF and EPUBs. Every number in
-it comes from those files, and `book-rag benchmark-report` showed each run with the paired
-comparisons quoted below.
+What the experiments in `benchmarks/experiments` found, from 2026-11-07 to 11, and from 2026-11-19
+to 20 for the Markdown books. The result files are no longer kept, and `benchmarks/` isn't in the
+repository: the experiments' last versions are in commit `c7bb785`, except `no_reranking`'s, in
+`specs/007-retrieval-rows/benchmarks/`, and the dataset's, whose books became Markdown in v0.5.0,
+is in `specs/005-markdown-only/benchmarks/`. So this page is the record of the runs. Until "The
+Markdown books", every run read the original PDF and EPUBs. Every number in it comes from those
+files, and `book-rag benchmark-report` showed each run with the paired comparisons quoted below.
 
 The setup was an RTX 5060 Ti with 16 GB, a Ryzen 9 9950X3D, 60 GB of RAM and Ollama 0.40.15.
 Models ran at the quantizations Ollama serves: MXFP4 for gpt-oss:20b, Q4_K_M for the others. The
