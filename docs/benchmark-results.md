@@ -559,6 +559,49 @@ inferred, not read.
 v0.6.0 left retrieval as it was. The results are `benchmarks/results/markdown_books_20261120T021742092846Z` (`main`) and
 `markdown_books_20261120T022603129972Z` (the fix), outside the repository.
 
+## What the rows retrieved
+
+Each retrieval row also lists its ranking and its context by chunk ID, and
+`devtools/compare_runs.py` shows what ranked above the evidence of each question that moved
+(`specs/007-retrieval-rows`, `docs/decisions.md`, Evaluation). On 2026-11-20, two runs checked it
+on the branch's commit, `c927603`, in a fresh workspace, with the dataset, the books and the models
+of the fix's run above:
+- **`markdown_books`**, the default configuration, gave the same rows as the fix's run: every
+  score of every question, `relevant_chapters` and `relevant_chunks`, and the same `summary.csv`,
+  byte for byte. Each row's six scores, computed again from the two lists it records, are its
+  own, and each context is its ranking's first five. The rankings hold 1 to 29 chunks.
+- **`no_reranking`**, the same configuration with reranking off, gave the comparison questions
+  that moved. It is in `specs/007-retrieval-rows/benchmarks/experiments/`.
+
+`devtools/compare_runs.py` paired the two by question: 75 pairs, none left out.
+
+| Metric | Default | Reranking off | Difference (95% interval) |
+| --- | --- | --- | --- |
+| Recall@5 | 0.904 | 0.860 | **−0.044 (−0.094 to −0.003)** |
+| Recall@10 | 0.953 | 0.928 | **−0.025 (−0.059 to −0.003)** |
+| MRR | 0.954 | 0.864 | **−0.090 (−0.151 to −0.035)** |
+| nDCG@10 | 0.887 | 0.832 | **−0.056 (−0.099 to −0.018)** |
+| Context precision | 0.909 | 0.846 | **−0.063 (−0.125 to −0.008)** |
+| Context recall | 0.904 | 0.860 | **−0.044 (−0.094 to −0.003)** |
+
+Every interval leaves zero out. On the Markdown books, as on the originals in Retrieval above,
+reranking clearly helps. 35 questions moved, and for each the comparison showed, in each run, the
+ranks its evidence took and the chunks above them. Read against the rows, every one agreed. Two of
+them, read by hand:
+- **`quincas_borba_factual_02`**: with the reranker, its evidence, chunk 0070 of chapter XXXV,
+  came first. Without it, it came sixth, below five chunks of three other chapters.
+- **`think_python_conceptual_05`**: the reranker put chunk 0313 first, the passage just before its
+  evidence in the same chapter, so its MRR was 0.5. Without the reranker, its evidence came first
+  and second.
+
+Without the reranker, two questions' evidence ranked below the first ten:
+`quincas_borba_factual_06`'s came 18th, and `on_liberty_multi_section_02`'s 21st.
+
+The fix's runs, in the section above, were written before the rows recorded their rankings, so
+what outranked the evidence on `main` stays an inference. The results are
+`benchmarks/results/markdown_books_20261120T120252852034Z` and
+`no_reranking_20261120T120838819176Z`, outside the repository.
+
 ## Recommendations
 
 The defaults stay as they are. These are what the results suggest changing, and what each change
@@ -646,8 +689,9 @@ application as well as in the benchmarks. `docs/decisions.md` has the detail of 
 
 ## Reproducing
 
-The experiments come from commit `c7bb785`, and the dataset from
-`specs/005-markdown-only/benchmarks/`. Its three books are Markdown conversions, rebuilt from their
+The experiments come from commit `c7bb785`, the dataset from
+`specs/005-markdown-only/benchmarks/`, and `no_reranking` from
+`specs/007-retrieval-rows/benchmarks/`. Its three books are Markdown conversions, rebuilt from their
 originals with the conversion `books.yaml` records, and checked against their checksums before
 anything runs (README, Benchmarks). The app container has to be given them: no folder of the host
 is mounted in it. The results stay in the container until copied out.
@@ -656,12 +700,14 @@ is mounted in it. The results stay in the container until copied out.
 git archive c7bb785 benchmarks/experiments | tar -x
 rm benchmarks/experiments/extraction.yaml
 cp -r specs/005-markdown-only/benchmarks/. benchmarks/
+cp -r specs/007-retrieval-rows/benchmarks/. benchmarks/
 # the three Markdown books into benchmarks/books, as books.yaml names them
 docker compose cp -a benchmarks app:/app/
 docker compose exec app book-rag pull-models --all          # every candidate model
 docker compose exec app book-rag validate-benchmark         # checks the books' checksums first
 
 make benchmark EXPERIMENT=markdown_books   # about 6 minutes, the default configuration
+make benchmark EXPERIMENT=no_reranking     # seconds, in markdown_books' workspace
 make benchmark EXPERIMENT=retrieval        # about 7 minutes, indexing four workspaces
 make benchmark EXPERIMENT=historical_spelling  # about 2 minutes
 make benchmark EXPERIMENT=performance      # about 3 minutes

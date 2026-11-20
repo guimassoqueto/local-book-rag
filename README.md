@@ -418,6 +418,7 @@ by copying the results out before the container goes:
 git archive c7bb785 benchmarks/experiments | tar -x           # the experiments
 rm benchmarks/experiments/extraction.yaml                     # a kind that no longer exists
 cp -r specs/005-markdown-only/benchmarks/. benchmarks/        # the dataset, and markdown_books.yaml
+cp -r specs/007-retrieval-rows/benchmarks/. benchmarks/       # no_reranking.yaml
 # the three Markdown books go into benchmarks/books (see the dataset, below)
 docker compose cp -a benchmarks app:/app/                     # into the app container
 docker compose exec app book-rag pull-models --all            # every candidate model, about 40 GB

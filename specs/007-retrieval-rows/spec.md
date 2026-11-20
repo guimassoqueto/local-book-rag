@@ -373,3 +373,52 @@ outputs. Then pair the fix's run with a new one.
   which this feature doesn't do.
 - **The release**: a feature, so the pull request is titled `feat:`, and its merge makes a minor
   release, v0.7.0 unless another release comes first.
+
+## Results of the implementation, 2026-11-20
+
+The change is `c927603`. The stack was rebuilt from it, and both runs were made on it, in a fresh
+workspace, with the dataset (`cd57a42a6369…`), the books and the models of the
+publisher-back-matter fix's run.
+
+- **SC-001: pass.** `markdown_books` (`benchmarks/results/markdown_books_20261120T120252852034Z`,
+  5 min 39 s) recorded the same configuration, dataset, books, model digests and packages as the
+  fix's run. Its 75 rows hold the same six scores, `relevant_chapters` and `relevant_chunks`. Its
+  averages are the same, and its `summary.csv` is identical, byte for byte.
+- **SC-002: pass.** In the app container, each row's six scores, computed again from its ranking
+  and its context against its question's evidence, equal the row's. Each context is its ranking's
+  first five, and each ID is a chunk of the question's book. The rankings hold 21.5 chunks on
+  average. The five shorter than ten, from 1 to 7 chunks, are *Quincas Borba*'s chapter-specific
+  questions, as the edge cases expected.
+- **SC-003: pass.** On the branch, `benchmark-report` printed the fix's two runs exactly as on
+  `main`, with and without `--baseline default`. For the new run, it printed the fix's run's
+  tables: only the line that says when the run ran differs.
+- **SC-004: pass.** On the fix's two runs, the branch's comparison begins with `main`'s output,
+  byte for byte. It adds the new section, in which the four questions that moved say
+  `not recorded` for both runs. The fix's run against the new one gives 75 pairs, none left out,
+  every difference `+0.000 (+0.000 to +0.000)`, no question that moved, and no new section. The
+  fix's two result folders are unchanged, file for file.
+- **SC-005: pass.** The default against `no_reranking`
+  (`benchmarks/results/no_reranking_20261120T120838819176Z`, 6 s) gives 75 pairs, none left out.
+  Every metric is lower without the reranker, and every interval leaves zero out. 35 questions
+  moved. A check written from FR-009 and FR-010 rebuilt the new table's 70 rows from the two runs'
+  rows, and each agreed: 68 readings had evidence within the first ten, 2 only below them, and
+  none had no evidence at all. Two were read by hand (`docs/benchmark-results.md`, "What the rows
+  retrieved").
+- **SC-006: pass.** `make lint-check` is clean. `make test` ran 985 unit tests before the change,
+  and 1008 after.
+- **SC-007: pass.** `git diff main --name-only` lists `app/evaluation/benchmark.py`,
+  `devtools/compare_runs.py`, the three test files, `README.md`, `docs/decisions.md`,
+  `docs/benchmark-results.md` and files in `specs/007-retrieval-rows/`. None is in `app/retrieval`,
+  `app/ingestion`, `app/generation`, `app/storage` or `config/`, and the history is untouched.
+
+### Corrections during implementation
+
+- **One earlier test now looks in one table.**
+  `test_the_questions_that_moved_are_listed_with_both_runs` expected a single line starting
+  `| q2 |`, and the new section adds two. It now looks before the new section, and asserts what it
+  did (FR-012). research.md R11 had expected the earlier tests to stay as they were.
+- **The experiment file was added with `git add -f`.** The `benchmarks/` line of `.gitignore`
+  matches every folder of that name, this spec's too, as it did `specs/003`'s and `specs/005`'s.
+- **The files grew less than estimated**: about 0.2 MB for a 75-question run, against research.md
+  R4's 0.3 MB. Rankings hold 21.5 chunks on average, not 30, since dense search and BM25 often find
+  the same chunks, and a chapter-specific question searches one chapter.

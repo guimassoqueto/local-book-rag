@@ -295,19 +295,19 @@ T027 and T028 (SC-003, SC-004).
 **Purpose**: The three stories on the real stack, the real models and the dataset's books, then the
 records and the results.
 
-- [ ] T022 Before the rebuild:
+- [X] T022 Before the rebuild:
   - the change is committed, when the owner asks for it, so that the runs' `--commit` names a
     commit that holds it (research.md R10). If the owner prefers to run uncommitted, the runs
     record `-dirty`, as the fix's did;
   - the owner confirms the rebuild, which deletes their library.
-- [ ] T023 Rebuild and reset (quickstart.md § 3):
+- [X] T023 Rebuild and reset (quickstart.md § 3):
   - `make up` rebuilds the app image and recreates its container, which deletes the owner's
     library, its logs, the reranker's weights and the container's copy of `benchmarks/`. ChromaDB
     and Ollama keep their data, models included;
   - `docker compose exec app book-rag reset-everything --confirm "DELETE EVERYTHING"` deletes the
     emptied library and every `book_chunks_v*` collection;
   - `docker compose exec app book-rag doctor` reports no failure.
-- [ ] T024 The two runs (quickstart.md § 4):
+- [X] T024 The two runs (quickstart.md § 4):
   - copy `specs/007-retrieval-rows/benchmarks/experiments/no_reranking.yaml` into
     `benchmarks/experiments/`, then `docker compose cp -a benchmarks app:/app/`;
   - with `COMMIT="$(git describe --always --dirty)"`, run
@@ -318,7 +318,7 @@ records and the results.
 
   Expected: the first run indexes the three books in a fresh workspace, and the second indexes
   nothing. Both say `complete: true`. Note each run's time, for the records.
-- [ ] T025 [P] SC-001, quickstart.md § 5. Run its throwaway check, kept as `$SCRATCH/same_rows.py`,
+- [X] T025 [P] SC-001, quickstart.md § 5. Run its throwaway check, kept as `$SCRATCH/same_rows.py`,
   on `$FIX` and `$NEW`, then `cmp "$FIX/summary.csv" "$NEW/summary.csv"`. Expected:
   - the same configuration, dataset, books and embedding model's digest;
   - 75 rows, the same questions, and no row whose six scores, `relevant_chapters` or
@@ -327,7 +327,7 @@ records and the results.
 
   If a row differs, stop. A run of `main`'s code on the same models tells whether this change
   moved it (research.md R8). Record what it finds before going on.
-- [ ] T026 [P] SC-002, quickstart.md § 6. Write the throwaway `$SCRATCH/check_rows.py`. It:
+- [X] T026 [P] SC-002, quickstart.md § 6. Write the throwaway `$SCRATCH/check_rows.py`. It:
   - loads `EnvironmentSettings()` (`app.config.settings`) and
     `load_settings(environment.config_dir)` (`app.config.loader`);
   - opens the default variant's workspace with
@@ -341,12 +341,12 @@ records and the results.
   Run it with `docker compose exec -T app python - "$NEW" < "$SCRATCH/check_rows.py"`. Expected:
   75 rows, every score equal, every context the ranking's first five, and no ranking longer than
   30.
-- [ ] T027 [P] SC-003, quickstart.md § 7. On the branch's container:
+- [X] T027 [P] SC-003, quickstart.md § 7. On the branch's container:
   - for each of `$MAIN` and `$FIX`, `benchmark-report`, with and without `--baseline default`,
     piped into `cmp` with T004's file. All four print nothing;
   - `benchmark-report "$NEW"` against T004's report of `$FIX`, with `diff`. Only the line that
     says when, and with which Ollama, each ran differs. The lists appear nowhere.
-- [ ] T028 SC-004, quickstart.md § 8:
+- [X] T028 SC-004, quickstart.md § 8:
   - `compare_runs.py "$MAIN" "$FIX" --labels main fix`, against T003's output with `diff`. It only
     adds lines at the end: the new section, with the four questions that moved, `main`'s row then
     the fix's, each `not recorded` in both cells;
@@ -354,7 +354,7 @@ records and the results.
     difference `+0.000 (+0.000 to +0.000)`, `None.` under "Questions that moved", and no new
     section;
   - `sha256sum -c --quiet "$SCRATCH/old-runs.sha256"` reports no change (FR-015).
-- [ ] T029 SC-005, quickstart.md § 8:
+- [X] T029 SC-005, quickstart.md § 8:
   - run `compare_runs.py "$NEW" "$OFF" --labels default no_reranking` into
     `$SCRATCH/compare-reranking.md`;
   - write the throwaway `$SCRATCH/check_table.py` from FR-009's and FR-010's text, not from T015's
@@ -387,7 +387,7 @@ records and the results.
     piece of evidence.
 
   This can be done any time after US2.
-- [ ] T032 In `docs/benchmark-results.md` (FR-018, research.md R12), after T025 to T029:
+- [X] T032 In `docs/benchmark-results.md` (FR-018, research.md R12), after T025 to T029:
   - a new section after "Matter that isn't the book's text", before "Recommendations", for
     T024's two runs: the date, the commit, the same dataset and books;
   - SC-001's result: the same rows as the fix's run, every score of every question, and
@@ -398,10 +398,11 @@ records and the results.
     `benchmarks/experiments/`, and how long it takes.
 
   "Matter that isn't the book's text" keeps its inference (FR-018).
-- [ ] T033 The library back (quickstart.md § 10). Ask the owner whether to add their book back
+- [X] T033 The library back (quickstart.md § 10). Ask the owner whether to add their book back
   from the file they name, then `docker compose cp "<file>" app:/tmp/` and
   `docker compose exec app book-rag add-book "/tmp/<file>"`. `list-books` shows it indexed.
-- [ ] T034 Add a section "Results of the implementation, <date>" at the end of `spec.md`, as
+  The owner chose to leave the library empty, and to add their book themselves.
+- [X] T034 Add a section "Results of the implementation, <date>" at the end of `spec.md`, as
   `specs/006-remove-chapter-quiz` recorded its results:
   - SC-001 and SC-002: the runs, the rows compared and the scores recomputed;
   - SC-003 and SC-004: the renderings and comparisons against `main`'s, and the checksums;
@@ -410,7 +411,7 @@ records and the results.
   - SC-007: T035's list of files.
 
   Mark the tasks done in this file.
-- [ ] T035 Final pass: quickstart.md § 9's diff and § 10's records and history once more, then
+- [X] T035 Final pass: quickstart.md § 9's diff and § 10's records and history once more, then
   `make lint-check` and `make test`. `git diff main...HEAD --name-only` lists only the files of
   plan.md's Project Structure, `README.md`, `docs/decisions.md`, `docs/benchmark-results.md` and
   `specs/007-retrieval-rows/`. None is in `app/retrieval`, `app/ingestion`, `app/generation`,
