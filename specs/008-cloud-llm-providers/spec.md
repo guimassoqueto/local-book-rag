@@ -118,9 +118,10 @@ unknown name, and check that the local model answers and that the failure is sai
 6. **Given** a Claude model picked and no fallback defined, **When** Claude fails, **Then** the
    local model answers the same question from the start, and the tab says which model failed,
    its provider and why, and which model answered.
-7. **Given** `ask --model` with an allowed Claude model, **When** it runs, **Then** it answers as
-   the tab does. With a name that isn't offered, it stops before searching, and lists the names
-   offered.
+7. **Given** `ask --model` with an allowed Claude model, **When** it runs, **Then** it says on
+   standard error, before sending anything, that the question and the passages found go to
+   Anthropic, and answers as the tab does. With a name that isn't offered, it stops before
+   searching, and lists the names offered.
 8. **Given** an answer from Claude, **When** the page is loaded again, **Then** the local model is
    preselected again.
 
@@ -159,7 +160,7 @@ both of Claude's as they were, listed as not written again.
    give the tokens it read and generated, summed over its steps.
 4. **Given** a summary in several steps, **When** Claude fails at one of them, **Then** the summary
    starts again from its first step with the next model, and its report and saved record name the
-   model that wrote it and the one that failed, with why.
+   model that wrote it and the one that failed, with why and the tokens its finished steps spent.
 5. **Given** saved summaries written by Claude and by the local model, **When** `reindex-all`
    runs with the summaries regenerated, **Then** no request reaches a provider, the local ones are
    written again as today, and each of Claude's is left as it was and listed, with its model, as
@@ -254,15 +255,25 @@ unknown name first in the sequence, and read the Research tab after each.
   provider until a request or a check. `doctor` and "Check again" report it, and a request with it
   fails like any other failure, moving on to the next model.
 - **A key the provider refuses, a rate limit, a timeout or an outage**: the request moves on to
-  the next model of its sequence, and the tab says which model failed and why. It ends with an
-  error only when the local model, the last, fails too.
+  the next model of its sequence, and the tab says which model failed and why. A rate limit, an
+  overload or a lost connection is tried again twice, a few seconds apart, before it counts; a
+  model silent for its profile's time is given up on at once. The request ends with an error only
+  when the local model, the last, fails too.
 - **A request the provider declines** is a failure too: the next model gets it, and the tab says
-  that the provider declined it.
-- **A reply with no usable answer**, such as one that spent its whole token limit on reasoning, is
-  a failure, and the next model gets the request.
+  that the provider declined it, with the provider's category for it when it gives one.
+- **A reply with no usable answer**, with no text, such as one that spent its whole token limit on
+  reasoning, is a failure, and the next model gets the request.
+- **A reply cut off by its token limit, with text in it**, is an answer, as a local one is today:
+  it is shown, and the request doesn't move on.
 - **An abstention** is an answer, not a failure: the request doesn't move on.
-- **A failure after part of the answer arrived**: the text that arrived is withdrawn, the tab says
-  why, and the next model starts over.
+- **A failure after part of the answer arrived**: the text that arrived is withdrawn. The tab
+  removes it; a command, which can't take back what it printed, says on standard error that it is
+  discarded. The next model starts over.
+- **An allowed model that its profile can't serve**, one that refuses the profile's effort or its
+  kind of reasoning, fails every request it gets, as rejected, and each failure says so. `doctor`
+  and "Check again" name what it refuses. Nothing warns at startup, which contacts no provider.
+- **A name that differs from an allowed one only in case** is another name: it is refused, with the
+  names offered.
 - **A failure at one step of a long summary**: the summary starts again, from its first step, with
   the next model. No summary is written by two models.
 - **A question whose search finds nothing** calls no model, as today, so nothing is sent and no
@@ -278,8 +289,11 @@ unknown name first in the sequence, and read the Research tab after each.
   it again, with the question, as part of the same attempt.
 - **The same chapter and type summarized again and saved** replace the saved summary, whichever
   model wrote either, as saving does today.
-- **The interface published on the network** (`GRADIO_BIND_ADDRESS`): anyone who can open it can
-  use the configured key. The README says so.
+- **A cloud summary kept by `reindex-all`** was made from the chunks before the rebuild, so its
+  references may name sections that changed. The report says so, and summarizing the chapter again
+  refreshes it. It is kept even when its provider is no longer configured.
+- **The interface published on the network** (`GRADIO_BIND_ADDRESS`): anyone who can open it, or
+  call its API, can use the configured key. The README says so.
 - **An experiment or a judge that names a cloud model** is refused before the run starts, with no
   request to any provider.
 - **The provider unreachable when the app starts**: the app starts as usual, since it contacts no
@@ -313,6 +327,49 @@ unknown name first in the sequence, and read the Research tab after each.
   its steps, in the tab's and `summarize`'s reports and in the saved record. Local summaries stay
   as today.
 
+### Corrections from the requirements checklist, 2026-11-20
+
+The owner answered the checklist's four questions
+(`checklists/data-sharing-and-model-output.md`):
+- A reply cut off by its token limit, with text in it, is an answer, as today (CHK011, FR-017).
+- A model may stay silent for 120 seconds, its profile's setting, before the next one starts
+  (CHK013, FR-017).
+- A summary's record and reports count the tokens of the cloud attempts that failed before it,
+  which were billed too (CHK017, FR-022).
+- `ask` and `summarize` say what goes to which provider before sending, as the tabs do (CHK006,
+  FR-008).
+
+The rest the agent settled, from what the owner had decided before.
+- **What a request carries** (FR-015): the prompt's instructions, the passages with their book,
+  chapter and section, the titles a summary's prompt names, and the partial summaries. A check
+  sends the key and the allowed models' names (FR-015, FR-021), not the key alone.
+- **Where the key lives** (FR-004): `.env`, the app container's environment, and the shell that
+  runs the integration tests; nowhere else. Anyone who can call the interface's API can use it,
+  as anyone who can open the page can (FR-029, Edge Cases).
+- **Failures** (FR-017, FR-018): the list matches the plan's reasons, "is down or overloaded" and
+  "rejects the request" included; a declined request goes on like any failure, with its category
+  shown; "withdrawn" is said for the tab and for a command; the error after every model failed
+  ends with the local model's failure, for a summary as for an answer.
+- **A misconfigured model** fails every request it gets, each failure said, and the checks name
+  it; nothing warns at startup, which contacts no provider (Edge Cases).
+- **`reindex-all`** keeps a cloud summary even when its provider is no longer configured, and says
+  that its references may be out of date (FR-023, Edge Cases).
+- **Measures and the reasoning** (FR-020, FR-025): generated tokens count the reasoning for every
+  provider; a measure the app takes itself says so; the reasoning stays out of logs and records.
+- **Precision.**
+  - FR-001 compares names as written, case included.
+  - FR-002 makes a provider with one setting a failing check in `doctor`.
+  - FR-003 refuses a profile under a provider name the app doesn't implement.
+  - FR-014 says what the profile's window is for: it caps what one request sends.
+  - FR-029 adds the provider's terms for what it is sent, and which generation settings don't
+    apply to a cloud model.
+  - FR-030 adds the plan's own choices to the decisions to record.
+  - FR-033 checks each allowed model, and the README says to check one allowed later.
+  - SC-001 compares the commands' output line for line, notes the records' new keys, and counts
+    requests in the unit tests.
+  - SC-003 names its cases and what passes; SC-007, SC-008 and SC-009 say where they are measured.
+  - The Assumptions add the fallbacks' control, the tabs' wording, and why the release is minor.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -322,18 +379,23 @@ unknown name first in the sequence, and read the Research tab after each.
 - **FR-001**: A cloud provider MUST be configured by two settings in `.env`, passed to the app's
   container: its API key, and its allowed models as a comma-separated list of model names. For
   Anthropic, they MUST be `ANTHROPIC_API_KEY` and `ANTHROPIC_MODELS`. Spaces around a name and
-  empty entries MUST be ignored, and a name listed twice MUST be offered once.
+  empty entries MUST be ignored, and a name listed twice MUST be offered once. Names MUST be
+  compared as written, case included.
 - **FR-002**: A provider's models MUST be offered only when both its settings are set and not
   empty. With neither set, the app MUST look and work as it does without this feature. With one
-  set and not the other, its models MUST NOT be offered, and the startup log and `doctor` MUST say
-  which setting is missing.
+  set and not the other, its models MUST NOT be offered, the startup log MUST say which setting is
+  missing, and `doctor` MUST report it as a failing check.
 - **FR-003**: What all of a provider's models share MUST be in one profile per provider in
   `config/models.yaml`, validated at startup like the rest of `config/`. A cloud model MUST need
   no profile of its own, and an allowed model whose provider has no profile MUST stop the app at
-  startup (Principle I).
+  startup (Principle I). A profile under a provider name that the app doesn't implement MUST stop
+  it too, as any unknown key in `config/` does.
 - **FR-004**: The key MUST be read from the environment only, and the interface MUST neither ask
-  for it nor show it. Nothing MUST write it to the logs, the library, a saved summary or a
-  benchmark result, and no error or message MUST show it (Principle I).
+  for it nor show it. It belongs in `.env`, in the app container's environment, which
+  `docker inspect` and `docker compose config` show to anyone who can run Docker, and in the shell
+  that exports it to run `make test-integration`, and nowhere else. Nothing MUST write it to the
+  logs, the library, a saved summary or a benchmark result, and no error or message MUST show it
+  (Principle I).
 - **FR-005**: The sample environment file, `devtools/.env.sample`, MUST list both settings, empty,
   each with a comment that says what it holds.
 
@@ -351,6 +413,8 @@ unknown name first in the sequence, and read the Research tab after each.
   or an offered cloud model, and `--fallback`, repeated, which names its fallbacks in order, under
   FR-007's rules. Without `--model`, the local model MUST answer. A name that isn't offered, or
   that appears twice, MUST be refused before anything is searched or sent, with the names offered.
+  With a cloud model named, both commands MUST say on standard error, before anything is sent,
+  what will go to which providers, as the tabs' notice does (FR-010).
 - **FR-009**: Each tab MUST keep its own choice and fallbacks, which hold for the requests made
   from that tab until they change. A choice made in one tab MUST NOT change the other's, and
   nothing MUST keep a choice across page loads, restarts or commands.
@@ -371,13 +435,17 @@ unknown name first in the sequence, and read the Research tab after each.
 - **FR-013**: An answer from a cloud model MUST stream as it is written, in the Chat tab and in
   `ask`, as a local one does.
 - **FR-014**: What is sent to a cloud model MUST be fitted to its context before it is sent, as it
-  is for the local model, so that nothing is cut.
+  is for the local model, so that nothing is cut. A cloud model's context is a window that its
+  provider's profile sets, far below the model's own, so that it also caps what one request
+  sends, and so what it costs.
 - **FR-015**: Nothing MUST be sent to a provider except for a request in whose sequence the user
-  put one of its models, and then only what the request needs: the question, its passages and,
-  when the provider's profile asks for a reply check, the model's own reply; or the chapter's text
-  and the summaries made from it. The one other contact is a check that the user asks for
-  (FR-021), which sends the key alone. Retrieval, embeddings, reranking, benchmarks and their
-  judges MUST stay on local models (Principle I).
+  put one of its models, and then only what the request needs. For a question: the prompt's
+  instructions, the question, and the passages, each with its book, chapter and section; and,
+  when the provider's profile asks for a reply check, the model's own reply. For a summary: the
+  prompt's instructions, the book's and the chapter's titles, the chapter's text, and the
+  summaries made from it. The one other contact is a check that the user asks for (FR-021), which
+  sends the key and the allowed models' names. Retrieval, embeddings, reranking, benchmarks and
+  their judges MUST stay on local models (Principle I).
 - **FR-016**: Each answer and summary MUST come from a model of its sequence, and MUST record the
   model that wrote it, as its provider reported it, with that provider, and the models that failed
   before it, in order, each with its provider and why. No model outside the sequence MUST answer.
@@ -385,38 +453,51 @@ unknown name first in the sequence, and read the Research tab after each.
 #### Failures and fallbacks
 
 - **FR-017**: A model of the sequence fails when its provider refuses the key, doesn't know the
-  model, limits the rate, times out, can't be reached or declines the request, or when the model
-  finishes without a usable answer. An abstention MUST NOT count as a failure. On a failure, the
+  model, limits the rate, is down or overloaded, can't be reached, rejects the request, such as
+  for a setting the model doesn't take, or declines it; when it sends nothing for the time that
+  its provider's profile allows, 120 seconds; or when the model finishes without a usable answer,
+  that is, with no text. A reply cut off by its token limit with text in it is an answer, as a
+  local one is today, and so is an abstention: neither MUST count as a failure. A silent model
+  MUST be given up on at once, never waited for twice; a rate limit, an overload or a lost
+  connection MAY be tried again twice, a few seconds apart, before it counts. On a failure, the
   request MUST go to the next model of the sequence, from the start: the same question and
-  passages, fitted to that model's context, or the same chapter. Text that arrived from the failed
-  model MUST be withdrawn.
+  passages, fitted to that model's context, or the same chapter. A declined request goes on like
+  any other failure. Text that arrived from the failed model MUST be withdrawn: the tab removes
+  it, and a command, which can't take back what it printed, says on standard error that it is
+  discarded.
 - **FR-018**: The tab and the command MUST say each failure as it happens: the model, its
-  provider, the reason, and the model asked next. The request MUST end with an error only when
-  the last model of the sequence, the local one, fails too, and that error MUST list every
-  failure, in order.
+  provider, the reason, with the provider's category when it declined the request and gives one,
+  and the model asked next. The request MUST end with an error only when the last model of the
+  sequence, the local one, fails too, and that error MUST list every failure, in order, the local
+  model's last, for a summary as for an answer.
 - **FR-019**: A summary MUST be written by one model. When one of its steps fails, the summary
   MUST start again from its first step with the next model of the sequence.
 - **FR-020**: Each attempt MUST be logged with its provider, its model and its outcome, and never
-  with the key, a book's text or a question.
+  with the key, a book's text, a question, or the reasoning that a model returned, which can quote
+  the passages. The reasoning appears in the Research tab only.
 - **FR-021**: A provider MUST be contacted outside a request only when the user asks for a check:
   `doctor`, or "Check again" in the Research tab. The check MUST report, for each configured
   provider, whether its key is accepted and whether each allowed model exists, running no
-  inference and sending the key alone. Nothing MUST contact a provider at startup, and the checks
-  that the Research tab runs on its own after each answer MUST leave providers out. When no
-  provider has either setting, the checks MUST be the same as today.
+  inference and sending the key and the allowed models' names, nothing else. Nothing MUST contact
+  a provider at startup, and the checks that the Research tab runs on its own after each answer
+  MUST leave providers out. When no provider has either setting, the checks MUST be the same as
+  today.
 
 #### Saved and regenerated summaries
 
 - **FR-022**: A saved summary MUST record the model that wrote it, with its provider, and the
   models that failed before it, with why. The reports of the Summarization tab and of `summarize`
-  MUST name them. For a summary that a cloud model wrote, both reports and the saved record MUST
-  also give the tokens read and generated, summed over its steps. A summary by the local model
-  MUST report as today.
+  MUST name them. For each cloud attempt of a summary, both reports and the saved record MUST give
+  the tokens read and generated by the steps it finished: all of them for the model that wrote
+  the summary, and, for one that failed, those it finished before failing, which were billed too.
+  A summary that the local model wrote, with no failure before it, MUST report as today.
 - **FR-023**: Regenerating the saved summaries in `reindex-all` MUST NOT call a cloud model. A
-  saved summary written by a cloud model MUST be left as it was, and the report MUST list it, with
-  its model, as not written again. The others MUST be written again with the local model, as
-  today. A summary saved before this feature, which names no provider, MUST be read as written by
-  the local model.
+  saved summary that names a cloud provider MUST be left as it was, whether or not that provider
+  is still configured, and the report MUST list it, with its model, as not written again. Since
+  it was made from the chunks before the rebuild, the report MUST also say that its references
+  may name sections that changed, and that summarizing the chapter again refreshes it. The others
+  MUST be written again with the local model, as today. A summary saved before this feature,
+  which names no provider, MUST be read as written by the local model.
 
 #### The Research tab
 
@@ -425,10 +506,13 @@ unknown name first in the sequence, and read the Research tab after each.
   the models that failed before it, in order, each with its provider and why. For an answer that
   the local model wrote with no failure before it, it MUST show what it shows today.
 - **FR-025**: For an answer from a cloud model, it MUST show the tokens read and generated, the
-  time to first token and the total time, and the reasoning as the provider returned it, saying
-  when that is a summary of the reasoning and when none came back. A measure that the provider
-  doesn't report and the app can't measure MUST be shown as unavailable, never as zero. Its final
-  context MUST be exactly what was sent to the model that answered.
+  generated ones counting the reasoning as they do for the local model, the time to first token
+  and the total time, and the reasoning as the provider returned it, saying when that is a summary
+  of the reasoning and when none came back. A measure that the app takes itself for a cloud
+  model, such as the generation's speed from the first token to the last, network included, MUST
+  say so. A measure that the provider doesn't report and the app can't measure MUST be shown as
+  unavailable, never as zero. Its final context MUST be exactly what was sent to the model that
+  answered.
 
 #### Providers to come
 
@@ -450,17 +534,23 @@ unknown name first in the sequence, and read the Research tab after each.
 - **FR-029**: `README.md` MUST say which provider is supported and how to configure it; that
   setting or changing either setting recreates the app container at `make up`, which empties the
   library (Principle II); what each request sends to the provider, and that the app contacts it
-  at no other time than a check the user asks for; how to choose a model and its fallbacks in the
-  tabs and with `--model` and `--fallback`, and that the local model ends every sequence; that
-  anyone who can open the interface can use the key; and that embeddings, reranking, benchmarks
-  and judges stay local. Its opening MUST no longer say that there is no external LLM API.
+  at no other time than a check the user asks for; that the provider handles what it is sent under
+  its own terms for API data, and where to read them; how to choose a model and its fallbacks in
+  the tabs and with `--model` and `--fallback`, and that the local model ends every sequence;
+  which settings of `config/generation.yaml` don't apply to a cloud model, such as its
+  temperature, and where its own settings are; that anyone who can open the interface, or call
+  its API, can use the key; that a model allowed later is trusted once it has passed the
+  integration tests (FR-033); and that embeddings, reranking, benchmarks and judges stay local.
+  Its opening MUST no longer say that there is no external LLM API.
 - **FR-030**: `docs/decisions.md` MUST record the departure from local-only inference
   (constitution 3.0.0) and why a cloud model is chosen per request; why models are allowed in the
   environment, with one profile per provider; why the local model ends every sequence, why a
   summary starts again with the next model instead of mixing two, and why only the sequence's
-  models answer; why `reindex-all` leaves a cloud summary as it was; and which real Claude models
-  the feature was checked on, with what they write differently from the local models, as the
-  entries on `gpt-oss` do (Principle V).
+  models answer; why `reindex-all` leaves a cloud summary as it was; which real Claude models the
+  feature was checked on, with what they write differently from the local models, as the entries
+  on `gpt-oss` do (Principle V); and the plan's own choices, which the spec doesn't make: no
+  server-side fallbacks, no temperature, the approximate tokenizer, the profile's values and what
+  kept each, the bound on a silent model, and how a command withdraws text.
 - **FR-031**: The history MUST NOT be edited: the delivered specs, `specs/001` to `specs/007`
   (Principle VIII).
 
@@ -470,8 +560,9 @@ unknown name first in the sequence, and read the Research tab after each.
   the services return. Which models are offered, the rules of a sequence, the refusal of a name,
   the move to the next model, and every rule above MUST live in the services (Principle IV).
 - **FR-033**: How the cloud provider's output is read MUST be checked against the real Claude
-  models through `make test-integration`, which MUST skip those checks when no key is set
-  (Principle V).
+  models through `make test-integration`, on each model in `ANTHROPIC_MODELS`, which MUST skip
+  those checks when the settings aren't set (Principle V). A model allowed later is trusted once
+  it has passed them.
 
 ### Key Entities
 
@@ -489,26 +580,30 @@ unknown name first in the sequence, and read the Research tab after each.
 - **Answer**: as today, with the model that wrote it, its provider, and the attempts that failed
   before it.
 - **Saved summary**: as today, with the provider next to the model that wrote it, and the attempts
-  that failed before it; for a cloud model's, the tokens read and generated.
+  that failed before it; for each cloud attempt, the tokens read and generated by the steps it
+  finished.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: With neither setting, the Chat, Summarization and Research tabs, `ask`, `summarize`,
-  `reindex-all` and `doctor` look and work as on `main`, and in a session of questions and
-  summaries no request leaves the machine for any provider.
+- **SC-001**: With neither setting, the Chat, Summarization and Research tabs look and work as on
+  `main`, and `ask`, `summarize`, `reindex-all` and `doctor` print, line for line, what they print
+  on `main`. A saved summary's record gains FR-022's keys, which nothing shows differently. In the
+  unit tests, with clients that count their requests, a session of questions and summaries makes
+  none to any provider.
 - **SC-002**: With both settings and a valid key, `doctor` and "Check again" report the key
   accepted and each allowed model found, and starting the app or answering with the local model
   makes no request to Anthropic. With a refused key, `doctor` reports it refused, and a question
   asked with a Claude model and no fallback defined is answered by the local model, the tab naming
   Anthropic, the refused key as the reason and the local model as the one that answered, with the
   key nowhere in the page or the logs.
-- **SC-003**: With a key set, `make test-integration` has a Claude model answer a question that its
-  passages answer, every citation resolving to a passage it was given, and one that they don't,
-  which it answers with the no-evidence marker, read as an abstention; and it has the model
-  summarize a short chapter, its statements cited by lookup. Without a key, those tests are
-  skipped, and the others pass.
+- **SC-003**: With the settings exported, `make test-integration` runs each allowed Claude model on
+  an excerpt written for the test. Five questions that its passages answer each get an answer that
+  cites them in a form the app recognizes, every citation resolving to a passage it was given;
+  three that they don't each get the no-evidence marker, read as an abstention; and a short
+  chapter is summarized, its statements cited by lookup. All of them pass. Without the settings,
+  those tests are skipped, and the others pass.
 - **SC-004**: For a question asked with a Claude model, what reaches the provider is the Research
   tab's final context, and nothing else from the library, and the search returned the same
   passages, in the same order, as for the local model.
@@ -520,31 +615,36 @@ unknown name first in the sequence, and read the Research tab after each.
   and the local model isn't called; with a second unknown name as its fallback, the local model
   answers. In each case, the tab, the command and the Research tab name every failure, in order,
   and the model that answered.
-- **SC-007**: A summary whose model fails at its second step is written whole by the next model,
-  and its report and saved record name that model and the one that failed.
-- **SC-008**: When a model fails after part of its answer arrived, that text is gone from the page
-  before the next model's answer begins, and the final answer holds only the next model's text.
-- **SC-009**: A second provider, a fake one in the unit tests, shows up in both tabs, in `--model`
-  and `--fallback`, and in `doctor`, joins a sequence, answers, summarizes, and is reported by the
-  Research tab, with no change to the services, the tabs or the commands.
+- **SC-007**: In the unit tests, a summary whose model fails at its second step is written whole by
+  the next model, and its report and saved record name that model, and the one that failed with
+  the tokens of its first step.
+- **SC-008**: In the unit tests, when a model fails after part of its answer arrived, that text is
+  gone from the tab before the next model's answer begins, `ask` says on standard error that it is
+  discarded, and the final answer holds only the next model's text.
+- **SC-009**: In the unit tests, a second provider kind, a fake one registered only where provider
+  kinds are built, shows up in both tabs, in `--model` and `--fallback`, and in `doctor`, joins a
+  sequence, answers, summarizes, and is reported by the Research tab, with no change to the
+  services, the tabs or the commands.
 - **SC-010**: An experiment variant and a judge that name a cloud model are each refused before
   the run starts, and no request reaches a provider.
 - **SC-011**: After a session with a Claude model, failures included, a search of the logs, the
   saved summaries and the page finds no trace of the key.
 - **SC-012**: `make lint-check` is clean, and `make test` passes, with unit tests for: the settings
-  read, with both, one or neither set, spaces and a name listed twice; the choice offered, kept by
-  each tab on its own, and a name refused; sequences, the default one, a defined one, and names
-  refused for being unknown or repeated; what is sent, and that only a check the user asks for
-  contacts a provider outside a request (FR-021); each failure of FR-017 moving on to the next
-  model; text withdrawn after a failure; a summary started again; the final error that lists
-  every failure; the records of FR-016 and FR-022, a cloud summary's tokens included; the
-  regeneration of FR-023; and the Research tab's report of FR-024 and FR-025.
+  read, with both, one or neither set, spaces, a name listed twice and a name in another case; the
+  choice offered, kept by each tab on its own, and a name refused; sequences, the default one, a
+  defined one, and names refused for being unknown or repeated; the notices of FR-008 and FR-010;
+  what is sent, and that only a check the user asks for contacts a provider outside a request
+  (FR-021); each failure of FR-017 moving on to the next model, a silent model given up on once, a
+  reply cut off with text kept as an answer; text withdrawn after a failure; a summary started
+  again; the final error that lists every failure; the records of FR-016 and FR-022, the tokens of
+  every cloud attempt included; the regeneration of FR-023; and the Research tab's report of
+  FR-024 and FR-025.
 
 ## Assumptions
 
 - **One person, on this machine.** The owner uses the app alone, and the interface is published on
-  loopback by default. Anyone who can open the interface can spend the key, which the README says
-  where it explains `GRADIO_BIND_ADDRESS`.
+  loopback by default. Anyone who can open the interface, or call its API, can spend the key,
+  which the README says where it explains `GRADIO_BIND_ADDRESS`.
 - **The settings take a new container.** A change to `config/` can be copied into the container
   and applied by a restart, which keeps the library. A change to `.env` reaches the app only when
   `make up` recreates the container, which empties the library.
@@ -555,8 +655,9 @@ unknown name first in the sequence, and read the Research tab after each.
   no-evidence marker included. SC-003 checks it on the real models. If a prompt has to change,
   that is a decision of its own, measured on the local models too (Principles V and VI).
 - **Settings that a provider doesn't take**, such as a sampling temperature on the current Claude
-  models, are left out for its models. Its profile holds what they do take, such as how much they
-  reason and their token limits. The plan sets them, and checks them on the real models.
+  models, are left out for its models, and the README says which (FR-029). Its profile holds what
+  they do take, such as how much they reason and their token limits. The plan sets them, and
+  checks them on the real models.
 - **Token counts for a cloud model may be approximate**, the safety margin absorbing the error, as
   for `gemma4:12b`. A provider refuses a prompt too long for its model with an error, where Ollama
   cuts it silently, so a miscount can't drop passages unseen.
@@ -570,15 +671,20 @@ unknown name first in the sequence, and read the Research tab after each.
   summary costs the time and the tokens already spent.
 - **A sequence resets with the page**, as the choice does: defining the same fallbacks again after
   a reload is the price of starting every page on the local model.
+- **The fallbacks' control keeps the order of selection.** Gradio's multiselect is expected to, and
+  `quickstart.md` § 9 checks it. If it doesn't, up to three ordered choices ("then", "then",
+  "then") replace it, under the same rules (`research.md`, R13).
+- **The tabs' wording is in the contracts.** The spec says what the labels and the notices must
+  convey; `contracts/interface.md` gives their words.
 - **Other providers wait for their own feature.** Until one is built, a sequence holds Claude
   models and then the local one.
 - **Summaries still appear whole.** Answers stream as they are written, from either model
   (FR-013), as local ones do today. A summary shows its progress and then its text, as today:
   only its last step could stream, and its text changes once its statements are cited by lookup.
   Streaming summaries would change local ones too, so it is a feature of its own, after this one.
-- **No prices.** The app shows tokens where it shows them today, and for each summary that a cloud
-  model wrote (FR-022), and estimates no cost. The provider's console reports what the key spent.
-  With a key set, `make test-integration` spends a few cents.
+- **No prices.** The app shows tokens where it shows them today, and for each cloud attempt of a
+  summary (FR-022), and estimates no cost. The provider's console reports what the key spent.
+  With the settings exported, `make test-integration` spends a few cents per allowed model.
 - **Benchmarks don't compare cloud models**: a cloud model has no digest or seed, so a run
   couldn't be reproduced (Principle I). The feature claims no gain in quality or speed and changes
   no default, so no benchmark run is needed (Principle VI).
@@ -586,4 +692,6 @@ unknown name first in the sequence, and read the Research tab after each.
 - **The steps that `AGENTS.md` adds** apply: the feature reads a new model family's output, and
   changes what a saved summary records, so it runs clarify, checklist and analyze.
 - **The release**: a feature, so the pull request is titled `feat:`, and its merge makes a minor
-  release, v0.8.0 unless another release comes first.
+  release, v0.8.0 unless another release comes first. Nothing that a user relies on breaks: a
+  saved summary's record gains keys, and those written before still read (FR-023). The
+  constitution's major version governs the project, not the app's.

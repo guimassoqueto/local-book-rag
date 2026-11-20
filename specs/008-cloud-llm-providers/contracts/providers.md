@@ -42,8 +42,8 @@ class CloudProvider(Protocol):
     def check(self, models: Sequence[str]) -> list[ProviderCheck]: ...
 ```
 
-`check()` may contact the provider, sending the key alone and running no inference. Nothing else
-in this protocol contacts it, building it included.
+`check()` may contact the provider, sending the key and the models' names and running no
+inference. Nothing else in this protocol contacts it, building it included.
 
 ## Factory (`app/generation/factory.py`)
 
@@ -124,9 +124,16 @@ No server-side `fallbacks`, and no tools.
 | any other `APIStatusError`                      | `rejected`      | "it rejected the request: invalid_request_error" |
 | `stop_reason` `refusal`                         | `declined`      | "it declined the request (cyber)" |
 
-The SDK retries twice, with its own backoff, before raising a rate limit, an overload, a timeout
-or a lost connection. No message holds the key: the SDK's errors carry the API's words, not the
-request's headers.
+The client is built with `max_retries=0`. Before the stream has yielded anything, the provider
+tries a request again itself, at most twice, after a `RateLimitError`, an `InternalServerError` or
+an `APIConnectionError` that isn't a timeout, waiting 2 s, then 6 s, or the API's `retry-after`
+when it is shorter than 10 s. A timeout is never tried again, so a silent model holds the request
+for `request_timeout_seconds` once (FR-017). After a delta has arrived, any failure is final.
+
+`no answer` is not the provider's: the services raise it when a reply has no text. A reply that
+stops at `max_tokens` with text in it is an answer.
+
+No message holds the key: the SDK's errors carry the API's words, not the request's headers.
 
 ### The check
 

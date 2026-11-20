@@ -56,8 +56,9 @@ changes:
 **Testing**: pytest.
 - `make test`: two new test files, `test_anthropic_provider.py` and `test_model_choices.py`, and
   eleven changed (R16), on fakes, real files, real SQLite and embedded ChromaDB, as today.
-- `make test-integration`: `tests/integration/test_cloud_generation.py` runs a Claude model for
-  real when both settings are exported, and is skipped otherwise. It spends a few cents.
+- `make test-integration`: `tests/integration/test_cloud_generation.py` runs each allowed Claude
+  model for real on `tests/integration/cloud_cases.yaml` when both settings are exported, and is
+  skipped otherwise. It spends a few cents per model.
 - On the stack: `quickstart.md`.
 
 **Target Platform**: The Docker Compose stack on the owner's Linux machine:
@@ -74,14 +75,15 @@ one service layer.
 - **The local model**: no added work beyond building the choices at startup, and no request to a
   provider.
 - **A cloud answer** streams from Claude's first delta, as a local one streams from Ollama's.
-- **A failure** costs the provider's time to fail, at most the profile's 120 s of silence and the
-  SDK's two retries, before the next model starts.
+- **A failure** costs the provider's time to fail before the next model starts: at most the
+  profile's 120 s of silence, waited once, or a few seconds of retries after a rate limit, an
+  overload or a lost connection (R4).
 
 **Constraints**:
 - **Local by default**: every page load, command and regeneration uses the local model unless a
   cloud model is picked (FR-006 to FR-009, FR-023).
-- **Nothing goes to a provider without a choice**, and a check sends the key alone (FR-015,
-  FR-021).
+- **Nothing goes to a provider without a choice**, and a check sends the key and the allowed
+  models' names (FR-015, FR-021).
 - **The key is never written** to the logs, the library, a result, the interface or a message
   (FR-004).
 - **The same search and the same prompts** for every model (FR-011, FR-028).
@@ -106,7 +108,7 @@ one service layer.
 
 | Principle | Check | Before research | After design |
 | --------- | ----- | --------------- | ------------ |
-| I. Local-first and model-independent | The plan sends nothing to a provider unless the user picked one of its models for the request, and then only the question and its passages, or the chapter and what was made from it; the one other contact is a check the user asks for, which sends the key alone (FR-015, FR-021). Embeddings, reranking, benchmarks and judges stay on local models: the benchmarks build Ollama providers only, and refuse a cloud model's name before they run (FR-027). Without the settings, the app works as if the provider didn't exist (FR-002, SC-001). The key lives in a `SecretStr`, apart from `Settings` and `EnvironmentSettings`, and no log, result or message holds it (FR-004). A local model stays named in `config/models.yaml` with its profile; a cloud model is named only in its provider's allow-list, and its provider has one profile, `cloud_profiles.anthropic`, validated at startup with the rest of `config/`. What differs between models is a profile setting: effort, reasoning room, window, timeout. What differs between providers lives in each provider's class, behind `LLMProvider` and `CloudProvider`, and `app/container.py` and the factory are the only places that know the concrete classes. No code names or branches on a model. | Pass | Pass: `contracts/configuration.md`, `contracts/providers.md`; R1 to R6, R12, R15. |
+| I. Local-first and model-independent | The plan sends nothing to a provider unless the user picked one of its models for the request, and then only the question and its passages, or the chapter and what was made from it; the one other contact is a check the user asks for, which sends the key and the allowed models' names (FR-015, FR-021). Embeddings, reranking, benchmarks and judges stay on local models: the benchmarks build Ollama providers only, and refuse a cloud model's name before they run (FR-027). Without the settings, the app works as if the provider didn't exist (FR-002, SC-001). The key lives in a `SecretStr`, apart from `Settings` and `EnvironmentSettings`, and no log, result or message holds it (FR-004). A local model stays named in `config/models.yaml` with its profile; a cloud model is named only in its provider's allow-list, and its provider has one profile, `cloud_profiles.anthropic`, validated at startup with the rest of `config/`. What differs between models is a profile setting: effort, reasoning room, window, timeout. What differs between providers lives in each provider's class, behind `LLMProvider` and `CloudProvider`, and `app/container.py` and the factory are the only places that know the concrete classes. No code names or branches on a model. | Pass | Pass: `contracts/configuration.md`, `contracts/providers.md`; R1 to R6, R12, R15. |
 | II. The library is never at risk | No new operation on the books, the catalog or the index. `reindex-all` only skips writing again the summaries that a cloud model wrote, inside its journaled operation, and deletes nothing new (FR-023). A saved summary's JSON file gains keys, written as today. No volume or mount. Setting `.env` recreates the app container at `make up`, and the README says that this empties the library (FR-029). The quickstart's `make up` recreates it too, and says before each command what that deletes; `reset-everything`, confirmed in the service with `DELETE EVERYTHING`, then clears ChromaDB's old collections, as in `specs/007`. No benchmark code changes, so it still reaches nothing beyond `benchmarks/workspace` and the `bench_*` collections. | Pass | Pass: `quickstart.md`, § 0, § 2, § 3, § 14; R11, R18. |
 | III. Index integrity | No embedding or chunking setting, document template, tokenizer of the index, or metadata field changes; a cloud profile's tokenizer counts a prompt's tokens only. The fingerprint stays, and no reindex is needed (FR-028). | Pass | Pass: `data-model.md`, Unchanged. |
 | IV. One service layer | Every rule is in a service or in `ModelChoices`, which the services call: what is offered, a sequence's rules and refusals, the move to the next model, regeneration's skipping, the provider checks (FR-032). The tabs and the commands read the choice, pass names, and show what comes back. | Pass | Pass: `contracts/services.md`, `contracts/interface.md`. |
@@ -180,7 +182,9 @@ tests/
 │   ├── test_config.py, test_question_answering.py, test_summarization.py, test_library_rebuild.py,
 │   ├── test_health_service.py, test_interface.py, test_commands.py, test_container.py,
 │   └── test_logging.py, test_llm_provider.py, test_benchmark.py
-└── integration/test_cloud_generation.py   # new: a Claude model for real, skipped without the settings
+└── integration/
+    ├── test_cloud_generation.py     # new: each allowed Claude model for real, skipped without the settings
+    └── cloud_cases.yaml             # new: an excerpt, five answerable and three unanswerable questions, a short chapter
 
 README.md, docs/decisions.md
 ```

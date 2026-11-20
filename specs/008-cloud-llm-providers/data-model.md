@@ -72,18 +72,21 @@ local model among the fallbacks; a fallback with the local model picked.
 
 `key refused`, `unknown model`, `rate limited`, `timed out`, `unreachable`, `outage`, `declined`,
 `rejected`, `no answer`. R4 maps the SDK's errors to them, and `no answer` is a `GenerationError`
-from reading a reply.
+from reading a reply with no text. A reply cut off by its limit with text in it, and an
+abstention, are answers.
 
 ### `Attempt`
 
 A model's failed try at a request.
 
-| Field      | Content |
-| ---------- | ------- |
-| `model`    | the model that failed |
-| `provider` | its provider |
-| `reason`   | a `FailureReason` |
-| `detail`   | the provider's words, such as the category of a refusal or the API's error type, never the key |
+| Field               | Content |
+| ------------------- | ------- |
+| `model`             | the model that failed |
+| `provider`          | its provider |
+| `reason`            | a `FailureReason` |
+| `detail`            | the provider's words, such as the category of a refusal or the API's error type, never the key |
+| `prompt_tokens`     | for a summary's attempt, the tokens its finished steps read; None for an answer's |
+| `completion_tokens` | likewise, the tokens they generated |
 
 ### Events and errors
 
@@ -131,16 +134,18 @@ Next to the keys of today:
 | Key               | When        | Content |
 | ----------------- | ----------- | ------- |
 | `provider`        | always      | `ollama`, `anthropic` |
-| `failed_attempts` | always      | a list of `{model, provider, reason, detail}`, empty when none failed |
-| `tokens`          | cloud model | `{read, generated}` |
+| `failed_attempts` | always      | a list of `{model, provider, reason, detail}`, with `tokens` (`{read, generated}`) for a cloud attempt, empty when none failed |
+| `tokens`          | cloud model | `{read, generated}`, the attempt that wrote it |
 
 A file without `provider`, saved before this feature, is read as the local model's (FR-023). The
 summary's Markdown file doesn't change.
 
 ### `ReindexReport`
 
-`summaries_kept`, new: each saved summary that a cloud model wrote, left as it was, described as
-`book_001, chapter_04_standard: written by claude-sonnet-5-5 (Anthropic)`.
+`summaries_kept`, new: each saved summary that names a cloud provider, configured or not, left as
+it was, described as `book_001, chapter_04_standard: written by claude-sonnet-5-5 (Anthropic)`.
+Whatever shows the list adds that a kept summary's references may name sections that the rebuild
+changed, and that summarizing the chapter again refreshes it.
 
 ## Checks (R12)
 

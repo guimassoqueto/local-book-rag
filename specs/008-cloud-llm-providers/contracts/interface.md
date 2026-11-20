@@ -46,7 +46,9 @@ Sources and retrieved passages show as today, for the model that answered.
   limited the rate. Starting again with gpt-oss:20b."
 - The report's first line names the provider beside the model: "(direct, `claude-sonnet-5-5`,
   Anthropic)". For a cloud model, it adds "Read 18,204 tokens and generated 1,377." A line per
-  failed attempt follows. A local summary without failures reports as today (FR-022).
+  failed attempt follows, with the tokens a cloud attempt spent before it failed: "⚠️
+  claude-opus-5-5 (Anthropic) failed at step 3: it limited the rate, after reading 9,120 tokens
+  and generating 1,804." A local summary without failures reports as today (FR-022).
 - "Save the summary" saves what the report shows, failures and tokens included.
 
 ## The Research tab
@@ -55,7 +57,8 @@ Sources and retrieved passages show as today, for the model that answered.
 | -------------- | ---------------------------------- | -------------------- |
 | LLM | the model, as today | the model that answered, with its provider: `claude-sonnet-5-5` (Anthropic) |
 | Failed first | absent | a row per failed attempt, in order: `claude-x` (Anthropic): it doesn't know this model |
-| Prompt tokens, Generated tokens, Time to first token, Generation speed, Generation | as today | the cloud model's |
+| Prompt tokens, Generated tokens, Time to first token | as today | the cloud model's; generated tokens count the reasoning, as for the local model |
+| Generation speed, Generation | as today | the cloud model's, followed by "(measured by the app)", since they include the network |
 | Model loading, Prompt processing | as today | "unavailable", for a cloud model |
 | The model's reasoning | as today | the reasoning, under "A summary of the reasoning, as Anthropic returns it", or "None came back." |
 | Final context | as sent | as sent to the model that answered |
@@ -66,7 +69,8 @@ Sources and retrieved passages show as today, for the model that answered.
 
 After "Rebuild the index" with "Also write the saved summaries again", a notice lists the
 summaries kept: "Kept as they were, written by a cloud model: book_001, chapter_04_standard
-(claude-sonnet-5-5, Anthropic)."
+(claude-sonnet-5-5, Anthropic). Their references may name sections that the rebuild changed:
+summarize a chapter again to refresh its summary."
 
 ## The commands
 
@@ -77,6 +81,9 @@ book-rag ask QUESTION [--book ID]... [--chapter N]... [--language LANGUAGE]
              [--model NAME] [--fallback NAME]...
 ```
 
+- Standard error, with a cloud model named, before anything is sent: the tab's notice, "The
+  question and the passages found go to Anthropic: claude-sonnet-5-5. If it fails, gpt-oss:20b
+  answers, locally." (FR-008).
 - Standard output: the answer as it streams, then "Sources:" and its lines, as today.
 - Standard error, on a failure: "claude-sonnet-5-5 (Anthropic) failed: it limited the rate. The
   text above is discarded: gpt-oss:20b answers from the start."
@@ -92,10 +99,13 @@ book-rag summarize BOOK CHAPTER [--type TYPE] [--language LANGUAGE] [--save]
                    [--model NAME] [--fallback NAME]...
 ```
 
+- Standard error, with a cloud model named, before anything is sent: "The chapter's text goes to
+  Anthropic: claude-sonnet-5-5. If it fails, gpt-oss:20b summarizes it, locally." (FR-008).
 - Standard output: the summary, as today.
-- Standard error: the progress, with each failure; then the last line, which adds the provider,
-  and for a cloud model the tokens: "direct: 41/41 chunks in 2 steps, 23 cited, 2 statements
-  without a source, 38.4s, claude-sonnet-5-5 (Anthropic), 18204 tokens read and 1377 generated".
+- Standard error: the progress, with each failure and the tokens a failed cloud attempt spent;
+  then the last line, which adds the provider, and for a cloud model the tokens: "direct: 41/41
+  chunks in 2 steps, 23 cited, 2 statements without a source, 38.4s, claude-sonnet-5-5
+  (Anthropic), 18204 tokens read and 1377 generated".
 
 ### `doctor`
 
@@ -114,6 +124,7 @@ After the lines of today, when summaries were kept:
 
 ```text
   kept as they were, written by a cloud model: book_001, chapter_04_standard (claude-sonnet-5-5, Anthropic)
+  their references may name sections that the rebuild changed: summarize a chapter again to refresh it
 ```
 
 ### `pull-models`

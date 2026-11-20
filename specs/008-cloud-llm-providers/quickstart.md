@@ -68,8 +68,9 @@ docker compose exec app book-rag add-book /tmp/on-liberty.md
 docker compose exec app book-rag list-books
 ```
 
-Expected: the app starts, and nothing contacted Anthropic while it did (no "generation finished"
-or check in its log). *On Liberty* is `book_001`.
+Expected: the app starts, and *On Liberty* is `book_001`. That starting contacts no provider is
+proved by the unit tests, whose clients count their requests (SC-001, SC-002); here, the log only
+shows no check and no generation.
 
 ## 4. The checks (SC-002, FR-002, FR-021)
 
@@ -99,7 +100,8 @@ docker compose exec app book-rag ask "$Q" --book book_001 --model claude-sonnet-
 
 Expected:
 - The three answers cite passages, and every citation resolves to a book, chapter and section.
-- The second and third end with "Answered by … (Anthropic)"; the first prints as on `main`.
+- The second and third first say on standard error that the question and the passages found go to
+  Anthropic, and end with "Answered by … (Anthropic)"; the first prints as on `main`.
 - The third answers in Portuguese.
 - In the Chat tab, with Claude picked, the notice names Anthropic before asking. The Research
   tab's final context for Claude holds the same passages, in the same order, as for the local
@@ -210,18 +212,21 @@ no request reaches Anthropic. The same with the judge's `model` set to `claude-h
 
 ## 13. Integration tests (SC-003, Principle V)
 
-On the host, with the settings exported from `.env` to the tests:
+On the host, with the settings exported from `.env` to the tests, and the list narrowed to the
+models that exist, since the tests run on each one:
 
 ```bash
 set -a; . ./.env; set +a
-make test-integration
+ANTHROPIC_MODELS=claude-haiku-5-5,claude-sonnet-5-5 make test-integration
 ```
 
-Expected: the cloud tests run on `claude-haiku-5-5`, the first allowed model, and pass: an answer
-whose citations resolve, an abstention with the marker, the stats and the reasoning, a short
-summary cited by lookup, the key check. Without the settings exported, they are skipped and the
-others pass. What Claude wrote differently from the local models goes to `docs/decisions.md`
-(FR-030).
+Expected: the cloud tests run on both models, and every case of `tests/integration/cloud_cases.yaml`
+passes on each: five answers that cite in a form the app recognizes, every citation resolving;
+three abstentions with the marker; a short summary cited by lookup; the stats, the reasoning and
+the key check. Without the settings exported, they are skipped and the others pass. The shell now
+holds the key, as FR-004 allows: close it afterwards. What Claude wrote differently from the
+local models, and whether the profile's values held (`research.md`, R2), go to
+`docs/decisions.md` (FR-030).
 
 ## 14. The records, and the library
 

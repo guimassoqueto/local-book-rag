@@ -50,7 +50,8 @@ cloud_profiles:
     context_size: 65536
 
     # Sent as the request's effort. The current Claude models reason whatever they are told,
-    # and Claude Opus 5.5 can't be told not to.
+    # and Claude Opus 5.5 can't be told not to. They take no sampling temperature either, so
+    # generation.yaml's temperature doesn't apply to them.
     reasoning: low
 
     # Added to every request's max_tokens, since reasoning counts against it, and set aside from
@@ -59,7 +60,8 @@ cloud_profiles:
 
     check_abstentions: false
 
-    # Seconds that Anthropic may send nothing before a request counts as timed out.
+    # Seconds that Anthropic may send nothing before the request counts as timed out and the next
+    # model of the sequence starts. A timeout is never tried again, so this is the longest wait.
     request_timeout_seconds: 120
 ```
 
@@ -80,6 +82,9 @@ starts without a network.
 
 ## Where the key goes
 
+- It belongs in `.env`, in the app container's environment, which `docker inspect` and
+  `docker compose config` show to anyone who can run Docker, and in the shell that exports it for
+  `make test-integration` (FR-004).
 - Read from the environment into a `SecretStr`, held by the provider's client and nowhere else.
 - Never in `Settings` or `EnvironmentSettings`, so never in a benchmark result, which records
   `Settings`.

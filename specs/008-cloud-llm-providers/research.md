@@ -86,6 +86,20 @@ Lower effort costs less and answers sooner. `reasoning_tokens: 4000` leaves the 
 beside the task limits, which were set for `gpt-oss` at `low` (1500 for an answer, 900 for a
 summary's partial step).
 
+**What keeps each value** (checked on the real models, `quickstart.md` § 5 to § 8 and § 13):
+- `reasoning: low` stays while every case of SC-003 passes on each allowed model; a failed case
+  that a higher effort passes raises it, for every model, with the measurement recorded.
+- `reasoning_tokens: 4000` stays while no reply in those checks stops at its limit without text;
+  one that does raises it.
+- `context_size: 65536` stays while a whole chapter of *On Liberty* is summarized in one step; it
+  is a cap on cost, not a quality setting.
+- `request_timeout_seconds: 120` stays unless a request that succeeds ever goes that long without
+  a word.
+- `check_abstentions: false`, because the current Claude models follow an instruction to open a
+  reply with a marker, and because a check costs a call per answer. It stays while SC-003's three
+  unanswerable questions each get the marker. A reply that abstains in words instead turns it on,
+  as it is on for `gemma4:12b` and `qwen3.5:9b`, and `docs/decisions.md` records the reply.
+
 **Alternatives.**
 - *A profile per model*: what Principle I asks of local models, but each allowed model would need
   an entry in `config/models.yaml`, so allowing one would take a rebuild. Constitution 3.0.0 chose
@@ -128,9 +142,13 @@ stay the only places that know the concrete classes (Principle I).
 
 **Decision.** `app/generation/anthropic_provider.py`, on Anthropic's official SDK, added with
 `uv add --raw anthropic`:
-- **One client per provider**, `anthropic.Anthropic(api_key=..., timeout=request_timeout_seconds)`,
-  with the SDK's default of two retries. They back off on a rate limit, an overload or a dropped
-  connection before the request counts as failed. Building the client contacts nothing.
+- **One client per provider**, `anthropic.Anthropic(api_key=..., timeout=request_timeout_seconds,
+  max_retries=0)`. Building it contacts nothing.
+- **Retries, bounded** (FR-017): the SDK would retry a timeout too, which turns 120 s of silence
+  into six minutes. So its own retries are off, and the provider tries a request again itself, at
+  most twice, after a rate limit, an overload or a lost connection only, waiting 2 s, then 6 s, or
+  the API's `retry-after` when it is shorter than 10 s. A timeout is never tried again. A retry
+  only happens before the stream has yielded anything: once text has arrived, a failure is final.
 - **The prompt**: the app's `system` messages become the request's `system` text, and the others
   its `messages`, in order. The prompts don't change.
 - **The request**: `client.messages.stream(model, max_tokens, system, messages, thinking,
@@ -169,8 +187,15 @@ stay the only places that know the concrete classes (Principle I).
 summary's reply clear of the SDK's guard against long requests without it; adaptive reasoning with
 an effort on the current models; `display: "summarized"` for a reasoning that can be read, the
 default returning an empty one, billed the same; the typed errors, the timeout before the
-connection error, of which it is a kind. The SDK's 1.x line runs on `httpx2`, apart from the
-`httpx` that Ollama's client uses, so the two don't constrain each other.
+connection error, of which it is a kind. The owner chose 120 seconds as the longest a model may
+stay silent before the next one starts (the checklist's CHK013), which the SDK's own retries would
+triple.
+
+**The SDK beside the project's other packages.** The SDK's 1.x line runs on `httpx2`, apart from
+the `httpx` that Ollama's client and LlamaIndex use, so neither constrains the other. The tests'
+`respx` mocks `httpx` only, so the provider's unit tests use a fake client instead (R16). The
+first task adds the SDK with `uv add --raw anthropic` and runs `make test` unchanged: if uv can't
+resolve it beside the lock, or a test breaks, the tasks stop there.
 
 **Alternatives.**
 - *The server-side `fallbacks`*, which the API reference advises turning on by default for Claude
@@ -238,7 +263,9 @@ them. `ModelChoices`, not a catalog: `BookCatalog` already has that word.
 3. When a model other than the last fails, with a `ModelFailedError` from its provider or a
    `GenerationError` from reading its reply (the reason `no answer`), the service logs it, yields
    `AttemptFailed` with the failure and the next model, and starts again with that model
-   (FR-017). An abstention is an answer, not a failure.
+   (FR-017). `no answer` is a reply with no text, which is when reading raises today. A reply cut
+   off by its limit with text in it is an answer, shown as a local one is, and so is an
+   abstention: the owner's answer to the checklist's CHK011.
 4. When the last model, the local one, fails, its error is raised as today if nothing failed
    before it. Otherwise an `AllModelsFailedError` lists every failure, in order (FR-018).
 5. The `Answer` holds the model that answered, its provider, and the failures before it (FR-016).
@@ -257,9 +284,10 @@ session without cloud settings sees what it sees on `main` (SC-001).
 sequence and loads the chapter's chunks once, then has each model make the whole summary in turn,
 until one finishes. When a step fails, it says so through `on_progress`, and starts again from the
 first step with the next model (FR-019). The run object carries its model: every budget, count and
-step reads the run's model instead of the summarizer's. It also adds up the tokens that its steps
-read and generated. The `ChapterSummary` holds the provider, the failed attempts, and the two
-counts.
+step reads the run's model instead of the summarizer's. It also adds up the tokens that its
+finished steps read and generated, so a failed attempt keeps the count of what it spent, which was
+billed too (the owner's answer to CHK017). The `ChapterSummary` holds the provider, the failed
+attempts, each with its tokens, and the two counts of the attempt that finished.
 
 **Rationale.** A summary written by two models would make its record false: "no summary is
 written by two models", in the spec's edge cases. A failure late in a long summary wastes what it
@@ -288,10 +316,13 @@ but no streaming, against FR-013.
 
 - **`Answer`**: `model` and `provider`, those of the model that answered or, when none was called,
   of the first in the sequence; `attempts`, the failures before it.
-- **`ChapterSummary`**: `provider`, `attempts`, `prompt_tokens` and `completion_tokens`.
+- **`ChapterSummary`**: `provider`, `attempts`, `prompt_tokens` and `completion_tokens`. An
+  attempt of a summary carries the tokens of the steps it finished.
 - **A saved summary's JSON file**: `provider` always; `failed_attempts`, a list, empty when none
-  failed; and `tokens` (`read`, `generated`) for a cloud model's (FR-022). The Markdown file
-  doesn't change.
+  failed, each entry with its `tokens` when its model is a cloud one; and `tokens` (`read`,
+  `generated`) when a cloud model wrote it (FR-022). The Markdown file doesn't change.
+- **The reasoning** stays in the `Answer`, for the Research tab, and nowhere else: no log event
+  and no saved record holds it (FR-020).
 - **Logs**: "model failed", with the provider, the model, the reason and the attempt's position;
   and the provider and the count of failures in "question answered" and "chapter summarized".
   As today, no event carries a book's text or a question, and none carries the key (FR-020).
@@ -299,10 +330,12 @@ but no streaming, against FR-013.
 ## R11. `reindex-all` leaves a cloud summary as it was
 
 **Decision.** `_regenerate_summaries()` reads each saved summary's `provider`. When it names a
-cloud provider, one that `cloud_profiles` can hold, the summary stays as it is, and
-`ReindexReport.summaries_kept` lists it with its model. A summary that names no provider, saved
-before this feature, or the local one, is written again with the local model, as today (FR-023).
-The command and the Library tab show the list.
+cloud provider, one that `cloud_profiles` can hold, the summary stays as it is, whether or not
+that provider is configured now, and `ReindexReport.summaries_kept` lists it with its model. A
+summary that names no provider, saved before this feature, or the local one, is written again
+with the local model, as today (FR-023). The command and the Library tab show the list, and say
+that a kept summary's references may name sections that the rebuild changed, and that summarizing
+the chapter again refreshes it.
 
 **Rationale.** The spec and its clarifications: regenerating never calls a cloud model, and no
 cloud summary is rewritten by another model behind the owner's back.
@@ -316,15 +349,18 @@ cloud summary is rewritten by another model behind the owner's back.
   - for a provider with one setting only, a failing row that says which is missing, with no
     request (FR-002);
   - for a configured provider, `client.models.retrieve()` for each allowed model, which sends the
-    key alone and runs no inference. A refused key is one failing row. Each model has a row: found,
-    with its window, or unknown. A model whose `capabilities` don't take the profile's effort or
-    adaptive reasoning, or whose window is smaller than the profile's, fails its row, saying which.
+    key and the model's name and runs no inference. A refused key is one failing row. Each model
+    has a row: found, with its window, or unknown. A model whose `capabilities` don't take the
+    profile's effort or adaptive reasoning, or whose window is smaller than the profile's, fails
+    its row, saying which. Such a model also fails every request, as `rejected`; nothing warns at
+    startup, which contacts no provider.
 - **At startup**, the container reads the settings and builds the clients, which contacts
   nothing, and logs a provider with one setting as not offered.
 
-**Rationale.** The clarify session's answer A: a check sends the key alone, only when asked for,
-and the app starts without a network. Reading `capabilities` catches an allowed model that a
-single provider profile can't serve, before a request finds out.
+**Rationale.** The clarify session's answer A: a check sends the key and the allowed models'
+names, nothing from the library, only when asked for, and the app starts without a network.
+Reading `capabilities` catches an allowed model that a single provider profile can't serve, before
+a request finds out.
 
 ## R13. The tabs
 
@@ -350,18 +386,28 @@ own.
   provider, the failures and, for a cloud model, the tokens (FR-022).
 - **The Research tab** (FR-024, FR-025): the LLM row reads the answer's model and provider
   instead of `settings.llm.model`; a row for each failed attempt; "unavailable" for a measure
-  that is None; the reasoning, labeled a summary when `thinking_summarized`, or "None came back";
-  its own checks with `providers=False`, and "Check again" with `providers=True`.
+  that is None; "(measured by the app)" beside the generation's seconds and speed of a cloud
+  model, which include the network; the reasoning, labeled a summary when `thinking_summarized`,
+  or "None came back"; its own checks with `providers=False`, and "Check again" with
+  `providers=True`.
 - **The Library tab** lists the summaries that `reindex-all` kept (R11).
 
 **Rationale.** Thin handlers, as Principle IV asks: they read the components and show what the
-services return. `quickstart.md` (§ 9) checks that Gradio's multiselect keeps the order of
-selection.
+services return.
+
+**The order of the fallbacks.** FR-007's "in the order chosen" rests on Gradio's multiselect
+keeping the order of selection, which its value appears to do and `quickstart.md` § 9 checks. If
+it doesn't, three single dropdowns replace it, "Then", "Then" and "Then", each offering the cloud
+models not yet chosen, with the same rules and the same notice. The handlers would read three
+values instead of a list, and the services wouldn't change.
 
 ## R14. The commands
 
 **Decision.** `ask` and `summarize` take `--model NAME`, and `--fallback NAME`, repeated, in
 order.
+- With a cloud model named, each first writes the tab's notice to standard error, before anything
+  is sent: "The question and the passages found go to Anthropic: claude-sonnet-5-5. If it fails,
+  gpt-oss:20b answers, locally." (the owner's answer to CHK006, FR-008).
 - `ask` writes each failure to standard error as it happens (R9), and ends by naming the model that
   answered when it is a cloud model or another one failed first.
 - `summarize` writes its progress, failures included, to standard error, and its last line adds
@@ -395,11 +441,22 @@ anything else. The README says it.
   `test_library_rebuild.py`, `test_health_service.py`, `test_interface.py`, `test_commands.py`,
   `test_container.py`, `test_logging.py` (no trace of a fake key, SC-011), `test_llm_provider.py`
   and `test_benchmark.py` (SC-010).
+- **No request, counted** (SC-001, SC-002): the provider kinds of the tests take a client whose
+  every method counts its calls. A session of questions and summaries without the settings, or
+  with them and the local model only, ends with the count at zero; so does assembling the
+  container.
+- **A second provider** (SC-009): `FakeCloud` is registered only in the factory's mapping of
+  provider kinds, as a real one would be, and in its profile; no service, tab or command names it.
 
 **Integration tests** (`make test-integration`): `tests/integration/test_cloud_generation.py`,
-skipped unless both Anthropic settings are in the environment, runs the first allowed Claude model
-for real (SC-003): an answer with citations, an abstention with the marker, the stats and the
-reasoning, a short summary cited by lookup, and the key check. It spends a few cents.
+skipped unless both Anthropic settings are in the environment, runs every model of
+`ANTHROPIC_MODELS` for real (SC-003, FR-033). Its cases are in
+`tests/integration/cloud_cases.yaml`: an excerpt written for the test, five questions that the
+excerpt answers, three that it doesn't, and a short chapter. Each answer has to cite in a form the
+app recognizes, every citation resolving; each unanswerable question has to get the marker; the
+summary has to cite by lookup; and the stats, the reasoning and the key check are read. A form of
+citation that the app doesn't recognize fails the case, rather than leaving an uncited answer
+unnoticed. It spends a few cents per model.
 
 **Rationale.** Principle V: how a new model family's output is read is checked on the real
 models. The SDK's errors are built in the tests with a minimal `httpx2` response, which their
@@ -408,11 +465,15 @@ constructors take.
 ## R17. Records
 
 - **`README.md`**: its opening line; a "Cloud models" section (the settings, what each request
-  sends, fallbacks, the Research tab, `doctor` and "Check again", costs, the key); the Interface,
-  Questions, Summaries and Configuration sections; the Deployment notes (the key and
-  `GRADIO_BIND_ADDRESS`); the Layout.
-- **`docs/decisions.md`**: a "Cloud models" section with FR-030's decisions, and what the real
-  models showed.
+  sends, that the provider's terms for API data apply and where to read them, fallbacks, the
+  Research tab, `doctor` and "Check again", costs, the key, and running the integration tests on
+  a model before trusting it); the Interface, Questions, Summaries and Configuration sections,
+  the last saying that `config/generation.yaml`'s temperature doesn't apply to a cloud model and
+  that its settings are its profile; the Deployment notes (the key, which anyone who can open the
+  interface or call its API can use, and `GRADIO_BIND_ADDRESS`); the Layout.
+- **`docs/decisions.md`**: a "Cloud models" section with FR-030's decisions, the plan's own
+  (R4's absent fallbacks, temperature and SDK retries, R5's tokenizer, R2's values and what kept
+  them, R9's withdrawal in a terminal), and what the real models showed.
 - **`docs/benchmark-results.md`** doesn't change: no benchmark runs.
 - **The release**: a `feat:` title, so v0.8.0 unless another release comes first.
 

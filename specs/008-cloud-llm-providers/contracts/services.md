@@ -64,16 +64,18 @@ def save(self, summary: ChapterSummary) -> str: ...
 - The sequence is resolved before the chapter is read; a refused one raises `ModelChoiceError`.
 - Each model makes the whole summary. A failure of any step, by a model that isn't the last, sends
   `"claude-sonnet-5-5 (Anthropic) failed: it limited the rate. Starting again with gpt-oss:20b."`
-  to `on_progress`, and the summary starts again with the next model.
-- The last model's failure raises as `QuestionAnsweringService` does.
+  to `on_progress`, and the summary starts again with the next model. The failed attempt keeps
+  the tokens of the steps it finished.
+- The last model's failure raises as `QuestionAnsweringService` does, the local model's failure
+  listed last.
 - `save()` writes the JSON keys of `data-model.md`.
 
 ## `LibraryService.reindex_all()` (`app/services/library_service.py`)
 
 Unchanged signature. With `regenerate_summaries`, a saved summary whose `provider` names a cloud
-provider is left as it was, and `ReindexReport.summaries_kept` lists it. The others are written
-again with `summarize(...)`, without `model`, so with the local model. No cloud model is called,
-and no provider is contacted (FR-023, SC-005).
+provider, configured now or not, is left as it was, and `ReindexReport.summaries_kept` lists it.
+The others are written again with `summarize(...)`, without `model`, so with the local model. No
+cloud model is called, and no provider is contacted (FR-023, SC-005).
 
 ## `HealthService` (`app/services/health_service.py`)
 
