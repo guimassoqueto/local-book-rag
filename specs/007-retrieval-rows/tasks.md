@@ -514,3 +514,9 @@ Each checkpoint leaves `make lint-check` and `make test` passing.
 - The throwaway scripts stay in `$SCRATCH`, and none is committed (research.md R13).
 - If a test or a check finds something the plan didn't foresee, the plan or the spec is corrected
   first, as "Corrections during implementation" at the end of `spec.md`.
+
+---
+
+## Phase 7: Convergence
+
+- [X] T037 In `README.md`, Benchmarks, make the intro's sentence on where the benchmark's files live name `specs/007-retrieval-rows/benchmarks/` for `no_reranking`, beside `specs/005-markdown-only/benchmarks/` and commit `c7bb785`, which no longer hold every other experiment, per FR-016 and Constitution VIII (partial)

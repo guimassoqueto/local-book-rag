@@ -408,11 +408,12 @@ opening words, because that is how to find it: books have no pages.
 Comparing configurations under controlled conditions is the point of this project, so the
 benchmarks are a first-class part of it. The runner, the metrics and the report are in
 `app/evaluation`. `benchmarks/` itself is ignored by git: the dataset's last version is in
-`specs/005-markdown-only/benchmarks/`, with the experiment that feature added, the other
-experiments' last versions are in commit `c7bb785`, and `docs/benchmark-results.md` records what
-the runs found. The books are never in the repository (see the dataset, below). Neither the image
-nor a mount brings `benchmarks/` into the app container, so a run starts by copying it in, and ends
-by copying the results out before the container goes:
+`specs/005-markdown-only/benchmarks/`, with the experiment that feature added, `no_reranking` is
+in `specs/007-retrieval-rows/benchmarks/`, the other experiments' last versions are in commit
+`c7bb785`, and `docs/benchmark-results.md` records what the runs found. The books are never in the
+repository (see the dataset, below). Neither the image nor a mount brings `benchmarks/` into the
+app container, so a run starts by copying it in, and ends by copying the results out before the
+container goes:
 
 ```bash
 git archive c7bb785 benchmarks/experiments | tar -x           # the experiments
