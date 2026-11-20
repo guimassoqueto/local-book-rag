@@ -604,13 +604,14 @@ would cost.
 - **A summary's "References" heading is always in English.**
 - **The embedding comparison also compares chunk sizes**, since each model's tokenizer counts the
   500 tokens: see Retrieval.
-- **A publisher's pages without a heading are indexed as the book's.** In *História econômica
-  global*'s conversion, the author's bio, the edition notes, the catalog record and the copyright
-  notice run on inside the last chapter, "Lista de tabelas", with no heading of their own. So
-  questions, in the Chat tab or with `ask`, and `search` can still retrieve them. The five
-  advertisements that followed, under a "Table of Contents" heading, are left out since
-  `.specify/bugs/publisher-back-matter`, along with Project Gutenberg's header and license and
-  printed indexes. What has no heading is the conversion's to remove.
+- **A publisher's pages without a heading are indexed as the book's.** Ingestion leaves out only
+  what Gutenberg's markers or a heading set apart (`.specify/bugs/publisher-back-matter`). A
+  catalog record, a copyright notice or an author's bio with no heading of its own stays in the
+  chapter it runs into, where questions, in the Chat tab or with `ask`, and `search` can
+  retrieve it, so the conversion has to remove it. Since 2026-11-19, the owner's conversion of
+  *História econômica global* ends with the author's bio. It cuts the edition notes, the catalog
+  record, the copyright, the table of contents and the advertisements that followed. The bio
+  stays, as the owner chose, and is cited as "Lista de tabelas", the chapter it runs into.
 
 ## Changes these benchmarks led to
 
