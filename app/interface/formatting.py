@@ -5,6 +5,7 @@ import math
 from collections.abc import Sequence
 from typing import Literal
 
+from app.errors import AllModelsFailedError
 from app.generation.base import Attempt, AttemptFailed, GenerationStats, Message
 from app.generation.choices import ModelChoices, ModelOption
 from app.generation.citations import Citation
@@ -149,6 +150,11 @@ def found_status(count: int, first: ModelOption) -> str:
 def failure_status(event: AttemptFailed, models: ModelChoices) -> str:
     """The Chat tab's status line when a model fails and the next one is asked."""
     return f"⚠️ {event.attempt.describe(models.label_of(event.attempt.provider))} Asking {event.next_model}…"
+
+
+def every_model_failed_status(error: AllModelsFailedError) -> str:
+    """The Chat tab's status line when the last model of a sequence failed too: every failure."""
+    return f"⚠️ {error}"
 
 
 def timing_markdown(answer: Answer, models: ModelChoices | None = None) -> str:

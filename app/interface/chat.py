@@ -7,12 +7,14 @@ from typing import Any
 import gradio as gr
 
 from app.container import Container
+from app.errors import AllModelsFailedError
 from app.generation.base import AttemptFailed, TextDelta
 from app.generation.question_answering import Answer
 from app.interface.common import reports_errors
 from app.interface.formatting import (
     ALL_CHAPTERS,
     chapter_choices,
+    every_model_failed_status,
     failure_status,
     found_status,
     passages_markdown,
@@ -94,24 +96,29 @@ def build_chat_tab(container: Container) -> ChatTab:
         written = ""
         yield "Searching the books…", "", "", "", None
         language = None if target == SAME_AS_QUESTION else target
-        for event in container.questions.stream(text, filters, language, model=model, fallbacks=sequence):
-            if isinstance(event, RetrievalResult):
-                yield found_status(len(event.passages), first), "", "", "", None
-            elif isinstance(event, TextDelta):
-                written += event.text
-                yield gr.skip(), written, "", "", None
-            elif isinstance(event, AttemptFailed):
-                # What the failed model wrote is withdrawn: the next one starts from nothing.
-                written = ""
-                yield failure_status(event, container.models), "", "", "", None
-            elif isinstance(event, Answer):
-                yield (
-                    timing_markdown(event, container.models),
-                    event.text,
-                    sources_markdown(event),
-                    passages_markdown(event.passages, event.citations),
-                    event,
-                )
+        try:
+            for event in container.questions.stream(text, filters, language, model=model, fallbacks=sequence):
+                if isinstance(event, RetrievalResult):
+                    yield found_status(len(event.passages), first), "", "", "", None
+                elif isinstance(event, TextDelta):
+                    written += event.text
+                    yield gr.skip(), written, "", "", None
+                elif isinstance(event, AttemptFailed):
+                    # What the failed model wrote is withdrawn: the next one starts from nothing.
+                    written = ""
+                    yield failure_status(event, container.models), "", "", "", None
+                elif isinstance(event, Answer):
+                    yield (
+                        timing_markdown(event, container.models),
+                        event.text,
+                        sources_markdown(event),
+                        passages_markdown(event.passages, event.citations),
+                        event,
+                    )
+        except AllModelsFailedError as exc:
+            # The last model's text is withdrawn too, before the error shows: no model answered.
+            yield every_model_failed_status(exc), "", "", "", None
+            raise
 
     books.change(on_books_change, inputs=books, outputs=chapter, api_visibility="private")
     outputs = [status, answer, sources, passages, last_answer]

@@ -6,18 +6,20 @@ import json
 import re
 
 import pytest
+from pydantic import SecretStr
 
 from app import main
-from app.config.settings import EnvironmentSettings
+from app.config.settings import EnvironmentSettings, ProviderCredentials
 from app.container import Container
-from app.errors import ModelFailedError, ServiceUnavailableError
+from app.errors import AllModelsFailedError, ModelFailedError, ServiceUnavailableError
+from app.generation.anthropic_provider import AnthropicCloud
 from app.generation.base import FailureReason
 from app.generation.choices import ModelChoices
 from app.generation.factory import CloudSetup
 from app.generation.question_answering import QuestionAnsweringService
 from app.generation.summarization import ChapterSummarizer
 from app.services.health_service import CheckResult, HealthService
-from tests.fakes import FakeCloud, FakeLLM, WordCounter
+from tests.fakes import FakeAnthropicClient, FakeCloud, FakeLLM, WordCounter
 from tests.library import Library, other_text, upload
 
 
@@ -175,16 +177,36 @@ def test_a_report_on_a_kind_the_benchmark_doesnt_run_fails_and_prints_nothing(co
 # Cloud models (specs/008-cloud-llm-providers, research.md R5)
 
 
-def test_pull_models_also_readies_each_cloud_profiles_tokenizer_contacting_no_provider(container, monkeypatch, capsys):
+def pull(container, monkeypatch, capsys):
+    """Run pull-models with nothing downloaded, recording each tokenizer it readies."""
     monkeypatch.setattr(container.runtime, "pull", lambda model: iter(()), raising=False)
     monkeypatch.setattr(main, "local_snapshot", lambda model: "ready")
     readied = []
     monkeypatch.setattr(main, "create_token_counter", lambda config: readied.append(config.name) or WordCounter())
-
     out, _ = run(main._pull_models, container, capsys, all=False)
+    return out.splitlines(), readied
 
-    assert "tokenizer o200k_base: ready" in out.splitlines()
+
+def test_without_cloud_settings_pull_models_readies_no_cloud_tokenizer(container, monkeypatch, capsys):
+    lines, readied = pull(container, monkeypatch, capsys)
+
+    assert "tokenizer o200k_base: ready" not in lines
+    assert "o200k_base" not in readied
+
+
+def test_pull_models_readies_a_configured_providers_tokenizer_contacting_no_provider(
+    container, library, monkeypatch, capsys
+):
+    client = FakeAnthropicClient()
+    credentials = ProviderCredentials("anthropic", SecretStr("sk-ant-test"), ("claude-a",))
+    cloud = AnthropicCloud(credentials, library.settings.cloud_profiles["anthropic"], client.factory)
+    models = ModelChoices(library.llm, CloudSetup(((cloud, ("claude-a",)),), (), {"anthropic": "Anthropic"}))
+
+    lines, readied = pull(dataclasses.replace(container, models=models), monkeypatch, capsys)
+
+    assert "tokenizer o200k_base: ready" in lines
     assert readied.count("o200k_base") == 1
+    assert client.calls == 0
 
 
 # Cloud models in ask and doctor (specs/008-cloud-llm-providers, research.md R14, contracts/interface.md)
@@ -421,3 +443,38 @@ def test_a_refused_sequence_ends_the_command_naming_the_models_offered(
 
     assert stopped.value.code == f"error: {problem} {OFFERED}"
     assert capsys.readouterr().out == ""
+
+
+# The last model's text, when every model fails (specs/008, Phase 9: Convergence, T075; FR-017)
+
+QUESTION = {"question": "Where is the dog?", "book": [], "chapter": [], "language": None}
+
+
+def failing_local():
+    error = ServiceUnavailableError("Ollama went away.")
+    return FakeLLM(model="fake-llm", fail=error, text_before_failure="Half an answer")
+
+
+def test_ask_says_the_last_models_text_is_discarded_when_every_model_fails(container, library, capsys, tmp_path):
+    library.add(tmp_path)
+    failure = ModelFailedError("fc-a", "fakecloud", FailureReason.RATE_LIMITED, label="FakeCloud")
+    cloud = FakeLLM(model="fc-a", provider="fakecloud", cloud=True, fail=failure)
+    provider = FakeCloud(models={"fc-a": cloud})
+    models = ModelChoices(failing_local(), CloudSetup(((provider, ("fc-a",)),), (), {"fakecloud": "FakeCloud"}))
+
+    with pytest.raises(AllModelsFailedError):
+        main._ask(asking(container, library, models), argparse.Namespace(**QUESTION, model="fc-a", fallback=[]))
+
+    captured = capsys.readouterr()
+    assert captured.out.startswith("Half an answer")
+    assert captured.err.splitlines()[-1] == "The text above is discarded: no model could answer."
+
+
+def test_ask_with_the_local_model_failing_alone_prints_as_on_main(container, library, capsys, tmp_path):
+    library.add(tmp_path)
+
+    with pytest.raises(ServiceUnavailableError):
+        local_only = asking(container, library, ModelChoices.local_only(failing_local()))
+        main._ask(local_only, argparse.Namespace(**QUESTION, model=None, fallback=[]))
+
+    assert capsys.readouterr().err == ""

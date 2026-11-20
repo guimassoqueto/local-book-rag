@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from app.container import Container, build_container
-from app.errors import BookRagError
+from app.errors import AllModelsFailedError, BookRagError
 from app.generation.base import AttemptFailed, TextDelta
 from app.generation.choices import ModelChoices
 from app.generation.question_answering import Answer
@@ -149,10 +149,12 @@ def _pull_models(container: Container, arguments: argparse.Namespace) -> None:
                 last_status = progress.status
 
     print(f"{settings.reranker.model}:\n  {local_snapshot(settings.reranker.model)}")
-    # A cloud model counts tokens with its provider's tokenizer, downloaded here so that a first
-    # cloud request doesn't fetch it. No provider is contacted.
+    # A configured cloud provider's models count tokens with its profile's tokenizer, downloaded here
+    # so that a first cloud request doesn't fetch it. No provider is contacted, and without the
+    # settings nothing more is downloaded or printed (FR-002).
+    configured = {provider.name for provider, _ in container.models.cloud_setup.providers}
     tokenizers = [settings.embedding_profile.tokenizer, settings.llm_profile.tokenizer]
-    tokenizers += [profile.tokenizer for profile in settings.cloud_profiles.values()]
+    tokenizers += [profile.tokenizer for name, profile in settings.cloud_profiles.items() if name in configured]
     for tokenizer in dict.fromkeys(tokenizers):
         create_token_counter(tokenizer).count("downloads the tokenizer once")
         print(f"tokenizer {tokenizer.name}: ready")
@@ -232,19 +234,27 @@ def _ask(container: Container, arguments: argparse.Namespace) -> None:
     if notice := model_notice(models.describe(model, fallbacks), "question"):
         print(notice, file=sys.stderr, flush=True)
     question, language = arguments.question, arguments.language
-    for event in container.questions.stream(question, filters, language, model=model, fallbacks=fallbacks):
-        if isinstance(event, TextDelta):
-            print(event.text, end="", flush=True)
-        elif isinstance(event, AttemptFailed):
-            # A terminal can't take back what it printed, so the failed model's text is marked.
-            failure = event.attempt.describe(models.label_of(event.attempt.provider))
-            print(
-                f"\n{failure} The text above is discarded: {event.next_model} answers from the start.",
-                file=sys.stderr,
-                flush=True,
-            )
-        elif isinstance(event, Answer):
-            _print_sources(event, models)
+    printed = False  # by the model being asked
+    try:
+        for event in container.questions.stream(question, filters, language, model=model, fallbacks=fallbacks):
+            if isinstance(event, TextDelta):
+                print(event.text, end="", flush=True)
+                printed = True
+            elif isinstance(event, AttemptFailed):
+                # A terminal can't take back what it printed, so the failed model's text is marked.
+                failure = event.attempt.describe(models.label_of(event.attempt.provider))
+                print(
+                    f"\n{failure} The text above is discarded: {event.next_model} answers from the start.",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                printed = False
+            elif isinstance(event, Answer):
+                _print_sources(event, models)
+    except AllModelsFailedError:
+        if printed:  # the last model's text, which no answer follows
+            print("\nThe text above is discarded: no model could answer.", file=sys.stderr, flush=True)
+        raise
 
 
 def _print_sources(answer: Answer, models: ModelChoices) -> None:

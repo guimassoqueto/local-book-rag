@@ -130,5 +130,6 @@ After the lines of today, when summaries were kept:
 
 ### `pull-models`
 
-As today, and it also downloads each cloud profile's tokenizer ("tokenizer o200k_base: ready").
-It downloads no cloud model, and contacts no provider.
+As today, and for each cloud provider whose two settings are set, it also downloads its profile's
+tokenizer ("tokenizer o200k_base: ready"); without them, it prints what it prints on `main`. It
+downloads no cloud model, and contacts no provider.

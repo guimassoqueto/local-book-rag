@@ -1235,3 +1235,44 @@ def test_the_checks_after_an_answer_leave_the_providers_alone_and_check_again_as
     assert asked == [] and not any(row[0].startswith("fakecloud") for row in after_answer)
     assert provider.check_calls == [["fc-b"]]
     assert ["fakecloud fc-b", "yes", "a fake model"] in again
+
+
+# The last model's text, when every model fails (specs/008, Phase 9: Convergence, T075; FR-017)
+
+
+def failing_after(words, error):
+    return FakeLLM(fail=error, text_before_failure=words)
+
+
+def collect(stream, error_match):
+    updates = []
+    with pytest.raises(gr.Error, match=error_match):
+        for update in stream:
+            updates.append(update)
+    return updates
+
+
+def test_when_every_model_fails_the_last_ones_text_is_withdrawn_before_the_error(library, tmp_path):
+    library.add(tmp_path)
+    local = failing_after("Half a local answer", ServiceUnavailableError("Ollama went away."))
+    cloud = FakeLLM(model="fc-a", provider="fakecloud", cloud=True, fail=RATE_LIMITED)
+    provider = FakeCloud(models={"fc-a": cloud})
+    models = ModelChoices(local, CloudSetup(((provider, ("fc-a",)),), (), {"fakecloud": "FakeCloud"}))
+    ask = handler(interface_on(library, models), "ask")
+
+    updates = collect(ask("Where is the dog?", [], formatting.ALL_CHAPTERS, "Same as the question", "fc-a"), "No model")
+
+    assert any(update[1] == "Half a local answer " for update in updates)
+    status, text, *_ = updates[-1]
+    assert text == ""
+    assert status.startswith("⚠️ No model could answer. fc-a (FakeCloud) failed: it limited the rate.")
+
+
+def test_the_local_model_failing_alone_leaves_its_text_as_on_main(library, tmp_path):
+    library.add(tmp_path)
+    local = failing_after("Half a local answer", ServiceUnavailableError("Ollama went away."))
+    ask = handler(interface_on(library, ModelChoices.local_only(local)), "ask")
+
+    updates = collect(ask("Where is the dog?", [], formatting.ALL_CHAPTERS, "Same as the question"), "Ollama went away")
+
+    assert updates[-1][1] == "Half a local answer "
