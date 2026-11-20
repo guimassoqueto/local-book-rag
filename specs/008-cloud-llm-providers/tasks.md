@@ -232,26 +232,33 @@ attributes, the errors, the Anthropic provider, the choices, the factory and the
   (research.md R4, R5; contracts/providers.md, The Anthropic provider): `AnthropicCloud`, named
   `anthropic` and labeled `Anthropic`, built from a `ProviderCredentials`, a `CloudProfile` and a
   client factory that defaults to `anthropic.Anthropic`, with its `model()` and `check()`; and
-  `AnthropicLLMProvider`, one per model, whose request, stream, stats, stop reasons, failures
-  (`data-model.md`, `FailureReason`) and bounded retries are the contract's. T006 passes.
+  `AnthropicLLMProvider`, one per model, whose request, stream, stop reasons, failures
+  (`data-model.md`, `FailureReason`) and bounded retries are the contract's (FR-013 to FR-015,
+  FR-017). Its stats follow `data-model.md`'s `GenerationStats.load_seconds` and `.prompt_seconds`
+  (None), `GenerationStats.generation_seconds` (measured from the first delta) and
+  `GenerationStats.model` (the model the final message names); its `Generation.thinking_summarized`
+  is true; and it writes `data-model.md`'s Logs event "generation finished" on the inference logger,
+  with the fields Ollama's provider gives it. T006 passes.
 - [ ] T016 Depends on T011, T014. `app/generation/choices.py`, new (research.md R6;
   contracts/providers.md, `ModelChoices`): `ModelOption`, with `data-model.md`'s
   `ModelOption.name`, `.provider`, `.provider_label` and `.local`; and `ModelChoices`, with
   `offered()`, `has_cloud()`, `describe()`, `sequence()` under `data-model.md`'s Sequence rules,
   `is_cloud_provider()`, `label_of()`, `check()`, `setting_problems()` and `local_only()`. T007
   passes.
-- [ ] T017 Depends on T015, T016. `app/generation/factory.py` (contracts/providers.md, Factory):
-  `CLOUD_PROVIDERS = {"anthropic": AnthropicCloud}`, `CloudSetup`, and
-  `create_cloud_providers(settings, environ)`, which reads each kind's credentials, builds each
-  configured kind with its profile, records the setting problems, and raises for a profile name
-  outside `CLOUD_PROVIDERS` and for allowed models without a profile (FR-003).
-  `create_llm_provider()` doesn't change.
-- [ ] T018 Depends on T017. `app/container.py` (contracts/services.md, The container):
+- [ ] T017 Depends on T010, T014. `app/generation/factory.py` (contracts/providers.md, Factory):
+  `CloudSetup`, and `create_cloud_providers(settings, environ, kinds)`, which reads each given
+  kind's credentials, builds each configured kind with its profile, records the setting problems,
+  and raises for a profile name that isn't a key of `kinds`, and for allowed models without a
+  profile (FR-003). It imports no concrete class (Principle I). `create_llm_provider()` doesn't
+  change.
+- [ ] T018 Depends on T015, T017. `app/container.py` (contracts/services.md, The container):
+  - `CLOUD_PROVIDERS = {"anthropic": AnthropicCloud}`, the only place that names a cloud class
+    (Principle I);
   - `Container` gains `models: ModelChoices`;
   - `assemble(settings, environment, collection_prefix, environ=None)` builds the choices from the
-    local provider and `create_cloud_providers(settings, environ or {})`, and logs
-    "cloud provider not offered" with `provider` and `missing` for each setting problem
-    (`data-model.md`, Logs);
+    local provider and `create_cloud_providers(settings, environ or {}, CLOUD_PROVIDERS)`, and
+    logs `data-model.md`'s Logs event "cloud provider not offered", with its fields `provider` and
+    `missing`, for each setting problem;
   - `build_container()` passes `os.environ`.
 
   It keeps calling `create_llm_provider` through the module's own name, which
@@ -266,9 +273,9 @@ attributes, the errors, the Anthropic provider, the choices, the factory and the
 - [ ] T020 [P] Depends on T010. `app/main.py`, `_pull_models`: also download each cloud profile's
   tokenizer, printing "tokenizer o200k_base: ready" as it does for the others (research.md R5),
   with no request to a provider. A test in `tests/unit/test_commands.py` checks the line.
-- [ ] T021 Checkpoint: `make lint-check` and `make test` pass, T005 to T009 included, and T001's
-  tests unchanged. `git diff --name-only` lists Phase 2's files and Phase 1's `pyproject.toml` and
-  `uv.lock`. Only `pull-models` prints anything new.
+- [ ] T021 Checkpoint: `make lint-check` and `make test` pass (SC-012), T005 to T009 included,
+  and T001's tests unchanged. `git diff --name-only` lists Phase 2's files and Phase 1's
+  `pyproject.toml` and `uv.lock`. Only `pull-models` prints anything new.
 
 **Checkpoint**: The app starts as before, with or without the settings, and the choices exist,
 unused.
@@ -340,10 +347,13 @@ T064 to T066 (quickstart.md § 2 to § 7).
 - [ ] T028 [US1] `app/generation/question_answering.py` (research.md R7; contracts/services.md):
   `QuestionAnsweringService(settings, retrieval, models)`, and `stream()` and `answer()` with
   `model` and `fallbacks`:
-  - the sequence resolved first, then one search, then each model in turn, fitting the passages to
-    its context, with `AttemptFailed` between them;
-  - the `Answer`'s `data-model.md` `Answer.model`, `.provider` and `.attempts`;
-  - the events of `data-model.md`'s Logs;
+  - the sequence resolved first, then one search whose passages every model gets (FR-011), then
+    each model in turn, streaming (FR-013), fitting the passages to its context (FR-014) and
+    sending only what FR-015 lists, with `AttemptFailed` between them;
+  - the `Answer`'s `data-model.md` `Answer.model`, `.provider` and `.attempts`, the model the
+    provider reported (FR-016);
+  - `data-model.md`'s Logs events "model failed", with its fields `provider`, `model`, `reason`
+    and `position`, and "question answered", with `provider` and `failed_attempts`;
   - `AllModelsFailedError` once every model failed, the local one last (FR-018).
 
   Labels come from `ModelChoices.label_of()`.
@@ -355,17 +365,21 @@ T064 to T066 (quickstart.md § 2 to § 7).
 - [ ] T030 [US1] `app/interface/model_choice.py`, new (research.md R13; contracts/interface.md, The
   model choice): for one tab, the Model dropdown, hidden without cloud models, its value the local
   model, and the notice, worded for a question or for a chapter, from `models.describe()`. A
-  refusal from `describe()` shows in place of the notice. The fallbacks come in US3.
+  refusal from `describe()` shows in place of the notice (FR-006, FR-010). The fallbacks come in
+  US3.
 - [ ] T031 [US1] `app/interface/formatting.py` (contracts/interface.md, The Chat tab): the notice's
   text; the status line of a failure; `timing_markdown()` naming the model that answered when it is
-  a cloud model or a failure came first, with a line per failure, and today's text otherwise.
+  a cloud model or a failure came first, with a line per failure, and today's text otherwise
+  (FR-010, FR-018).
 - [ ] T032 [US1] `app/interface/chat.py`: the tab's own model choice (T030); `on_ask` passes the
   model; `AttemptFailed` empties the answer and sets the status line; the last status line comes
   from `timing_markdown()`. The handlers read their components and show what the service returns,
   and hold no rule (FR-032). T023 passes.
 - [ ] T033 [US1] `app/main.py` (research.md R9, R14): `ask --model NAME`; the notice on standard
-  error before the service is called; each failure's line on standard error; "Answered by …"
-  before the timing, when a cloud model answered or a model failed; and `doctor` with
+  error before the service is called, from T031's function in `app/interface/formatting.py`, which
+  `main.py` already imports, so that it reads as the tab's (FR-008); each failure's line on
+  standard error; "Answered by …" before the timing, when a cloud model answered or a model
+  failed; and `doctor` with
   `health.run(inference=..., providers=True)`. T024 passes.
 - [ ] T034 [US1] `tests/integration/test_cloud_generation.py` and
   `tests/integration/cloud_cases.yaml`, new (research.md R16; SC-003, FR-033):
@@ -382,8 +396,8 @@ T064 to T066 (quickstart.md § 2 to § 7).
   - `AnthropicCloud.check()` passes for the model.
 
   It runs at T068, with the owner's go-ahead.
-- [ ] T035 [US1] Checkpoint: `make lint-check` and `make test` pass, `tests/unit/`'s T022 to T026
-  included.
+- [ ] T035 [US1] Checkpoint: `make lint-check` and `make test` pass (SC-012), `tests/unit/`'s
+  T022 to T026 included.
 
 **Checkpoint**: Claude can answer a question in the tab and in `ask`, the local model taking over on
 any failure; `doctor` checks the provider. Without the settings, the tab and the commands are as on
@@ -439,14 +453,15 @@ T066 (quickstart.md § 8).
 - [ ] T040 [US2] `app/generation/summarization.py` (research.md R8; contracts/services.md):
   - `ChapterSummarizer(settings, models, catalog, chunks, documents, locator)`;
   - `summarize()` with `model` and `fallbacks`: the sequence resolved before the chapter is read,
-    then the whole summary with each model in turn, the run carrying its model and adding up its
-    finished steps' tokens;
+    then the whole summary with each model in turn, made as a local one is (FR-012) and by one
+    model only (FR-019), the run carrying its model and adding up its finished steps' tokens;
   - `ChapterSummary`'s `data-model.md` `ChapterSummary.provider`, `.attempts`, `.prompt_tokens` and
     `.completion_tokens`, each failed attempt with its tokens (`data-model.md`,
     `Attempt.prompt_tokens`, `.completion_tokens`);
   - `save()`, writing `data-model.md`'s A saved summary's JSON file keys `provider`,
     `failed_attempts` and `tokens`;
-  - the "chapter summarized" event's fields (`data-model.md`, Logs);
+  - `data-model.md`'s Logs event "chapter summarized", with its fields `provider` and
+    `failed_attempts`, and, for a cloud model, `prompt_tokens` and `completion_tokens`;
   - `cloud_written(provider)`, which tells `reindex-all`, through
     `ModelChoices.is_cloud_provider()`, whether a saved summary's provider is a cloud one.
 - [ ] T041 [US2] Every construction follows: `app/container.py` passes the choices to
@@ -464,15 +479,16 @@ T066 (quickstart.md § 8).
   chapter; `on_generate` passes the model, and its progress shows the failures, with no rule of
   its own (FR-032).
   `app/interface/library.py`: a `gr.Info` with the summaries kept. T038 passes.
-- [ ] T045 [US2] `app/main.py`: `summarize --model NAME`, its notice and its last line;
+- [ ] T045 [US2] `app/main.py`: `summarize --model NAME`, its notice, from the same function as
+  `ask`'s, and its last line;
   `reindex-all`'s lines about the summaries kept. T039 passes.
 - [ ] T046 [US2] `tests/integration/test_cloud_generation.py` and `cloud_cases.yaml`: a short
   chapter in the cases, summarized by each allowed model through `ChapterSummarizer` over the
   excerpt's `Chunk`s, with a locator that finds a statement's passage by its words, in
   `tests/fakes.py`. Its statements are cited by lookup, and its tokens are above zero. It runs at
   T068.
-- [ ] T047 [US2] Checkpoint: `make lint-check` and `make test` pass, `tests/unit/`'s T036 to T039
-  included.
+- [ ] T047 [US2] Checkpoint: `make lint-check` and `make test` pass (SC-012), `tests/unit/`'s
+  T036 to T039 included.
 
 **Checkpoint**: Claude can summarize a chapter; the summary records its provider, failures and
 tokens, and `reindex-all` keeps it.
@@ -491,7 +507,8 @@ T066 and T067 (quickstart.md § 7 and § 9).
 ### Tests for User Story 3 (write first, and see them fail)
 
 - [ ] T048 [P] [US3] In `tests/unit/test_question_answering.py` and
-  `tests/unit/test_summarization.py` (SC-006): a failing cloud model, then a working one: the
+  `tests/unit/test_summarization.py` (SC-006), guards that pass as soon as T028 and T040 are in,
+  since the services take any sequence from then on: a failing cloud model, then a working one: the
   second answers, and the local model
   isn't called; two failing ones: the local model answers, both attempts listed in order; the same
   for a summary.
@@ -507,14 +524,14 @@ T066 and T067 (quickstart.md § 7 and § 9).
 
 ### Implementation for User Story 3
 
-- [ ] T051 [US3] `app/interface/model_choice.py` (research.md R13): the "If it fails, then"
-  multiselect, shown while a cloud model is picked and offering the other cloud models, with its
-  note that the local model answers last; the notice over the whole sequence.
+- [ ] T051 [US3] `app/interface/model_choice.py` (research.md R13; FR-007, FR-010): the "If it
+  fails, then" multiselect, shown while a cloud model is picked and offering the other cloud
+  models, with its note that the local model answers last; the notice over the whole sequence.
 - [ ] T052 [US3] `app/interface/chat.py` and `app/interface/summarization.py`: each handler passes
-  its own tab's fallbacks with the model. T048 and T049 pass.
+  its own tab's fallbacks with the model (FR-009). T049 passes, and T048 still does.
 - [ ] T053 [US3] `app/main.py`: `--fallback NAME`, repeated, for `ask` and `summarize`. T050 passes.
-- [ ] T054 [US3] Checkpoint: `make lint-check` and `make test` pass, `tests/unit/`'s T048 to T050
-  included.
+- [ ] T054 [US3] Checkpoint: `make lint-check` and `make test` pass (SC-012), `tests/unit/`'s
+  T048 to T050 included.
 
 **Checkpoint**: Any sequence the owner orders runs in both tabs and both commands.
 
@@ -537,17 +554,21 @@ T067 (quickstart.md § 10).
     loading and prompt processing "unavailable"; "(measured by the app)" beside the generation's
     speed and seconds; the reasoning under its summary label, or "None came back.";
   - for a local answer without failures, `main`'s markdown, byte for byte;
-  - the checks after an answer run without the providers, and "Check again" with them.
+  - with nothing retrieved, the LLM row names the model picked for the question, and no
+    generation's row shows (FR-024);
+  - the checks after an answer run without the providers, and "Check again" with them (FR-021,
+    FR-024, FR-025).
 
 ### Implementation for User Story 4
 
-- [ ] T056 [US4] `app/interface/formatting.py`: `run_markdown()` reads the answer's model, provider
-  and attempts instead of a configured name; `_generation_rows()` shows None as "unavailable" and
-  labels the app's own measures; the reasoning's label.
+- [ ] T056 [US4] `app/interface/formatting.py` (FR-024, FR-025): `run_markdown()` reads the
+  answer's model, provider and attempts instead of a configured name, and, when no model was
+  called, the model picked, with no generation's rows; `_generation_rows()` shows None as
+  "unavailable" and labels the app's own measures; the reasoning's label.
 - [ ] T057 [US4] `app/interface/diagnostics.py`: `on_answer` passes the answer alone to the
   formatting; the checks after an answer call `health.run()`, and "Check again" calls
-  `health.run(providers=True)`. T055 passes.
-- [ ] T058 [US4] Checkpoint: `make lint-check` and `make test` pass, `tests/unit/`'s T055
+  `health.run(providers=True)` (FR-021). T055 passes.
+- [ ] T058 [US4] Checkpoint: `make lint-check` and `make test` pass (SC-012), `tests/unit/`'s T055
   included.
 
 **Checkpoint**: The four stories work, and are unit-tested; the checks on the stack come next.
@@ -560,7 +581,8 @@ T067 (quickstart.md § 10).
 the real models.
 
 - [ ] T059 [P] `tests/unit/test_provider_kinds.py`, new (SC-009, FR-026; research.md R16): with
-  `FakeCloud` added to `CLOUD_PROVIDERS` by `monkeypatch`, a profile `cloud_profiles.fakecloud`,
+  `FakeCloud` added to `app.container.CLOUD_PROVIDERS` by `monkeypatch`, a profile
+  `cloud_profiles.fakecloud`,
   and `FAKECLOUD_API_KEY` and `FAKECLOUD_MODELS` in the environment given to `assemble()`. The fake
   shows in both tabs' choices, in `--model` and `--fallback`, and in `doctor`'s rows; it joins a
   sequence, answers and summarizes; and the Research tab reports it. `git grep -n -i fakecloud --
@@ -578,8 +600,11 @@ the real models.
 - [ ] T062 `docs/decisions.md` (FR-030; research.md R17): a "Cloud models" section with each
   decision that FR-030 lists and its reason, and the plan's own choices: no server-side fallbacks,
   no temperature, the bounded retries, the approximate tokenizer, the profile's values, a
-  command's withdrawal. T068 adds what the real models showed.
-- [ ] T063 Checkpoint: `make lint-check` and `make test` pass, T059 and T060 included.
+  command's withdrawal. It also says that benchmark results recorded from now on hold
+  `cloud_profiles` in their configuration, so their `configuration_sha256` differs from earlier
+  runs of the same local setup, which nothing in the code compares. T068 adds what the real models
+  showed.
+- [ ] T063 Checkpoint: `make lint-check` and `make test` pass (SC-012), T059 and T060 included.
   `git diff main --name-only` lists plan.md's Project Structure files, `README.md`,
   `docs/decisions.md` and this spec's folder, and no file of the delivered specs (FR-031). None
   is in `app/retrieval`, `app/ingestion`, `app/storage` or `app/generation/prompts.py`, and in
@@ -598,7 +623,11 @@ the real models.
   trace of the key, and the benchmark's refusal. Each section's outputs go to `$SCRATCH`.
 - [ ] T067 The owner, in the browser: quickstart.md § 9 and § 10. If the multiselect doesn't keep
   the order of selection, research.md R13's three dropdowns replace it in
-  `app/interface/model_choice.py`, T049 adapts, and § 9 runs again.
+  `app/interface/model_choice.py`, T049 adapts, and the change reaches the stack without a
+  rebuild, which would empty the library: check that the container runs the app from `/app/app`
+  (`docker compose exec app python -c "import app; print(app.__file__)"`, uv's editable install),
+  copy the module in with `docker compose cp`, and run `docker compose restart app`, which keeps
+  the container and its library. Then § 9 runs again.
 - [ ] T068 With the owner's go-ahead, quickstart.md § 13: `make test-integration` with the settings
   exported and `ANTHROPIC_MODELS=claude-haiku-5-5,claude-sonnet-5-5`. Then `docs/decisions.md`
   gains what the real models showed, and whether research.md R2's values held; a value that didn't

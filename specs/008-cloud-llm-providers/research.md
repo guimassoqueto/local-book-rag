@@ -68,15 +68,16 @@ cloud_profiles:
 - `request_timeout_seconds`: how long the provider may send nothing before the request counts as
   timed out (R4).
 
-The names that `cloud_profiles` accepts are those of the provider kinds the app implements, which
-the factory holds in one mapping, `CLOUD_PROVIDERS` (`anthropic` now). `Settings` validates each
-profile's fields, and the factory checks the names when the container is assembled, at startup: a
-profile under any other name stops the app there, as an unknown key does (FR-003). Keeping the
-names in the factory's mapping alone means that a provider kind is registered in one place, which
-SC-009's fake provider uses too. A rule across files, like the one for `llm.context_size`, checks
-that each task's `max_tokens`, plus `reasoning_tokens`, leaves room for a prompt in
-`context_size`. An allowed model whose provider has no profile stops the app at startup (FR-003).
-Without the key, `cloud_profiles` is empty, and no provider can be offered.
+The names that `cloud_profiles` accepts are those of the provider kinds the app implements: one
+mapping, `CLOUD_PROVIDERS` (`anthropic` now), which `app/container.py` holds, as the only place
+that knows the concrete classes (Principle I). `Settings` validates each profile's fields. The
+container hands the mapping to the factory, which checks the names when the container is
+assembled, at startup: a profile under any other name stops the app there, as an unknown key does
+(FR-003). Keeping the names in that one mapping means that a provider kind is registered in one
+place, which SC-009's fake provider uses too. A rule across files, like the one for
+`llm.context_size`, checks that each task's `max_tokens`, plus `reasoning_tokens`, leaves room for
+a prompt in `context_size`. An allowed model whose provider has no profile stops the app at
+startup (FR-003). Without the key, `cloud_profiles` is empty, and no provider can be offered.
 
 **Rationale.** Principle I: what differs between models lives in profiles, validated at startup.
 One profile per provider, not per model, is constitution 3.0.0's rule, and keeps allowing a model
@@ -127,11 +128,21 @@ summary's partial step).
   its credentials and its profile, it has a `name` and a `label` (`Anthropic`), builds the
   `LLMProvider` of each allowed model, and checks its key and models (R12).
 - `create_llm_provider()` keeps its signature, so the benchmarks and `devtools/default_llm.py`,
-  which wraps it, keep working. A new `create_cloud_providers()` builds the configured kinds.
+  which wraps it, keep working. A new `create_cloud_providers(settings, environ, kinds)` builds
+  the configured kinds out of the mapping it is given, and imports no concrete class.
+- `CLOUD_PROVIDERS`, the mapping from a kind's name to its class, lives in `app/container.py`,
+  which passes it to the factory.
 
 **Rationale.** Above the provider nothing changes: the services see the same `stream()` and
-`generate()`, and the new attributes say only what they need. `app/container.py` and the factory
-stay the only places that know the concrete classes (Principle I).
+`generate()`, and the new attributes say only what they need. Principle I makes
+`app/container.py` the only place that knows the concrete classes, and the new ones are named
+there and nowhere else.
+
+The factories that came before the principle's wording, `create_llm_provider()` and
+`create_embedding_provider()`, import Ollama's classes, which their callers can't see. This
+feature leaves them as they are: moving them into the container, or saying in Principle I that
+the container's own factories count as part of it, is a change of its own, and the owner's call
+(through `/speckit-constitution` for the second).
 
 **Alternatives.**
 - *An OpenAI-compatible endpoint for every provider*: one client, but the lesson behind Principle V
@@ -432,6 +443,11 @@ The workspaces' containers hold no cloud provider at all: `assemble()` reads the
 settings only from the environment it is given, `build_container()` gives it the process's, and
 the runner, which calls `assemble()` for each workspace, gives it none.
 
+One thing a result does show: `Settings` gains `cloud_profiles`, which every result records with
+the rest of the configuration. So a run made from now on has another `configuration_sha256` than
+an earlier run of the same local setup. Nothing in the code compares the two, and
+`docs/decisions.md` says so for whoever reads the results (T062).
+
 **Rationale.** Principle I keeps benchmarks and judges local, and the runner already refuses
 anything else. The README says it.
 
@@ -443,18 +459,20 @@ anything else. The README says it.
 - New: `test_anthropic_provider.py`, on a fake client that has only the documented attributes: the
   request (system text, no temperature, effort, reasoning, `max_tokens`), the stream, the stats,
   each stop reason and each SDK error. `test_model_choices.py`: options, sequences, refusals,
-  checks, and settings with one, both or neither.
+  checks, and settings with one, both or neither. `test_provider_kinds.py`: SC-009's second
+  provider, below.
 - Changed: `test_config.py`, `test_question_answering.py`, `test_summarization.py`,
   `test_library_rebuild.py`, `test_health_service.py`, `test_interface.py`, `test_commands.py`,
   `test_container.py`, `test_logging.py` (no trace of a fake key, SC-011), `test_llm_provider.py`
-  and `test_benchmark.py` (SC-010).
+  and `test_benchmark.py` (SC-010); and `tests/library.py`, whose summarizer takes the choices,
+  and `tests/integration/test_generation.py`, for `check_abstention()`'s new signature.
 - **No request, counted** (SC-001, SC-002): the provider kinds of the tests take a client whose
   every method counts its calls. A session of questions and summaries without the settings, or
   with them and the local model only, ends with the count at zero; so does assembling the
   container.
-- **A second provider** (SC-009): `FakeCloud` is registered only in the factory's mapping of
-  provider kinds, `CLOUD_PROVIDERS`, as a real one would be, with a profile under its name; no
-  service, tab or command names it.
+- **A second provider** (SC-009): `FakeCloud` is registered only in the container's mapping of
+  provider kinds, `app.container.CLOUD_PROVIDERS`, as a real one would be, with a profile under
+  its name; no service, tab or command names it.
 
 **Integration tests** (`make test-integration`): `tests/integration/test_cloud_generation.py`,
 skipped unless both Anthropic settings are in the environment, runs every model of

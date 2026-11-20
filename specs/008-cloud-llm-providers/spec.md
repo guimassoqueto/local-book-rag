@@ -455,12 +455,13 @@ The rest the agent settled, from what the owner had decided before.
 - **FR-017**: A model of the sequence fails when its provider refuses the key, doesn't know the
   model, limits the rate, is down or overloaded, can't be reached, rejects the request, such as
   for a setting the model doesn't take, or declines it; when it sends nothing for the time that
-  its provider's profile allows, 120 seconds; or when the model finishes without a usable answer,
-  that is, with no text. A reply cut off by its token limit with text in it is an answer, as a
-  local one is today, and so is an abstention: neither MUST count as a failure. A silent model
-  MUST be given up on at once, never waited for twice; a rate limit, an overload or a lost
-  connection MAY be tried again twice, a few seconds apart, before it counts. On a failure, the
-  request MUST go to the next model of the sequence, from the start: the same question and
+  its provider's profile allows, 120 seconds as configured; or when the model finishes without a
+  usable answer, that is, with no text. A reply cut off by its token limit with text in it is an
+  answer, as a local one is today, and so is an abstention: neither MUST count as a failure. A
+  silent model MUST be given up on at once, never waited for twice; a rate limit, an overload or a
+  lost connection MAY be tried again twice, a few seconds apart (research.md R4 sets the waits),
+  before it counts. On a failure, the request MUST go to the next model of the sequence, from the
+  start: the same question and
   passages, fitted to that model's context, or the same chapter. A declined request goes on like
   any other failure. Text that arrived from the failed model MUST be withdrawn: the tab removes
   it, and a command, which can't take back what it printed, says on standard error that it is
@@ -473,8 +474,8 @@ The rest the agent settled, from what the owner had decided before.
 - **FR-019**: A summary MUST be written by one model. When one of its steps fails, the summary
   MUST start again from its first step with the next model of the sequence.
 - **FR-020**: Each attempt MUST be logged with its provider, its model and its outcome, and never
-  with the key, a book's text, a question, or the reasoning that a model returned, which can quote
-  the passages. The reasoning appears in the Research tab only.
+  with the key (FR-004), a book's text, a question, or the reasoning that a model returned, which
+  can quote the passages. The reasoning appears in the Research tab only.
 - **FR-021**: A provider MUST be contacted outside a request only when the user asks for a check:
   `doctor`, or "Check again" in the Research tab. The check MUST report, for each configured
   provider, whether its key is accepted and whether each allowed model exists, running no
@@ -504,7 +505,9 @@ The rest the agent settled, from what the owner had decided before.
 - **FR-024**: The Research tab MUST name the model that wrote the latest answer, with its provider
   when that is a cloud provider, instead of the model that the configuration names, and MUST list
   the models that failed before it, in order, each with its provider and why. For an answer that
-  the local model wrote with no failure before it, it MUST show what it shows today.
+  the local model wrote with no failure before it, it MUST show what it shows today. When no model
+  was called, as when nothing was retrieved, it MUST name the model picked for the question, as
+  it names the configured model today, and show no generation's measures.
 - **FR-025**: For an answer from a cloud model, it MUST show the tokens read and generated, the
   generated ones counting the reasoning as they do for the local model, the time to first token
   and the total time, and the reasoning as the provider returned it, saying when that is a summary
@@ -621,9 +624,10 @@ The rest the agent settled, from what the owner had decided before.
 - **SC-008**: In the unit tests, when a model fails after part of its answer arrived, that text is
   gone from the tab before the next model's answer begins, `ask` says on standard error that it is
   discarded, and the final answer holds only the next model's text.
-- **SC-009**: In the unit tests, a second provider kind, a fake one registered only where provider
-  kinds are built, shows up in both tabs, in `--model` and `--fallback`, and in `doctor`, joins a
-  sequence, answers, summarizes, and is reported by the Research tab, with no change to the
+- **SC-009**: In the unit tests, a second provider kind, a fake one registered only in the
+  container's list of provider kinds, shows up in both tabs, in `--model` and `--fallback`, and in
+  `doctor`, joins a sequence, answers, summarizes, and is reported by the Research tab, with no
+  change to the
   services, the tabs or the commands.
 - **SC-010**: An experiment variant and a judge that name a cloud model are each refused before
   the run starts, and no request reaches a provider.

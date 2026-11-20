@@ -5,9 +5,12 @@ FR-032; `research.md`, R6 to R12). Every rule lives here, not in the interface (
 
 ## The container (`app/container.py`)
 
-`Container` gains `models: ModelChoices`. `assemble(settings, environment, collection_prefix,
+`Container` gains `models: ModelChoices`, and the module gains `CLOUD_PROVIDERS`, the mapping from
+each implemented provider kind's name to its class, `{"anthropic": AnthropicCloud}`: the only place
+that names the cloud classes (Principle I). `assemble(settings, environment, collection_prefix,
 environ=None)` builds the local provider as today, with `create_llm_provider()`, the cloud
-providers with `create_cloud_providers(settings, environ)`, and the choices from both. Only
+providers with `create_cloud_providers(settings, environ, CLOUD_PROVIDERS)`, and the choices from
+both. Only
 `build_container()` passes an environment, the process's; without one, as the benchmarks'
 workspaces are assembled, there is no cloud provider. It passes the choices to
 `QuestionAnsweringService`, `ChapterSummarizer` and `HealthService`. It logs each provider that has
@@ -71,6 +74,8 @@ def save(self, summary: ChapterSummary) -> str: ...
 - The last model's failure raises as `QuestionAnsweringService` does, the local model's failure
   listed last.
 - `save()` writes the JSON keys of `data-model.md`.
+- `cloud_written(provider: str | None) -> bool` tells `reindex-all` whether a saved summary's
+  `provider` names a cloud provider, through `ModelChoices.is_cloud_provider()`.
 
 ## `LibraryService.reindex_all()` (`app/services/library_service.py`)
 
@@ -82,7 +87,7 @@ cloud model is called, and no provider is contacted (FR-023, SC-005).
 ## `HealthService` (`app/services/health_service.py`)
 
 ```python
-HealthService(settings, runtime, chroma, indexes, models: ModelChoices)
+HealthService(settings, runtime, chroma, indexes, models: ModelChoices | None = None)
 
 def run(self, inference: bool = False, providers: bool = False) -> list[CheckResult]: ...
 ```

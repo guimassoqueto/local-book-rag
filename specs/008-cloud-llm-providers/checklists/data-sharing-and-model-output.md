@@ -228,8 +228,8 @@ quickstart or the plan, and each item says which. Uncheck any whose resolution y
 - [x] CHK035 Is SC-009's "with no change to the services, the tabs or the commands" measurable? A
   fake provider has to be registered somewhere: is that place named, the factory or the choices,
   so that "no change" has a reference? [Measurability, Spec §SC-009, §FR-026]
-  → SC-009 registers the fake provider only where provider kinds are built, the factory's mapping,
-  with its profile (R16).
+  → SC-009 registers the fake provider only in the container's list of provider kinds,
+  `app.container.CLOUD_PROVIDERS`, with its profile (R16).
 - [x] CHK036 Are SC-007 and SC-008, which the real API can't be made to reproduce on demand, stated
   as criteria of the unit tests, so that their acceptance doesn't wait on chance?
   [Measurability, Spec §SC-007, §SC-008, quickstart § 1]

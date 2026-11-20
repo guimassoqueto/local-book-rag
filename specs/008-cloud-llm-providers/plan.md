@@ -54,8 +54,9 @@ changes:
 - **No volume and no mount**, as today.
 
 **Testing**: pytest.
-- `make test`: two new test files, `test_anthropic_provider.py` and `test_model_choices.py`, and
-  eleven changed (R16), on fakes, real files, real SQLite and embedded ChromaDB, as today.
+- `make test`: three new test files, `test_anthropic_provider.py`, `test_model_choices.py` and
+  `test_provider_kinds.py`, and eleven changed, with `tests/fakes.py` and `tests/library.py`
+  (R16), on fakes, real files, real SQLite and embedded ChromaDB, as today.
 - `make test-integration`: `tests/integration/test_cloud_generation.py` runs each allowed Claude
   model for real on `tests/integration/cloud_cases.yaml` when both settings are exported, and is
   skipped otherwise. It spends a few cents per model.
@@ -108,7 +109,7 @@ one service layer.
 
 | Principle | Check | Before research | After design |
 | --------- | ----- | --------------- | ------------ |
-| I. Local-first and model-independent | The plan sends nothing to a provider unless the user picked one of its models for the request, and then only the question and its passages, or the chapter and what was made from it; the one other contact is a check the user asks for, which sends the key and the allowed models' names (FR-015, FR-021). Embeddings, reranking, benchmarks and judges stay on local models: the benchmarks build Ollama providers only, and refuse a cloud model's name before they run (FR-027). Without the settings, the app works as if the provider didn't exist (FR-002, SC-001). The key lives in a `SecretStr`, apart from `Settings` and `EnvironmentSettings`, and no log, result or message holds it (FR-004). A local model stays named in `config/models.yaml` with its profile; a cloud model is named only in its provider's allow-list, and its provider has one profile, `cloud_profiles.anthropic`, validated at startup with the rest of `config/`. What differs between models is a profile setting: effort, reasoning room, window, timeout. What differs between providers lives in each provider's class, behind `LLMProvider` and `CloudProvider`, and `app/container.py` and the factory are the only places that know the concrete classes. No code names or branches on a model. | Pass | Pass: `contracts/configuration.md`, `contracts/providers.md`; R1 to R6, R12, R15. |
+| I. Local-first and model-independent | The plan sends nothing to a provider unless the user picked one of its models for the request, and then only the question and its passages, or the chapter and what was made from it; the one other contact is a check the user asks for, which sends the key and the allowed models' names (FR-015, FR-021). Embeddings, reranking, benchmarks and judges stay on local models: the benchmarks build Ollama providers only, and refuse a cloud model's name before they run (FR-027). Without the settings, the app works as if the provider didn't exist (FR-002, SC-001). The key lives in a `SecretStr`, apart from `Settings` and `EnvironmentSettings`, and no log, result or message holds it (FR-004). A local model stays named in `config/models.yaml` with its profile; a cloud model is named only in its provider's allow-list, and its provider has one profile, `cloud_profiles.anthropic`, validated at startup with the rest of `config/`. What differs between models is a profile setting: effort, reasoning room, window, timeout. What differs between providers lives in each provider's class, behind `LLMProvider` and `CloudProvider`. The new classes are named only in `app/container.py`, whose `CLOUD_PROVIDERS` the factory receives, so the container stays the only place that knows them (research.md R3 notes the Ollama factories that predate the rule's wording). No code names or branches on a model. | Pass | Pass: `contracts/configuration.md`, `contracts/providers.md`; R1 to R6, R12, R15. |
 | II. The library is never at risk | No new operation on the books, the catalog or the index. `reindex-all` only skips writing again the summaries that a cloud model wrote, inside its journaled operation, and deletes nothing new (FR-023). A saved summary's JSON file gains keys, written as today. No volume or mount. Setting `.env` recreates the app container at `make up`, and the README says that this empties the library (FR-029). The quickstart's `make up` recreates it too, and says before each command what that deletes; `reset-everything`, confirmed in the service with `DELETE EVERYTHING`, then clears ChromaDB's old collections, as in `specs/007`. No benchmark code changes, so it still reaches nothing beyond `benchmarks/workspace` and the `bench_*` collections. | Pass | Pass: `quickstart.md`, § 0, § 2, § 3, § 14; R11, R18. |
 | III. Index integrity | No embedding or chunking setting, document template, tokenizer of the index, or metadata field changes; a cloud profile's tokenizer counts a prompt's tokens only. The fingerprint stays, and no reindex is needed (FR-028). | Pass | Pass: `data-model.md`, Unchanged. |
 | IV. One service layer | Every rule is in a service or in `ModelChoices`, which the services call: what is offered, a sequence's rules and refusals, the move to the next model, regeneration's skipping, the provider checks (FR-032). The tabs and the commands read the choice, pass names, and show what comes back. | Pass | Pass: `contracts/services.md`, `contracts/interface.md`. |
@@ -146,13 +147,13 @@ specs/008-cloud-llm-providers/
 app/
 ├── config/settings.py          # CloudProfile, cloud_profiles and its rule; ProviderCredentials and their reading (R1, R2)
 ├── errors.py                   # ModelChoiceError, ModelFailedError, AllModelsFailedError
-├── container.py                # builds the cloud providers and the choices; Container.models
+├── container.py                # CLOUD_PROVIDERS, the only names of the cloud classes; the choices; Container.models
 ├── generation/
 │   ├── base.py                 # LLMProvider.provider and .check_abstentions; Generation.thinking_summarized; optional stats; FailureReason, Attempt, AttemptFailed
 │   ├── cloud.py                # new: CloudProvider, ProviderCheck
 │   ├── anthropic_provider.py   # new: the Anthropic kind and its models' provider (R4)
 │   ├── choices.py              # new: ModelOption, ModelChoices (R6)
-│   ├── factory.py              # CLOUD_PROVIDERS, the implemented kinds; create_cloud_providers()
+│   ├── factory.py              # create_cloud_providers(), from the kinds the container passes
 │   ├── ollama_provider.py      # provider, check_abstentions
 │   ├── question_answering.py   # the sequence of an answer; check_abstention() reads the provider (R7)
 │   └── summarization.py        # the sequence of a summary; the run carries its model; tokens (R8)
@@ -176,15 +177,18 @@ pyproject.toml, uv.lock         # anthropic
 
 tests/
 ├── fakes.py                    # FakeLLM's provider, flag and failures; FakeCloud, a second provider
+├── library.py                  # the test library's summarizer takes the choices
 ├── unit/
 │   ├── test_anthropic_provider.py   # new: the request, the stream, the stats, stop reasons, errors
 │   ├── test_model_choices.py        # new: options, sequences, refusals, checks, settings
+│   ├── test_provider_kinds.py       # new: a fake second provider, registered in the container alone (SC-009)
 │   ├── test_config.py, test_question_answering.py, test_summarization.py, test_library_rebuild.py,
 │   ├── test_health_service.py, test_interface.py, test_commands.py, test_container.py,
 │   └── test_logging.py, test_llm_provider.py, test_benchmark.py
 └── integration/
     ├── test_cloud_generation.py     # new: each allowed Claude model for real, skipped without the settings
-    └── cloud_cases.yaml             # new: an excerpt, five answerable and three unanswerable questions, a short chapter
+    ├── cloud_cases.yaml             # new: an excerpt, five answerable and three unanswerable questions, a short chapter
+    └── test_generation.py           # one call, for check_abstention()'s new signature
 
 README.md, docs/decisions.md
 ```

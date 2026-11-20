@@ -49,16 +49,19 @@ inference. Nothing else in this protocol contacts it, building it included.
 
 ```python
 def create_llm_provider(settings: Settings, runtime: OllamaRuntime) -> LLMProvider: ...  # unchanged
-def create_cloud_providers(settings: Settings, environ: Mapping[str, str]) -> CloudSetup: ...
+def create_cloud_providers(
+    settings: Settings, environ: Mapping[str, str], kinds: Mapping[str, type[CloudProvider]]
+) -> CloudSetup: ...
 ```
 
+The kinds are one mapping, `CLOUD_PROVIDERS: dict[str, type[CloudProvider]]`,
+`{"anthropic": AnthropicCloud}` now, which `app/container.py` holds and passes in: the container
+is the only place that knows the concrete classes (Principle I), and this function names none.
+The settings' names derive from the mapping's keys (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODELS`).
 `CloudSetup` holds the configured `CloudProvider`s with their allowed models, the setting problems
-of the providers with one setting only, and the names of every implemented kind. The kinds are one
-mapping, `CLOUD_PROVIDERS: dict[str, type[CloudProvider]]`, `{"anthropic": AnthropicCloud}` now,
-and the settings' names derive from its keys (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODELS`).
-`create_cloud_providers` raises `ConfigurationError` for a profile whose name isn't a key of
-`CLOUD_PROVIDERS`, and for an allowed model whose provider has no profile (FR-003). It is the one
-place, with `create_llm_provider`, that knows the concrete classes.
+of the providers with one setting only, and the names of every kind given. `create_cloud_providers`
+raises `ConfigurationError` for a profile whose name isn't a key of the mapping, and for an
+allowed model whose provider has no profile (FR-003).
 
 ## `ModelChoices` (`app/generation/choices.py`)
 

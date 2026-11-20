@@ -6,7 +6,8 @@ R9, R13 and R14). The handlers read input, call a service, and show what it retu
 ## Without cloud settings
 
 Every tab and command looks and prints as on `main` (FR-002, SC-001): no model choice, no notice,
-no new row, no new line. `--model` and `--fallback` exist, and accept the local model's name only.
+no new row, no new line. `--model` exists, and accepts the local model's name only; `--fallback`
+exists, and refuses any name, since the local model, the only one offered, ends every sequence.
 
 ## The model choice, in the Chat and Summarization tabs
 

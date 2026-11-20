@@ -34,10 +34,10 @@ One per provider kind that the app implements, read when the container is assemb
 | `request_timeout_seconds` | positive float                                | how long the provider may send nothing |
 
 `Settings.cloud_profiles` is a mapping from a provider kind's name to its profile, empty by
-default. The names have to be those of the factory's `CLOUD_PROVIDERS` (`anthropic`), checked when
-the container is assembled, at startup. Rule across files: for each profile, each task's
-`max_tokens` (`question_answering`, `summarization`), plus `reasoning_tokens`, is smaller than
-`context_size`.
+default. The names have to be those of `CLOUD_PROVIDERS` in `app/container.py` (`anthropic`),
+checked when the container is assembled, at startup. Rule across files: for each profile, each
+task's `max_tokens` (`question_answering`, `summarization`), plus `reasoning_tokens`, is smaller
+than `context_size`.
 
 ## Choosing
 
@@ -92,7 +92,8 @@ A model's failed try at a request.
 ### Events and errors
 
 - **`AttemptFailed`**, an event of `QuestionAnsweringService.stream()`: the `Attempt`, and the
-  next model's name and provider label.
+  next model's name and provider. The interface gets the provider's label from
+  `ModelChoices.label_of()`.
 - **`ModelFailedError(BookRagError)`**: raised by a provider, with `model`, `provider`, `reason`
   and `detail`. Its message reads "claude-sonnet-5-5 (Anthropic) failed: it limited the rate."
 - **`AllModelsFailedError(BookRagError)`**: raised when the local model fails after others did.
@@ -154,7 +155,7 @@ changed, and that summarizing the chapter again refreshes it.
 
 | Situation | Row |
 | --------- | --- |
-| one setting only | `anthropic`, failing: "ANTHROPIC_MODELS is set and ANTHROPIC_API_KEY isn't: no Claude model is offered" |
+| one setting only | `anthropic`, failing: "ANTHROPIC_MODELS is set and ANTHROPIC_API_KEY isn't: no model of Anthropic's is offered", built from the provider's name and label, so that no code names a model (Principle I) |
 | key refused | `anthropic`, failing: "Anthropic refused the API key" |
 | model found | `anthropic claude-sonnet-5-5`, ok: its display name and window |
 | model unknown | `anthropic claude-x`, failing: "Anthropic doesn't know this model" |
