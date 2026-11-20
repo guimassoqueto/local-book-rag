@@ -524,6 +524,20 @@ would otherwise fill again. Code changes can't be detected: after changing inges
 an abstention on an answerable question as wrong even when retrieval never brought the evidence,
 and then abstaining is exactly what the prompt asks for. `evidence_in_context` tells the two apart.
 
+**Retrieval rows record what was retrieved.** Each lists, by chunk ID, its ranking, every passage
+the search considered in the order its scores read, and its context, the passages kept. Without
+them, the publisher-back-matter fix couldn't read what had outranked the evidence on `main`, only
+infer it, and its report left that as a follow-up: Principle VI reads rows before concluding, and
+a retrieval row held nothing to read but its scores. IDs and not texts, as the owner asked: an ID
+tells the book, the chapter's position and the chunk's place, and the run's commit and books give
+the text again. An ID holds within its run only, since another chunk size or ingestion renumbers
+the chunks, so `devtools/compare_runs.py` shows each run's IDs under its own label and never
+matches them across runs. Relevance stays stored as quotes. For a question that moved, the
+comparison reads each run down to the lowest-ranked evidence among the first ten, or to the first
+piece of evidence when none is there. The scores that decide whether a question moved read no
+deeper, and `on_liberty_conceptual_01` moved below its first piece of evidence: its MRR was 1.0 in
+both runs of the fix's check, while on `main` three of its seven quotes ranked sixth to tenth.
+
 **`peak_vram_mb` waits for the GPU, not for Ollama's model list.** A model leaves the list some
 200 ms before its memory is free, and the list's own figures are unreliable (1.4 GB reported for a
 model holding 9.1 GB). Without waiting, one model's memory was reported as the next one's peak. It

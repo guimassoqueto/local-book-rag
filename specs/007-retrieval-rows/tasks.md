@@ -61,18 +61,18 @@ Project Structure). Line numbers are `main`'s at `aa54d1b`, for orientation: nam
 **Purpose**: A known starting point, and `main`'s side of the comparisons of SC-003 and SC-004,
 taken before anything changes.
 
-- [ ] T001 Check the starting point. The branch is `feat/retrieval-rows`, with only the `docs:`
+- [X] T001 Check the starting point. The branch is `feat/retrieval-rows`, with only the `docs:`
   commits of the spec and the plan on top of `main`. `git status --short` is empty, and `uv.lock`
   is `main`'s. With asdf's paths, `make lint-check` and `make test` pass. Note the number of unit
   tests, for the results (T034).
-- [ ] T002 [P] Record the fix's two result folders, file by file (FR-015, quickstart.md § 2):
+- [X] T002 [P] Record the fix's two result folders, file by file (FR-015, quickstart.md § 2):
   `sha256sum "$MAIN"/* "$FIX"/* > "$SCRATCH/old-runs.sha256"`.
-- [ ] T003 [P] Run the comparison on `main`'s code, before T015 to T017 change
+- [X] T003 [P] Run the comparison on `main`'s code, before T015 to T017 change
   `devtools/compare_runs.py`, so that the working tree's `app/` and `devtools/` are still `main`'s:
   `uv run python devtools/compare_runs.py "$MAIN" "$FIX" --labels main fix > "$SCRATCH/compare-main.md"`.
   It lists four questions that moved, as `docs/benchmark-results.md` records. To take it again
   later, run the same command from a worktree of `main`, on absolute paths.
-- [ ] T004 [P] Render the fix's two runs with `benchmark-report` on `main`'s code (quickstart.md
+- [X] T004 [P] Render the fix's two runs with `benchmark-report` on `main`'s code (quickstart.md
   § 2). The running app container is v0.6.1's image, whose `app/` is `main`'s, with the owner's
   library: check it with `docker compose ps`. If it is stopped, start it with
   `docker compose start`, never `make up`. Then:
@@ -105,7 +105,7 @@ T024 to T026 (SC-001, SC-002).
 
 ### Tests for User Story 1 (write first, and see them fail)
 
-- [ ] T005 [US1] In `tests/unit/test_benchmark.py`, the three files (FR-001, FR-002, FR-004,
+- [X] T005 [US1] In `tests/unit/test_benchmark.py`, the three files (FR-001, FR-002, FR-004,
   contracts/retrieval-rows.md; `data-model.md`, The retrieval row: `ranking`, `context`). Run
   `retrieval_experiment()` in the `lab`, then:
   - the row of `rows.jsonl`, `results.json`'s `rows[0]` and the row of `rows.csv`, read with
@@ -114,7 +114,7 @@ T024 to T026 (SC-001, SC-002).
   - in `rows.csv`, each is the JSON list joined with "; ";
   - they are the row's last two keys, after `rerank_seconds`, in the contract's field order;
   - `summary.csv`'s header holds neither (FR-006).
-- [ ] T006 [US1] In `tests/unit/test_benchmark.py`, the scores are the lists' (FR-003,
+- [X] T006 [US1] In `tests/unit/test_benchmark.py`, the scores are the lists' (FR-003,
   contracts/retrieval-rows.md, What the lists satisfy). After the `lab`'s run:
   - open the variant's workspace again as the runner does,
     `runner._open(apply_overrides(settings, overrides))`, which indexes nothing;
@@ -122,12 +122,13 @@ T024 to T026 (SC-001, SC-002).
   - check that `recall_at_k` at 5 and 10, `reciprocal_rank` and `ndcg_at_k` at 10 of the row's
     `ranking`, and `context_precision` and `context_recall` of its `context`, equal the row's six
     scores.
-- [ ] T007 [US1] In `tests/unit/test_benchmark.py`, the lists as the search returned them (FR-001,
+- [X] T007 [US1] In `tests/unit/test_benchmark.py`, the lists as the search returned them (FR-001,
   FR-002; research.md R1):
   - wrap `RetrievalService.search` with `monkeypatch`: it calls the original, then returns its
-    result with the candidates reversed and the passages a slice of them, `candidates[1:3]`, as a
-    reranker's reordering would. The row's `ranking` is the reversed candidates' IDs, and its
-    `context` the slice's, in their order;
+    result reordered as a reranker would: a chunk that holds no evidence first, the real
+    candidates reversed after it, and the passages a slice of them, `candidates[1:3]`. The row's
+    `ranking` is those candidates' IDs, and its `context` the slice's, in their order. Its MRR is
+    0.5, read from the recorded order;
   - run two variants with `retrieval.reranker.top_k` set to 1: one with reranking off, as
     `retrieval_experiment()`'s, and one with it on, which the `lab`'s `FakeReranker` scores. In
     both rows the context is `ranking[:1]`, and the ranking is longer (US1's scenario 4).
@@ -135,14 +136,14 @@ T024 to T026 (SC-001, SC-002).
   The `lab`'s book gives three chunks, one per section, and BM25 finds all three for its
   question. So `candidates[1:3]` holds two, and a `top_k` of 1 leaves the ranking longer than the
   context.
-- [ ] T008 [US1] In `tests/unit/test_benchmark.py`, what stays:
+- [X] T008 [US1] In `tests/unit/test_benchmark.py`, what stays:
   - in `test_rows_reach_the_disk_before_a_run_fails`, the row already in `rows.jsonl` holds both
     lists (edge case: a run that dies);
   - in `test_a_generation_run_reports_every_answer`, no row holds `ranking` or `context` (FR-007).
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] In `app/evaluation/benchmark.py`, `_run_retrieval` (lines 334–362; research.md
+- [X] T009 [US1] In `app/evaluation/benchmark.py`, `_run_retrieval` (lines 334–362; research.md
   R1, R2), so that T005 to T008 pass:
   - add `"ranking": ranking` and `"context": context` as the row's last two keys, after
     `"rerank_seconds"` (`data-model.md`, The retrieval row: `ranking`, `context`). They are the
@@ -152,14 +153,15 @@ T024 to T026 (SC-001, SC-002).
     `recall_at_5`, `recall_at_10`, `mrr`, `ndcg_at_10`, `context_precision`, `context_recall`,
     `retrieval_seconds` and `rerank_seconds`. The search, `_relevant_places` and the metric calls
     don't change (FR-005).
-- [ ] T010 [US1] In `app/evaluation/benchmark.py`, `_write_csv` (lines 657–664; research.md R3):
+- [X] T010 [US1] In `app/evaluation/benchmark.py`, `_write_csv` (lines 657–664; research.md R3):
   write a list as one cell, its items joined with "; ", the way `_relevant_places` joins
   `relevant_chunks`, and every other value as today (`data-model.md`, The retrieval row:
   `ranking` and `context` in `rows.csv`). No other kind's row holds a list, and neither does
   `summary.csv`, so those files come out byte for byte as before (FR-007, SC-001; `data-model.md`,
   Unchanged: the summaries, and the rows of the other kinds).
-- [ ] T011 [US1] Checkpoint: `make lint-check` and `make test` pass, T005 to T008 included.
-  `git diff main...HEAD --name-only -- app/` lists only `app/evaluation/benchmark.py`.
+- [X] T011 [US1] Checkpoint: `make lint-check` and `make test` pass, T005 to T008 included.
+  `git diff main --name-only -- app/` lists only `app/evaluation/benchmark.py`, uncommitted or
+  committed.
 
 **Checkpoint**: Every retrieval row records its two lists, and nothing else that the runner writes
 changes. The check on the stack waits for Phase 6.
@@ -177,7 +179,7 @@ rankings are known. On the stack, T029 (SC-005).
 
 ### Tests for User Story 2 (write first, and see them fail)
 
-- [ ] T012 [US2] In `tests/unit/test_compare_runs.py`, the reading of one run's row (FR-009,
+- [X] T012 [US2] In `tests/unit/test_compare_runs.py`, the reading of one run's row (FR-009,
   FR-010; `data-model.md`, The comparison's reading of a run; contracts/compare-runs.md, Cells and
   Examples):
   - give `row()` a `ranking` parameter, added to the row only when it is given, so that today's
@@ -195,7 +197,7 @@ rankings are known. On the stack, T029 (SC-005).
       empty one `none`;
     - a ranking shorter than ten, with evidence: `c1, e1, c2` gives `2` and `1: c1`;
     - no `ranking` in the row: `not recorded` in both cells.
-- [ ] T013 [US2] In `tests/unit/test_compare_runs.py`, the table in `render_comparison`'s output
+- [X] T013 [US2] In `tests/unit/test_compare_runs.py`, the table in `render_comparison`'s output
   (FR-009, FR-011, FR-012; contracts/compare-runs.md, Output and The new table):
   - two runs whose rows hold rankings, where `q2` moved: after the "Questions that moved" table
     come `## What ranked above the evidence`, its header and separator, and two rows for `q2`, the
@@ -209,13 +211,13 @@ rankings are known. On the stack, T029 (SC-005).
 
 ### Implementation for User Story 2
 
-- [ ] T014 [P] [US2] Create `specs/007-retrieval-rows/benchmarks/experiments/no_reranking.yaml`, as
+- [X] T014 [P] [US2] Create `specs/007-retrieval-rows/benchmarks/experiments/no_reranking.yaml`, as
   research.md R9 gives it (`data-model.md`, Added): `name: no_reranking`, `kind: retrieval`, its
   description, and one variant, `hybrid_rrf`, overriding
   `retrieval: {reranker: {enabled: false}}`. Check with `uv run python` that `load_experiment`
   reads it, and that the variant's `index_key` equals the default's, so it reuses the default's
   workspace.
-- [ ] T015 [US2] In `devtools/compare_runs.py`, add `ranked_above(row)`, which returns the two
+- [X] T015 [US2] In `devtools/compare_runs.py`, add `ranked_above(row)`, which returns the two
   cells for one run's row (research.md R5, R7; contracts/compare-runs.md, Cells), so that T012
   passes. It follows `data-model.md`, The comparison's reading of a run, part by part: The
   evidence, from The retrieval row's `relevant_chunks`, split on "; " without empty items; The
@@ -223,7 +225,7 @@ rankings are known. On the stack, T029 (SC-005).
   The chunks above it. It covers the four states of its table. A row without `ranking` gives
   `not recorded` in both cells (FR-014). A named constant holds the ten, the deepest rank that
   Recall@10 and nDCG@10 read.
-- [ ] T016 [US2] In `devtools/compare_runs.py`, `render_comparison` (lines 115–145; research.md
+- [X] T016 [US2] In `devtools/compare_runs.py`, `render_comparison` (lines 115–145; research.md
   R6; contracts/compare-runs.md, Output), so that T013 passes. After the "Questions that moved"
   table, when at least one question moved, it appends:
   - an empty line, `## What ranked above the evidence` and an empty line;
@@ -235,15 +237,17 @@ rankings are known. On the stack, T029 (SC-005).
     run's (FR-011; `data-model.md`, The chunk ID).
 
   `moved()`'s table, and everything printed before the new section, stay as they are (FR-012).
-- [ ] T017 [US2] In `devtools/compare_runs.py`, the module's docstring (research.md R12):
+- [X] T017 [US2] In `devtools/compare_runs.py`, the module's docstring (research.md R12):
   - say that, for each question that moved, the output then shows, in each run, the ranks its
     evidence took and the chunks that ranked above it, down to the lowest-ranked evidence among
     the first ten;
   - say that a run written before the rows recorded rankings says so;
   - write "in one of the runs" where it says "in either run": a question is left out when one run
     resolved its evidence to no chunk.
-- [ ] T018 [US2] Checkpoint: `make lint-check` and `make test` pass, T012 and T013 included, with
-  the earlier tests of `tests/unit/test_compare_runs.py` unchanged (FR-012).
+- [X] T018 [US2] Checkpoint: `make lint-check` and `make test` pass, T012 and T013 included, with
+  the earlier tests of `tests/unit/test_compare_runs.py` asserting what they did (FR-012). One of
+  them, `test_the_questions_that_moved_are_listed_with_both_runs`, now looks for `q2`'s row only
+  before the new section, which has rows for `q2` too.
 
 **Checkpoint**: The comparison shows what ranked above the evidence of each question that moved,
 from rows that recorded rankings, and `not recorded` for rows that didn't.
@@ -261,12 +265,12 @@ T027 and T028 (SC-003, SC-004).
 
 ### Tests for User Story 3 (guards)
 
-- [ ] T019 [P] [US3] In `tests/unit/test_report.py` (FR-006, FR-013; contracts/retrieval-rows.md,
+- [X] T019 [P] [US3] In `tests/unit/test_report.py` (FR-006, FR-013; contracts/retrieval-rows.md,
   What reads the rows): a retrieval result whose rows hold `ranking` and `context` renders exactly
   as the same result without them, both with `render(results)` and with `render(results,
   baseline)` on two variants. It passes on `main`'s code too, and keeps the lists out of the
   report.
-- [ ] T020 [US3] In `tests/unit/test_compare_runs.py`, after T012 and T013 (FR-014, FR-015;
+- [X] T020 [US3] In `tests/unit/test_compare_runs.py`, after T012 and T013 (FR-014, FR-015;
   contracts/compare-runs.md, Old and new results):
   - with today's `BASELINE` and `CHANGED`, whose rows hold no rankings, the new section's rows for
     `q2` are `| q2 | originals | not recorded | not recorded |` and
@@ -278,7 +282,7 @@ T027 and T028 (SC-003, SC-004).
 
 ### Implementation for User Story 3
 
-- [ ] T021 [US3] Checkpoint: `make test` passes with T019 and T020. Nothing is implemented here.
+- [X] T021 [US3] Checkpoint: `make test` passes with T019 and T020. Nothing is implemented here.
   The `not recorded` reading is T015's, and `git diff main...HEAD -- app/evaluation/report.py
   app/main.py` prints nothing (`data-model.md`, Unchanged: `benchmark-report`'s output).
 
@@ -358,7 +362,7 @@ records and the results.
     from the two runs' `results.json`, and compares them with the output's. Every row agrees;
   - read a few by hand: a question that the reranker lifted, and one that it sank. Note how many
     questions moved, and those examples, for the records.
-- [ ] T030 [P] In `README.md`, Benchmarks (FR-016, research.md R12):
+- [X] T030 [P] In `README.md`, Benchmarks (FR-016, research.md R12):
   - after "Each result row lists the chapters and chunks the evidence resolved to", say that a
     retrieval row also lists its ranking, every passage the search considered in the order its
     scores read, and its context, the passages kept, by chunk ID. An ID holds within its run;
@@ -370,7 +374,7 @@ records and the results.
     reranking off, beside `markdown_books`.
 
   This can be done any time after US2.
-- [ ] T031 [P] In `docs/decisions.md`, Evaluation (FR-017, research.md R12), a new entry, "Retrieval
+- [X] T031 [P] In `docs/decisions.md`, Evaluation (FR-017, research.md R12), a new entry, "Retrieval
   rows record what was retrieved", after "Generation rows record how much of the evidence reached
   the model":
   - why: the reading that the publisher-back-matter fix couldn't do, which its report left as a

@@ -358,6 +358,9 @@ class BenchmarkRunner:
                         "context_recall": context_recall(context, evidence),
                         "retrieval_seconds": result.retrieval_seconds,
                         "rerank_seconds": result.rerank_seconds,
+                        # What the scores read, so that a row shows what ranked above its evidence.
+                        "ranking": ranking,
+                        "context": context,
                     }
                 )
 
@@ -661,7 +664,12 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=list(columns))
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows({key: _cell(value) for key, value in row.items()} for row in rows)
+
+
+def _cell(value: Any) -> Any:
+    """A list in one cell, its items joined as relevant_chunks is: a retrieval row's ranking and context."""
+    return "; ".join(map(str, value)) if isinstance(value, list) else value
 
 
 def _package_version(name: str) -> str | None:
