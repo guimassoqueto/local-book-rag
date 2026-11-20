@@ -739,7 +739,8 @@ check in the browser (T039), and the parts of the criteria that it covers, wait 
   in the container's logs or library. The page's source is part of the owner's browser check.
 - **SC-011: pass.** `git diff main --stat` lists none of `app/services/`, `app/interface/` or
   `app/main.py`, nor `tests/unit/test_anthropic_provider.py`.
-- **SC-012: pass.** `make lint-check` is clean, and `make test` ran 1,319 unit tests, all passing.
+- **SC-012: pass.** `make lint-check` is clean, and `make test` ran 1,320 unit tests, all passing,
+  a saved OpenAI summary's record among them (Phase 8, T041).
 
 What the real models showed beside the criteria: at effort `low`, OpenAI reported no reasoning
 tokens for the probe's questions, so no summary of the reasoning came back, and the Research tab

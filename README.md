@@ -680,10 +680,11 @@ first look.
 
 Unknown keys are errors, so a typo stops the app at startup instead of being ignored.
 Addresses and directories come from the environment; their defaults are the Compose
-service names. So do a cloud provider's key and allowed models, read apart from the rest, so that
-nothing that records the configuration, such as a benchmark's result, holds the key. A cloud model
-takes `config/generation.yaml`'s token limits but not its temperature; the rest of its settings are
-its provider's profile.
+service names. So do a cloud provider's key and allowed models, `ANTHROPIC_API_KEY` and
+`ANTHROPIC_MODELS` for Claude, `OPENAI_API_KEY` and `OPENAI_MODELS` for OpenAI, read apart from
+the rest, so that nothing that records the configuration, such as a benchmark's result, holds a
+key. A cloud model takes `config/generation.yaml`'s token limits but not its temperature; the rest
+of its settings are its provider's profile.
 
 ## Layout
 

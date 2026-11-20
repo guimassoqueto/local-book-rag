@@ -836,3 +836,22 @@ def test_an_openai_model_out_of_credit_at_its_second_step_hands_the_whole_summar
         "(credit_balance_exhausted). Starting again with fake-llm."
     ) in progress
     assert len(openai_client.create_calls) == 2
+
+
+def test_a_saved_openai_summary_records_its_provider_its_reported_model_and_its_tokens(
+    settings, catalog, tmp_path, openai_client
+):
+    """specs/009-openai-provider, SC-012, FR-013."""
+    openai_client.script(FakeResponse(text=FINAL, model="gpt-a-20261101", input_tokens=900, output_tokens=200))
+    service = summarizer(settings, openai_choices(settings, FakeLLM([FINAL])), catalog, chapter(2, words=100), tmp_path)
+
+    service.save(service.summarize("book_001", 4, "brief", model="gpt-a"))
+
+    record = json.loads((tmp_path / "summaries/book_001/chapter_04_brief.json").read_text(encoding="utf-8"))
+    assert (record["model"], record["provider"], record["tokens"]) == (
+        "gpt-a-20261101",
+        "openai",
+        {"read": 900, "generated": 200},
+    )
+    assert record["failed_attempts"] == []
+    assert "sk-test-openai" not in json.dumps(record)

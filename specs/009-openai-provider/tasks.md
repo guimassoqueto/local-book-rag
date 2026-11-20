@@ -388,3 +388,11 @@ which is what SC-011 measures.
 - Commit only when the owner asks; the pull request is titled `feat: …` (v0.9.0).
 - `checklists/data-sharing-and-model-output.md` is resolved; its four owner defaults stand unless
   the owner says otherwise.
+
+---
+
+## Phase 8: Convergence
+
+- [X] T041 Add a unit test in `tests/unit/test_summarization.py` that, through the `openai_client` fixture, saves a summary an OpenAI model wrote and reads its JSON record back: `provider: openai`, the model as OpenAI reported it, and `tokens` read and generated, per SC-012 (records of a saved summary) and FR-013 (partial)
+- [X] T042 Name `OPENAI_API_KEY` and `OPENAI_MODELS`, beside `ANTHROPIC_API_KEY` and `ANTHROPIC_MODELS`, in the "Configuration" section of `README.md`, which speaks of "a cloud provider's key and allowed models" without naming them, per plan R12 (partial)
+- [X] T043 Reword the comment above the cloud settings in `docker-compose.yml` for two providers: each provider's models are offered only when both its settings are set, and changing any of the four recreates this container, which empties the library, per FR-005 (partial)

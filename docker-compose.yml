@@ -92,8 +92,8 @@ services:
       CHROMA_HOST: chromadb
       CHROMA_PORT: 8000
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      # Cloud models, offered only when both are set in .env. Changing either recreates this
-      # container, which empties the library.
+      # Cloud models: a provider's models are offered only when both its settings are set in
+      # .env. Changing any of the four recreates this container, which empties the library.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODELS: ${ANTHROPIC_MODELS:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
