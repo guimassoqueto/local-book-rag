@@ -105,6 +105,30 @@ conversion showed the owner's PDF plugin writing code without fences, so that 22
 syllable hyphens. It was fixed in the plugin, since the application adds no rule for a conversion's
 quirks. Then two of the 280 evidence quotes needed correcting, to `lexi-con` and `n − 1`.
 
+**What isn't the book's text is left out, by Gutenberg's markers and whole headings**
+(`.specify/bugs/publisher-back-matter`). E-books carry matter that isn't the book, and the
+conversions keep it, so it was indexed as the book's:
+- **The ads.** Asked about the advertisements at the end of *História econômica global*, `search`
+  returned them first: its top four passages were the ads and the table of contents. They sat in a
+  "Table of Contents" section at the end of its last chapter.
+- **The rest.** Each Gutenberg book had a chapter of license (9 chunks), and *Think Python* had a
+  chapter of table of contents (24) and one of printed index (28).
+
+The pipeline now keeps only what lies between Project Gutenberg's own START and END markers, when a
+book has both. It also drops a section whose whole heading names a table of contents or a printed
+index ("Table of Contents", "Contents", "Sumário", "Index", "Índice remissivo"), down to the next
+heading at its level or above. "Índice" alone isn't on the list, since Portuguese books use it for
+either. Both rules run before the language is detected, so an English license no longer counts
+toward a Portuguese novel's language. On the benchmark's dataset, retrieval gained nDCG@10
++0.005, an interval that barely leaves zero out, and no question got worse
+(`docs/benchmark-results.md`).
+
+The rules see only markers and whole headings. A publisher's pages without a heading, such as a
+catalog record or a copyright notice, are the conversion's to remove, as the owner chose, so the
+application guesses at no wording. This isn't a rule for a conversion's quirk: the matter is in the
+e-books themselves. Dropping a chapter, as Gutenberg's header and *Think Python*'s contents were,
+moves the chapters after it down by one.
+
 **Normalization keeps the cleaning that applies to any text**: Unicode composition, ligatures,
 invisible characters and whitespace. Its configuration section went with its only key.
 

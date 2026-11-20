@@ -15,6 +15,14 @@ _CHAPTER = re.compile(rf"^(chapter|chap\.|cap[ií]tulo|cap\.)\s+{ORDINAL}", re.I
 _MIN_NUMBERED_CHAPTERS = 2
 _NUMBERED_MAJORITY = 2  # how many times more numbered headings than depth found, to trust them instead
 
+# What an e-book carries that isn't the book's text (.specify/bugs/publisher-back-matter). Project
+# Gutenberg marks where a book starts and ends, around its header and its license. A table of
+# contents or a printed index has a heading of its own: only the whole heading counts, and "Índice"
+# alone isn't here, since Portuguese books use it for either one.
+_GUTENBERG_START = re.compile(r"\*{3}\s*START OF TH(E|IS) PROJECT GUTENBERG EBOOK\b.*\*{3}", re.IGNORECASE)
+_GUTENBERG_END = re.compile(r"\*{3}\s*END OF TH(E|IS) PROJECT GUTENBERG EBOOK\b.*\*{3}", re.IGNORECASE)
+_NOT_THE_BOOK = frozenset({"table of contents", "contents", "sumário", "index", "índice remissivo"})
+
 
 @dataclass(frozen=True)
 class Section:
@@ -43,6 +51,39 @@ class BookStructure:
     title: str
     language: str | None
     chapters: tuple[Chapter, ...]
+
+
+def book_blocks(blocks: tuple[Block, ...]) -> tuple[Block, ...]:
+    """Keep the book's own text, in order.
+
+    What lies outside Project Gutenberg's START and END markers goes, when the book has both. So
+    does a section headed by a table of contents or a printed index, down to the next heading at
+    its level or above. Nothing else is guessed at: a publisher's pages without a heading stay.
+    """
+    kept: list[Block] = []
+    dropping: int | None = None  # the level of the heading being dropped
+    for block in _between_gutenberg_markers(blocks):
+        if block.kind is BlockKind.HEADING:
+            level = block.level or 1
+            if dropping is not None and level <= dropping:
+                dropping = None
+            if dropping is None and block.text.strip().casefold() in _NOT_THE_BOOK:
+                dropping = level
+        if dropping is None:
+            kept.append(block)
+    return tuple(kept)
+
+
+def _between_gutenberg_markers(blocks: tuple[Block, ...]) -> tuple[Block, ...]:
+    start = next((index for index, block in enumerate(blocks) if _is_marker(block, _GUTENBERG_START)), None)
+    if start is None:
+        return blocks
+    end = next((index for index in range(start + 1, len(blocks)) if _is_marker(blocks[index], _GUTENBERG_END)), None)
+    return blocks if end is None else blocks[start + 1 : end]
+
+
+def _is_marker(block: Block, marker: re.Pattern[str]) -> bool:
+    return block.kind is BlockKind.PARAGRAPH and marker.fullmatch(block.text.strip()) is not None
 
 
 def build_structure(document: ExtractedDocument, title: str) -> BookStructure:

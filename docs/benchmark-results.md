@@ -519,6 +519,46 @@ The results are `benchmarks/results/markdown_books_20261119T191912080372Z` (orig
 records dataset `767e4cceb315…`, the Markdown run `cd57a42a6369…`, which is the dataset in
 `specs/005-markdown-only/benchmarks/`.
 
+## Matter that isn't the book's text
+
+Ingestion no longer indexes Project Gutenberg's header and license, tables of contents or printed
+indexes (`.specify/bugs/publisher-back-matter`, `docs/decisions.md`, Ingestion). The dataset's
+books shrank: *On Liberty* from 177 chunks to 165, *Quincas Borba* from 455 to 443, and *Think
+Python* from 369 to 317. Every evidence quote is still found.
+
+On 2026-11-19, the retrieval experiment's default configuration ran twice, each in a fresh
+workspace, on the same dataset (`cd57a42a6369…`) and books:
+- **on `main`'s code**, `84f8bf1`;
+- **on the fix**, uncommitted on top of it.
+
+`devtools/compare_runs.py` paired them by question: 75 pairs, none left out.
+
+| Metric | `main` | Fix | Difference (95% interval) |
+| --- | --- | --- | --- |
+| Recall@5 | 0.899 | 0.904 | +0.006 (+0.000 to +0.017) |
+| Recall@10 | 0.953 | 0.953 | +0.000 (+0.000 to +0.000) |
+| MRR | 0.948 | 0.954 | +0.007 (+0.000 to +0.020) |
+| nDCG@10 | 0.882 | 0.887 | **+0.005 (+0.000 to +0.015)** |
+| Context precision | 0.911 | 0.909 | −0.001 (−0.014 to +0.012) |
+| Context recall | 0.899 | 0.904 | +0.006 (+0.000 to +0.017) |
+
+nDCG@10's interval leaves zero out, barely. No question got worse, and four improved. Two of them
+undo what the Markdown conversion had cost (above):
+- **`think_python_multi_section_05`** got its MRR back, from 0.5 to 1.0, and its nDCG@10 went
+  from 0.648 to 1.000.
+- **`on_liberty_conceptual_01`** got its Recall@5 back, from 0.571 to 1.000.
+- **The other two**, `think_python_multi_section_01` and `on_liberty_multi_section_04`, gained
+  0.019 and 0.009 of nDCG@10.
+
+The evidence is the same passages in both runs, renumbered where a dropped chapter came before
+them. The rows don't record what was retrieved, so what outranked the evidence on `main` can't be
+read. The removed tables of contents, index and license are the likely candidates, but that is
+inferred, not read.
+
+`main`'s run gave the same rows as the Markdown run above, every metric of every question, so
+v0.6.0 left retrieval as it was. The results are `benchmarks/results/markdown_books_20261120T021742092846Z` (`main`) and
+`markdown_books_20261120T022603129972Z` (the fix), outside the repository.
+
 ## Recommendations
 
 The defaults stay as they are. These are what the results suggest changing, and what each change
@@ -564,12 +604,13 @@ would cost.
 - **A summary's "References" heading is always in English.**
 - **The embedding comparison also compares chunk sizes**, since each model's tokenizer counts the
   500 tokens: see Retrieval.
-- **A publisher's back matter is indexed as the book's.** In *História econômica global*'s e-book,
-  the catalog record, the copyright notice and five advertisements for other books ("Compre agora e
-  leia") came in as part of its last chapter, "Lista de tabelas". So questions, in the Chat tab or
-  with `ask`, and `search` can retrieve them. Ingestion is to set them apart, in a fix of its own,
-  which will need a reindex. The owner's Markdown conversion keeps them too, after a "Table of
-  Contents" heading at the end of the book.
+- **A publisher's pages without a heading are indexed as the book's.** In *História econômica
+  global*'s conversion, the author's bio, the edition notes, the catalog record and the copyright
+  notice run on inside the last chapter, "Lista de tabelas", with no heading of their own. So
+  questions, in the Chat tab or with `ask`, and `search` can still retrieve them. The five
+  advertisements that followed, under a "Table of Contents" heading, are left out since
+  `.specify/bugs/publisher-back-matter`, along with Project Gutenberg's header and license and
+  printed indexes. What has no heading is the conversion's to remove.
 
 ## Changes these benchmarks led to
 

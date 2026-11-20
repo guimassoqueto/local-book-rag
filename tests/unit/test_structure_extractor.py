@@ -1,5 +1,7 @@
+import pytest
+
 from app.ingestion.base import Block, BlockKind, DocumentFormat, ExtractedDocument
-from app.ingestion.structure_extractor import FRONT_MATTER_TITLE, build_structure
+from app.ingestion.structure_extractor import FRONT_MATTER_TITLE, book_blocks, build_structure
 
 
 def heading(text, level):
@@ -176,3 +178,106 @@ def test_the_title_given_and_the_language_are_carried_over():
 
     assert (structure.title, structure.language) == ("01_file_name", "pt")
     assert not hasattr(structure, "author")
+
+
+# What isn't the book's text (.specify/bugs/publisher-back-matter)
+
+GUTENBERG_START = "*** START OF THE PROJECT GUTENBERG EBOOK ON LIBERTY ***"
+GUTENBERG_END = "*** END OF THE PROJECT GUTENBERG EBOOK ON LIBERTY ***"
+
+
+def texts(blocks):
+    return [block.text for block in blocks]
+
+
+def test_only_the_text_between_gutenbergs_markers_is_the_book():
+    blocks = (
+        text("**Title:** On Liberty"),
+        heading("The Project Gutenberg eBook of On Liberty", 2),
+        text("This eBook is for the use of anyone anywhere in the United States."),
+        text(GUTENBERG_START),
+        heading("On Liberty. By John Stuart Mill.", 1),
+        heading("INTRODUCTION.", 2),
+        text("The subject of this Essay is Civil, or Social Liberty."),
+        text(GUTENBERG_END),
+        text("Updated editions will replace the previous one."),
+        heading("THE FULL PROJECT GUTENBERG™ LICENSE", 2),
+        text("PLEASE READ THIS BEFORE YOU DISTRIBUTE OR USE THIS WORK."),
+    )
+
+    assert texts(book_blocks(blocks)) == [
+        "On Liberty. By John Stuart Mill.",
+        "INTRODUCTION.",
+        "The subject of this Essay is Civil, or Social Liberty.",
+    ]
+
+
+def test_older_gutenberg_markers_say_this_ebook():
+    blocks = (
+        text("A header."),
+        text("*** START OF THIS PROJECT GUTENBERG EBOOK THE PRINCE ***"),
+        text("The book."),
+        text("*** END OF THIS PROJECT GUTENBERG EBOOK THE PRINCE ***"),
+        text("A license."),
+    )
+
+    assert texts(book_blocks(blocks)) == ["The book."]
+
+
+@pytest.mark.parametrize("marker", [GUTENBERG_START, GUTENBERG_END])
+def test_one_gutenberg_marker_alone_keeps_every_block(marker):
+    blocks = (text("Before."), text(marker), text("After."))
+
+    assert book_blocks(blocks) == blocks
+
+
+def test_a_trailing_table_of_contents_goes_with_everything_it_holds():
+    blocks = (
+        heading("Lista de tabelas", 1),
+        text("1. PIB per capita no mundo, 1820-2008"),
+        heading("Table of Contents", 3),
+        text("Agradecimentos Capítulo 1: A grande divergência Capítulo 2: A ascensão do Ocidente"),
+        text("Reforma Protestante"),
+        text("Compre agora e leia"),
+    )
+
+    assert texts(book_blocks(blocks)) == ["Lista de tabelas", "1. PIB per capita no mundo, 1820-2008"]
+
+
+def test_a_dropped_section_ends_at_the_next_heading_at_its_level_or_above():
+    blocks = (
+        heading("Sumário", 1),
+        text("Capítulo 1 ... 3"),
+        heading("Capítulo 1", 1),
+        text("The text."),
+        heading("Index", 2),
+        text("abecedarian, 73, 84"),
+        heading("Glossary", 3),
+        text("Still under the index."),
+        heading("A section", 2),
+        text("More text."),
+    )
+
+    assert texts(book_blocks(blocks)) == ["Capítulo 1", "The text.", "A section", "More text."]
+
+
+@pytest.mark.parametrize("title", ["Table of Contents", "CONTENTS", "Sumário", "Index", "Índice remissivo"])
+def test_a_table_of_contents_or_a_printed_index_is_not_the_book(title):
+    blocks = (heading("One", 1), text(), heading(title, 1), text("abecedarian, 73, 84"))
+
+    assert texts(book_blocks(blocks)) == ["One", "Some text."]
+
+
+@pytest.mark.parametrize("title", ["Indexes and keys", "Índice", "The contents of a module"])
+def test_a_heading_that_only_mentions_one_stays(title):
+    blocks = (heading("One", 1), text(), heading(title, 1), text("Kept."))
+
+    assert book_blocks(blocks) == blocks
+
+
+def test_chapters_stay_consecutive_when_the_first_heading_is_dropped():
+    blocks = (heading("Contents", 1), text("One ... 1"), heading("One", 1), text(), heading("Two", 1), text())
+
+    structure = build_structure(ExtractedDocument(DocumentFormat.MARKDOWN, book_blocks(blocks)), "T")
+
+    assert outline(structure) == [(1, "One"), (2, "Two")]

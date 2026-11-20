@@ -151,6 +151,18 @@ Preparing a book:
 - **Front matter is optional**, a YAML block between `---` lines at the top. It is removed from
   the text, and only its `language` (or `lang`) is read: the language is detected from the text
   otherwise. Front matter that doesn't parse, or isn't closed, stays in the text.
+- **What isn't the book's text is left out** before the language is detected and the chapters are
+  found:
+  - **Project Gutenberg's header and license.** A book that holds both of Gutenberg's own markers,
+    "\*\*\* START OF THE PROJECT GUTENBERG EBOOK … \*\*\*" and the matching END line, keeps only
+    what lies between them.
+  - **A table of contents or a printed index.** A heading that reads, in full and in any case,
+    "Table of Contents", "Contents", "Sumário", "Index" or "Índice remissivo" goes with everything
+    under it, down to the next heading at its level or above. A heading that only contains one of
+    these words stays.
+
+  A publisher's pages without a heading, such as a catalog record or a copyright notice, stay in
+  the chapter they end up in: remove them when converting the book.
 - **The file is checked** before anything is stored: it must be UTF-8, hold no binary data, and
   be at most 512 MB.
 - **A PDF or an EPUB is refused**, with a message to convert it to Markdown first. In the
