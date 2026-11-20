@@ -58,11 +58,11 @@ Project Structure). Line numbers are `main`'s at `56600c7`, for orientation: nam
 **Purpose**: A known starting point, and `main`'s side of the comparison of SC-002 and US3's
 scenario 4, taken from `main`'s code before anything changes.
 
-- [ ] T001 Check the starting point. The branch is `feat/remove-chapter-quiz` with only `docs:`
+- [X] T001 Check the starting point. The branch is `feat/remove-chapter-quiz` with only `docs:`
   commits on top of `main`. `git status --short` is empty, and `uv.lock` is `main`'s. With asdf's
   paths, `make lint-check` and `make test` pass. Note the number of unit tests, for the results
   (T043).
-- [ ] T002 Write the throwaway script `$SCRATCH/same_as_main.py`, outside the repository
+- [X] T002 Write the throwaway script `$SCRATCH/same_as_main.py`, outside the repository
   (research.md R8, quickstart.md § 3). It prints, one per line:
   - `app.__file__`, so the output shows which tree it loaded;
   - one SHA-256 per prompt of `app/generation/prompts.py`, built from fixed inputs: an English
@@ -80,7 +80,7 @@ scenario 4, taken from `main`'s code before anything changes.
 
   It reads the settings with `load_settings(Path("config"))` from the tree it runs on, and labels
   each line with what it hashed.
-- [ ] T003 Run T002's script on `main`'s code and keep its output. From the repository's root:
+- [X] T003 Run T002's script on `main`'s code and keep its output. From the repository's root:
   `REPO="$PWD"`, `git worktree add "$SCRATCH/main-tree" "$(git merge-base main HEAD)"`, then
   `cd "$SCRATCH/main-tree" && PYTHONPATH="$SCRATCH/main-tree" "$REPO/.venv/bin/python" "$SCRATCH/same_as_main.py" > "$SCRATCH/main.txt"`.
   `PYTHONPATH` puts the worktree's `app` ahead of the editable install. Check that the first line
@@ -96,18 +96,18 @@ scenario 4, taken from `main`'s code before anything changes.
 Their tests come first, without the quiz, so that no story removes the only test of something
 that stays. Each passes on `main`'s code.
 
-- [ ] T004 [P] In `tests/unit/test_container.py`, add a test that the container builds one
+- [X] T004 [P] In `tests/unit/test_container.py`, add a test that the container builds one
   provider, for `llm.model` with its profile, shared by questions and summaries (FR-004, R10):
   `c = assemble(settings, EnvironmentSettings(data_dir=tmp_path))`, then
   `c.questions._llm is c.summaries._llm`, `c.questions._llm.model == settings.llm.model` and
   `c.questions._llm._profile == settings.llm_profile`. Keep the three quiz tests until T026.
-- [ ] T005 [P] In `tests/unit/test_llm_provider.py`, rewrite
+- [X] T005 [P] In `tests/unit/test_llm_provider.py`, rewrite
   `test_the_factory_builds_a_named_model_from_its_own_profile` and
   `test_a_model_without_a_profile_is_refused` to name the model through a copy of the settings,
   `settings.model_copy(update={"llm": settings.llm.model_copy(update={"model": "gemma4:12b"})})`
   (and `"unknown-model"` for the refusal), not through the `model=` parameter. Their assertions
   stay: gemma4's reasoning and tokenizer, and the refusal naming the model.
-- [ ] T006 [P] In `tests/unit/test_benchmark.py`, add three tests on a retrieval experiment, next
+- [X] T006 [P] In `tests/unit/test_benchmark.py`, add three tests on a retrieval experiment, next
   to the quiz ones they will replace (R10):
   - a retrieval experiment with an unknown top-level key (`seeds: 3`) is refused;
   - a retrieval run records the commit and the dataset books' checksums:
@@ -115,10 +115,10 @@ that stays. Each passes on `main`'s code.
     `environment["book_sha256"]` (`data-model.md`, `results.json` `environment.book_sha256`);
   - `load_experiment` reads a valid retrieval experiment file, equal to `Experiment.model_validate`
     of the same mapping.
-- [ ] T007 [P] In `tests/unit/test_report.py`, give a retrieval result fixture a `by_book` entry,
+- [X] T007 [P] In `tests/unit/test_report.py`, give a retrieval result fixture a `by_book` entry,
   and check that `render()` writes its "## By book" table, which only the quiz's fixture exercised
   (R10).
-- [ ] T008 Checkpoint: `make test` passes on `main`'s code with T004 to T007.
+- [X] T008 Checkpoint: `make test` passes on `main`'s code with T004 to T007.
 
 ---
 
@@ -134,7 +134,7 @@ T039 and T040. Scenario 4 waits for US2 (T024, T033).
 
 ### Tests for User Story 1 (write first, and see them fail)
 
-- [ ] T009 [US1] In `tests/unit/test_interface.py` (FR-001, FR-007, contracts/interface.md):
+- [X] T009 [US1] In `tests/unit/test_interface.py` (FR-001, FR-007, contracts/interface.md):
   - **Add** a test that the interface's tabs are Library, Chat, Summarization and Research, in
     that order: `[b.label for b in interface.blocks.values() if isinstance(b, gr.Tab)]`. It fails
     while the Quiz tab exists.
@@ -153,7 +153,7 @@ T039 and T040. Scenario 4 waits for US2 (T024, T033).
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] In `app/interface/gradio_app.py` (research.md R2, R4), so that T009 passes:
+- [X] T010 [US1] In `app/interface/gradio_app.py` (research.md R2, R4), so that T009 passes:
   - **The tab.** The import and the call of `build_quiz_tab` go, and so do `refresh()`'s
     `quiz_book` parameter, its dropdown in the returned tuple, and `quiz.book` in `selections` and
     `outputs`.
@@ -163,11 +163,11 @@ T039 and T040. Scenario 4 waits for US2 (T024, T033).
     `docker compose stop` and `restart` send SIGTERM, which the container's first process ignored
     until it was killed 10 s later, so Gradio never shut down and its cached copies of uploads
     outlived the restart. Neither names the quiz, a download or `FR-018`.
-- [ ] T011 [US1] Delete `app/interface/quiz.py`. In `app/interface/formatting.py`, remove the "Quiz
+- [X] T011 [US1] Delete `app/interface/quiz.py`. In `app/interface/formatting.py`, remove the "Quiz
   tab" block (lines 225–281: `quiz_slot_markdown`, `quiz_choices`, `quiz_progress`,
   `quiz_outcome`, `quiz_reference`, `quiz_feedback`, `quiz_result_markdown`) and the import of
   `Question`, `QuizReady`, `Result`, and any import left unused.
-- [ ] T012 [US1] Checkpoint: `make lint-check` and `make test` pass, T009 included. Nothing in
+- [X] T012 [US1] Checkpoint: `make lint-check` and `make test` pass, T009 included. Nothing in
   `app/interface/` names the quiz (`git grep -i -n quiz -- app/interface`).
 
 **Checkpoint**: The interface has four tabs. The quiz's service, settings and benchmark kinds still
@@ -187,7 +187,7 @@ stack, T037 and T041.
 
 ### Tests for User Story 3 (write first, and see them fail)
 
-- [ ] T013 [P] [US3] In `tests/unit/test_benchmark.py` (FR-011, research.md R5, R10). No test
+- [X] T013 [P] [US3] In `tests/unit/test_benchmark.py` (FR-011, research.md R5, R10). No test
   names the quiz or its fields, so that SC-001's searches hold for the tests too. The quiz's own
   experiments are refused on the stack (T041).
   - **Refusal of the kinds.** `test_an_extraction_experiment_is_refused_naming_the_kinds_left`
@@ -220,7 +220,7 @@ stack, T037 and T041.
 
   Remove the imports left unused, `re` among them. The `lab` fixture keeps `quiz_llm` and
   `quizzes=QuizService(...)` until T026.
-- [ ] T014 [P] [US3] In `tests/unit/test_report.py` (FR-012, contracts/benchmark.md):
+- [X] T014 [P] [US3] In `tests/unit/test_report.py` (FR-012, contracts/benchmark.md):
   - **Add** a test, parametrized over `extraction` and a made-up kind such as `retired`:
     `render()` raises `ConfigurationError` naming the kind, for a result that holds nothing but
     its experiment. It fails while `render()` accepts any kind. No test names the quiz: T041
@@ -232,20 +232,20 @@ stack, T037 and T041.
     `test_the_quiz_report_says_when_nothing_is_marked`,
     `test_quiz_variants_pair_question_by_question` and
     `test_a_check_run_shows_its_catches_and_its_verdict`.
-- [ ] T015 [P] [US3] In `tests/unit/test_commands.py`, add a test that `benchmark-report` on a
+- [X] T015 [P] [US3] In `tests/unit/test_commands.py`, add a test that `benchmark-report` on a
   result of a kind it doesn't render fails and prints nothing to standard output (FR-012). Write a
   `results.json` of kind `extraction` and a `reading.csv` beside it into `tmp_path`, then
   `run(main._benchmark_report, container, capsys, results=tmp_path, baseline=None)` raises
   `ConfigurationError` naming `'extraction'`, and `capsys.readouterr().out` is empty.
-- [ ] T016 [P] [US3] Delete `tests/unit/test_quiz_metrics.py`, whose module goes at T021.
+- [X] T016 [P] [US3] Delete `tests/unit/test_quiz_metrics.py`, whose module goes at T021.
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] Create `app/evaluation/kinds.py`, with `ExperimentKind` and `EXPERIMENT_KINDS` as
+- [X] T017 [US3] Create `app/evaluation/kinds.py`, with `ExperimentKind` and `EXPERIMENT_KINDS` as
   `data-model.md` defines them (`ExperimentKind`). Its docstring says why it is a module of its
   own: the runner and the report share the kinds, and the report must not load the runner's stack
   (research.md R6). It imports nothing from the application.
-- [ ] T018 [P] [US3] In `app/evaluation/benchmark.py` (research.md R5), so that T006 and T013 pass:
+- [X] T018 [P] [US3] In `app/evaluation/benchmark.py` (research.md R5), so that T006 and T013 pass:
   - **The model.** `Experiment.kind` becomes an `ExperimentKind` (`data-model.md`,
     `Experiment.kind`). The fields `local_books`, `targets`, `seed`, `known_cases` and `case_set`
     go, with the docstring's lines on them (`data-model.md`, `Experiment.local_books`,
@@ -263,7 +263,7 @@ stack, T037 and T041.
     `_WHOLE_BOOK` go, with the imports from `app.evaluation.quiz_metrics`, `app.generation.quiz`
     and `app.services.quiz_service`, and `QUIZ_LETTERS` and `QuizSource` from the prompts.
     `_SEED` stays.
-- [ ] T019 [P] [US3] In `app/evaluation/report.py` (research.md R6, contracts/benchmark.md), so that
+- [X] T019 [P] [US3] In `app/evaluation/report.py` (research.md R6, contracts/benchmark.md), so that
   T014 passes:
   - **The refusal.** `render(results, baseline=None)` (`data-model.md`, `render()`) first checks
     `results["experiment"]["kind"]` against `EXPERIMENT_KINDS`. Any other kind raises
@@ -272,12 +272,12 @@ stack, T037 and T041.
     `render()`; `_quiz_sections`, `_check_section` and `_reading_section`; the `quiz_check` case
     of `_comparisons()`; the imports from `quiz_metrics` and of `REFUSAL_KINDS`. The docstrings
     stop naming the quiz.
-- [ ] T020 [US3] In `app/main.py`, `_benchmark_report` no longer imports `read_reading` or reads
+- [X] T020 [US3] In `app/main.py`, `_benchmark_report` no longer imports `read_reading` or reads
   `reading.csv` (`data-model.md`, "Benchmark result files of the quiz"). It prints
   `render(json.loads(...), arguments.baseline)`, so that T015 passes.
-- [ ] T021 [US3] Delete `app/evaluation/quiz_metrics.py`. Nothing imports it any more
+- [X] T021 [US3] Delete `app/evaluation/quiz_metrics.py`. Nothing imports it any more
   (`git grep -n quiz_metrics -- app tests` prints nothing).
-- [ ] T022 [P] [US3] In `docs/benchmark-results.md` (FR-016, research.md R13):
+- [X] T022 [P] [US3] In `docs/benchmark-results.md` (FR-016, research.md R13):
   - **The quiz's section** stays, with a first line saying that the quiz was removed in v0.6.0
     (`specs/006-remove-chapter-quiz`), so its runs are a record of it.
   - **Known limitations.** The publisher's advertisements stay a limitation, worded without the
@@ -285,7 +285,7 @@ stack, T037 and T041.
     advertisements came in as part of the last chapter, "Lista de tabelas", and questions, in the
     Chat tab or with `ask`, and `search` can retrieve them. "The quiz experiments still name the
     PDF" goes.
-- [ ] T023 [US3] Checkpoint: `make lint-check` and `make test` pass, T006 and T013 to T015
+- [X] T023 [US3] Checkpoint: `make lint-check` and `make test` pass, T006 and T013 to T015
   included. `git grep -i -n quiz -- app/evaluation app/main.py` prints nothing.
 
 **Checkpoint**: The benchmark has four kinds and refuses the others, and the report refuses their
@@ -304,7 +304,7 @@ unit tests. On the real stack, T041's configuration check.
 
 ### Tests for User Story 2 (write first, and see them fail)
 
-- [ ] T024 [P] [US2] In `tests/unit/test_config.py` (FR-003, contracts/configuration.md):
+- [X] T024 [P] [US2] In `tests/unit/test_config.py` (FR-003, contracts/configuration.md):
   - **The refusal.** A new test, with a neutral name: an unknown section under `generation`, such
     as `retired: {}`, stops loading with `ConfigurationError` matching `generation.retired`. It
     passes before and after, since it checks the rule that refuses a leftover `quiz` section. No
@@ -316,11 +316,11 @@ unit tests. On the real stack, T041's configuration check.
     `test_the_default_count_cannot_exceed_the_cap`,
     `test_the_checker_reasoning_takes_a_level_or_nothing` and
     `test_the_checker_reasoning_can_be_left_to_the_profile`.
-- [ ] T025 [P] [US2] In `tests/unit/test_llm_provider.py`, delete
+- [X] T025 [P] [US2] In `tests/unit/test_llm_provider.py`, delete
   `test_a_reasoning_level_replaces_the_profiles_for_that_provider_only`, and keep `sent_reasoning`
   if T005's test still uses it. The section comment above `sent_reasoning` describes the factory
   without a per-task model, a reasoning of its own, or `generation.quiz.check`.
-- [ ] T026 [P] [US2] Remove the quiz from the fixtures that build a `Container`, which fail until
+- [X] T026 [P] [US2] Remove the quiz from the fixtures that build a `Container`, which fail until
   T028 removes the field:
   - `tests/unit/test_commands.py`: `quizzes=None`;
   - `tests/unit/test_interface.py`: `quizzes=QuizService(...)` in the `interface` fixture, and the
@@ -332,38 +332,38 @@ unit tests. On the real stack, T041's configuration check.
   `test_the_quiz_checker_reasons_at_its_own_level_on_the_writers_model`,
   `test_a_checker_model_of_its_own_gets_its_own_profile` and
   `test_quiz_downloads_go_to_the_data_directory`. T004's test stays.
-- [ ] T027 [P] [US2] Delete `tests/unit/test_quiz_service.py`, `tests/unit/test_quiz_writer.py` and
+- [X] T027 [P] [US2] Delete `tests/unit/test_quiz_service.py`, `tests/unit/test_quiz_writer.py` and
   `tests/integration/test_quiz.py`.
 
 ### Implementation for User Story 2
 
-- [ ] T028 [US2] In `app/container.py` (research.md R2), so that T026 passes: the imports of
+- [X] T028 [US2] In `app/container.py` (research.md R2), so that T026 passes: the imports of
   `QuizWriter` and `QuizService` go, with the `quizzes` field (`data-model.md`,
   `Container.quizzes`), the checker's provider, the writer, and the service built over
   `root / "quiz_downloads"` (`data-model.md`, `data/quiz_downloads`).
-- [ ] T029 [US2] Delete `app/services/quiz_service.py` and `app/generation/quiz.py`. In
+- [X] T029 [US2] Delete `app/services/quiz_service.py` and `app/generation/quiz.py`. In
   `app/errors.py`, remove `QuizAlreadyGradedError` and `NothingToAskError` (`data-model.md`,
   Errors).
-- [ ] T030 [P] [US2] In `app/generation/prompts.py`, remove the "Quizzes" block at the end (lines
+- [X] T030 [P] [US2] In `app/generation/prompts.py`, remove the "Quizzes" block at the end (lines
   261–391: its comment, `QUIZ_LETTERS`, `QuizSource`, the `_QUIZ_*` texts, `_quiz_heading`,
   `lettered_options`, `quiz_question_messages`, `quiz_check_messages`, `quiz_answer_messages`) and
   the `dataclass` import. Nothing else changes: the file's diff only removes lines (research.md
   R8).
-- [ ] T031 [P] [US2] In `app/generation/factory.py` (research.md R3, `data-model.md`,
+- [X] T031 [P] [US2] In `app/generation/factory.py` (research.md R3, `data-model.md`,
   `create_llm_provider`): `create_llm_provider(settings, runtime)` builds the provider for
   `llm.model`, with its profile and `settings.llm`. The `model` and `reasoning` parameters go,
   with the copies of `llm` and of the profile they made, and the docstring stops naming the quiz.
   The check that the model has a profile stays (T005).
-- [ ] T032 [P] [US2] In `app/ingestion/language.py`, remove `confident_reply_language`, and
+- [X] T032 [P] [US2] In `app/ingestion/language.py`, remove `confident_reply_language`, and
   `_MIN_REPLY_CONFIDENCE` with its comment. `reply_language` and `_identifier` stay.
-- [ ] T033 [P] [US2] In `app/config/settings.py` and `config/generation.yaml` (research.md R7), so
+- [X] T033 [P] [US2] In `app/config/settings.py` and `config/generation.yaml` (research.md R7), so
   that T024 passes:
   - `QuizCheckConfig`, `QuizConfig` and `GenerationConfig.quiz` go (`data-model.md`,
     `GenerationConfig.quiz`), with the validator's check of `generation.quiz.check.model` and its
     loop over the quiz's two token limits. The loop over the two remaining tasks stays.
   - The `quiz` section of `config/generation.yaml` goes, from its comment to its last key (lines
     45–77), with one of the blank lines around it (`data-model.md`, `generation.quiz`).
-- [ ] T034 [P] [US2] In `README.md` (FR-014, research.md R11):
+- [X] T034 [P] [US2] In `README.md` (FR-014, research.md R11):
   - **Interface**: four tabs, and no Quiz row.
   - **Quizzes**: the section goes.
   - **Benchmarks**: from "Two more kinds measure the Quiz tab" to the end of the `quiz_check`
@@ -371,7 +371,7 @@ unit tests. On the real stack, T041's configuration check.
     `.git`, moves after the first code block, with an example such as
     `docker compose exec app book-rag benchmark benchmarks/experiments/retrieval.yaml --commit "$(git describe --always --dirty)"`.
   - **Configuration**: the row for `config/generation.yaml` stops naming the quiz.
-- [ ] T035 [P] [US2] In `docs/decisions.md` (FR-015, research.md R12):
+- [X] T035 [P] [US2] In `docs/decisions.md` (FR-015, research.md R12):
   - **Delete** the quiz's decisions:
     - in Generation: "A quiz question is written from one passage, by one call", "The model never
       chooses a letter", "The application chooses the passages", "A quiz's default length follows
@@ -399,7 +399,7 @@ unit tests. On the real stack, T041's configuration check.
       follow-ups dropped, and says the quiz's decisions were deleted rather than shortened. It
       points to their reasoning in `specs/003-chapter-quiz`, `.specify/assessments/chapter-quiz/`
       and the tag `v0.5.0`, the last release with the quiz.
-- [ ] T036 [US2] Checkpoint, quickstart.md § 2 and the diff rules of § 3:
+- [X] T036 [US2] Checkpoint, quickstart.md § 2 and the diff rules of § 3:
   - `make lint-check` and `make test` pass, T024 to T026 included;
   - both searches of § 2 print nothing outside the records, and the third finds only the
     removal's section and the quiz's section of the two documents (SC-001);
@@ -417,19 +417,19 @@ unit tests. On the real stack, T041's configuration check.
 **Purpose**: The comparison with `main`, the feature on the real stack and the real models, the
 host's quiz files, and the record of the results.
 
-- [ ] T037 Run T002's script on the branch,
+- [X] T037 Run T002's script on the branch,
   `PYTHONPATH="$PWD" .venv/bin/python "$SCRATCH/same_as_main.py" > "$SCRATCH/branch.txt"`, and
   `diff "$SCRATCH/main.txt" "$SCRATCH/branch.txt"`. Only the `app.__file__` line differs (SC-002,
   US3's scenario 4). If any hash differs, stop and find why before going on.
-- [ ] T038 Rebuild and reset, quickstart.md § 4. `make up` rebuilds the app image and recreates its
+- [X] T038 Rebuild and reset, quickstart.md § 4. `make up` rebuilds the app image and recreates its
   container, which deletes the library it holds (empty on 2026-11-19), its logs and
   `data/quiz_downloads`. ChromaDB and Ollama keep their data, models included. Then
   `docker compose exec app book-rag reset-everything --confirm "DELETE EVERYTHING"` deletes the
   empty library and every `book_chunks_v*` collection. Then `doctor` reports no failure (SC-003).
-- [ ] T039 `make test-integration` passes without `test_quiz.py`. `time docker compose restart app`,
+- [X] T039 `make test-integration` passes without `test_quiz.py`. `time docker compose restart app`,
   run while no library operation is in progress, takes under 2 s of wall-clock time (SC-003,
   SC-004).
-- [ ] T040 The interface on the real stack (SC-004, quickstart.md § 5). The owner, in the browser:
+- [X] T040 The interface on the real stack (SC-004, quickstart.md § 5). The owner, in the browser:
   - the tabs are Library, Chat, Summarization and Research;
   - `benchmarks/books/on-liberty.md`, added in the Library tab, appears in the Chat and
     Summarization lists once it is indexed;
@@ -437,7 +437,7 @@ host's quiz files, and the record of the results.
   - a chapter summary is made and saved.
 
   The agent can check the same through `ask` and `summarize` in the container meanwhile.
-- [ ] T041 The refusals on the stack (SC-005, quickstart.md § 6), each file put back or removed
+- [X] T041 The refusals on the stack (SC-005, quickstart.md § 6), each file put back or removed
   afterwards:
   - **The configuration.** `main`'s `config/generation.yaml`, which has the `quiz` section, is
     copied into the container: `doctor` stops, naming `generation.quiz`. Then the branch's is
@@ -449,7 +449,7 @@ host's quiz files, and the record of the results.
     `benchmark-report` prints contracts/benchmark.md's error and nothing else.
 
   Then `/app/benchmarks` is removed from the container.
-- [ ] T042 After T041, and only then, delete the host's quiz files (FR-013, research.md R14,
+- [X] T042 After T041, and only then, delete the host's quiz files (FR-013, research.md R14,
   quickstart.md § 7). They are the experiments `benchmarks/experiments/quiz.yaml`,
   `quiz_models.yaml`, `quiz_check.yaml` and `key_cases.yaml`, and the seven result folders
   `benchmarks/results/quiz_2026*`, `quiz_models_2026*` and `quiz_check_2026*`. List what is left:
@@ -459,7 +459,7 @@ host's quiz files, and the record of the results.
   - the results `markdown_books_*`, `chunks-*`, `library_progress_*` and
     `compare_originals_markdown.md`;
   - the books, unchanged.
-- [ ] T043 Add a subsection "Results of the implementation, <date>" under the Clarifications of
+- [X] T043 Add a subsection "Results of the implementation, <date>" under the Clarifications of
   `spec.md`, as `specs/003-chapter-quiz/spec.md` has one:
   - SC-001's searches;
   - SC-002's comparison: how many prompts and renderings were hashed, all equal;
@@ -470,7 +470,7 @@ host's quiz files, and the record of the results.
   - FR-013's deletions.
 
   Mark the tasks done in this file.
-- [ ] T044 Final pass: quickstart.md § 2's searches and § 8's records once more, then
+- [X] T044 Final pass: quickstart.md § 2's searches and § 8's records once more, then
   `make lint-check` and `make test`.
 - [ ] T045 When the owner asks for the pull request, quickstart.md § 9:
   - no commit of the branch has `!` after its type or a `BREAKING CHANGE` footer;

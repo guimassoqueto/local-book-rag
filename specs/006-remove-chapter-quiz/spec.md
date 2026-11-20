@@ -280,6 +280,63 @@ It also found these, fixed the same day:
   existed. The plan's summary names what three shared modules gain. A task's placeholder became
   a variable.
 
+### Corrections during implementation, 2026-11-19
+
+- **Two helpers stayed longer.** `QUIZ_DRAFT` and `quiz_reply` in `test_benchmark.py` went at T026,
+  not T013: the `lab` fixture used them until the container lost its `quizzes` field.
+- **More quiz-only code than the research listed.** Removing the quiz left these unused, and they
+  went too: the `Path` import of `test_interface.py`, at T009 rather than T026; the `Chunk` import
+  of `formatting.py`, which only `quiz_reference` used; and in `benchmark.py`, the `perf_counter`
+  and `Literal` imports and `_locate`, the known cases' passage finder.
+- **Two tests go further than their tasks.**
+  - The `benchmark-report` test (T015) runs through `main.main`, like the PDF test beside it, so it
+    checks the exit status and the empty standard output end to end.
+  - T024 added a second test: the shipped `generation` settings hold exactly the two tasks, the
+    context and the languages. It fails while the quiz's section exists, without naming it.
+- **The README** also says that `benchmark-report` refuses a kind the benchmark doesn't run, since
+  that is new behavior (FR-012), which R11 didn't list.
+- **The diff rule before the commit** (T036) compared the working tree with where the branch left
+  `main`, and listed new files apart: `git diff main...HEAD` sees commits only.
+- **One check left a trace, removed.** `docker compose cp` put the restored `generation.yaml` back
+  under the `app` user (T041). It was given back to `root`, as it was.
+
+### Results of the implementation, 2026-11-19
+
+All on the owner's machine, with gpt-oss:20b, qwen3-embedding:0.6b and Qwen3-Reranker-0.6B.
+- **SC-001.** Outside the records, neither the word nor the quiz-only names without it are found.
+  In `docs/decisions.md`, the word is only in "Removed: the chapter quiz (v0.6.0)". In
+  `docs/benchmark-results.md`, it is only in the quiz's section, which opens with its removal.
+- **SC-002.** 66 hashes, the same on `main` (`56600c7`, where the branch left it) and on the
+  branch:
+  - 6 for answers and abstention checks;
+  - 52 for the summary's steps, over the 4 summary types and 4 pairs of languages;
+  - 2 for the summary judge's prompts;
+  - 6 for `benchmark-report` on the host's 3 retrieval results, with and without a baseline.
+- **SC-003.**
+  - **Unit tests.** 1,270 before the change and 968 after; the quiz's own tests went, and the new
+    ones replaced what was tested only through the quiz.
+  - **Integration tests.** `make test-integration`: 18 passed and 48 skipped, for models not
+    pulled (gemma4:12b, qwen3.5:9b, bge-m3), with `test_quiz.py`'s 6 gone.
+  - **Doctor** reports no failure after `make up` and `reset-everything`.
+- **SC-004.**
+  - **Restart.** `time docker compose restart app`, idle, took 0.996 s.
+  - **The owner's check in the browser.** Four tabs, a book added and listed in the Chat and
+    Summarization tabs, an answer citing by book, chapter and section, and a summary saved.
+  - **Commands.** `ask` cited "01_historia_economica_global, Capítulo 3: A Revolução Industrial,
+    Explicando a Revolução Industrial", and abstained on a question the book can't answer.
+- **SC-005.**
+  - **The configuration.** `main`'s `config/generation.yaml` made `doctor` stop with "Invalid
+    configuration in config: generation.quiz: Extra inputs are not permitted", exit status 1.
+  - **The experiments.** `quiz.yaml` and `quiz_check.yaml` were refused before any workspace,
+    naming the four allowed kinds and their fields: `local_books`, `targets`, `seed`,
+    `known_cases`, `case_set`.
+  - **A result.** `benchmark-report` on a quiz run printed nothing to standard output, exit status
+    1, and the error of `contracts/benchmark.md`.
+- **SC-006.** 42 files changed, every one in `plan.md`'s Project Structure or this spec's folder,
+  and `prompts.py` only lost lines.
+- **FR-013.** The host's 4 quiz experiments and 7 result folders are deleted. 8 experiment files,
+  the other results and the books remain.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
