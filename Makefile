@@ -3,7 +3,7 @@
 # Python, and rebuild .venv when .tool-versions changes.
 export UV_PYTHON := $(shell awk '$$1 == "python" {print $$2}' .tool-versions)
 
-.PHONY: env install reinstall update check-updates speckit-upgrade hooks update-hooks lint lint-check \
+.PHONY: env install reinstall update check-updates speckit-upgrade hooks update-hooks beads lint lint-check \
 	commit test test-integration up down restart logs pull-models doctor benchmark
 
 env:
@@ -46,6 +46,38 @@ hooks:
 
 update-hooks:
 	@uv run pre-commit autoupdate
+
+# Connect this clone to the private issue tracker (README, Setup): clone it beside this
+# repository if it isn't there, and point .beads/redirect at it, so that this repository keeps no
+# issue data of its own. Nothing else here needs beads. It never runs `bd init` here, which would
+# commit beads' files and make this repository's origin the tracker's remote.
+BEADS_TRACKER_URL ?= git@github.com:guimassoqueto/issues.git
+BEADS_TRACKER_DIR ?= ../issues
+BEADS_MIN_VERSION := 1.3.4
+
+beads:
+	@v=$$(bd version 2>/dev/null | sed -n 's/^bd version \([0-9][0-9.]*\).*/\1/p'); \
+	if [ -z "$$v" ]; then \
+		echo "beads (bd) isn't installed: see https://beads.gascity.com/getting-started/installation"; exit 1; \
+	fi; \
+	if [ "$$(printf '%s\n%s\n' $(BEADS_MIN_VERSION) "$$v" | sort -V | head -n 1)" != "$(BEADS_MIN_VERSION)" ]; then \
+		echo "bd $$v is older than $(BEADS_MIN_VERSION): see https://beads.gascity.com/getting-started/upgrading"; exit 1; \
+	fi
+	@for f in embeddeddolt dolt metadata.json config.yaml; do \
+		if [ -e ".beads/$$f" ]; then \
+			echo ".beads/$$f exists: bd init ran here, and its remote may be this repository's origin."; \
+			echo "Nothing was deleted. Move .beads aside by hand, then run make beads again."; exit 1; \
+		fi; \
+	done
+	@if [ ! -d "$(BEADS_TRACKER_DIR)" ]; then \
+		git clone "$(BEADS_TRACKER_URL)" "$(BEADS_TRACKER_DIR)" \
+			&& chmod 700 "$(BEADS_TRACKER_DIR)/.beads" \
+			&& git -C "$(BEADS_TRACKER_DIR)" config beads.role maintainer \
+			&& (cd "$(BEADS_TRACKER_DIR)" && bd bootstrap) || exit 1; \
+	fi
+	@mkdir -p .beads && printf '%s/.beads\n' "$(BEADS_TRACKER_DIR)" > .beads/redirect
+	@git config beads.role maintainer
+	@bd where && echo "Beads of this repository: $$(bd count --label repo:local-book-rag)"
 
 lint:
 	@uv run ruff check --fix .

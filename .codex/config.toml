@@ -1,0 +1,4 @@
+# Codex runs .codex/hooks.json only with hooks turned on. They give each session beads' context
+# (devtools/beads-hook.sh, specs/010-beads-issue-tracking).
+[features]
+hooks = true
