@@ -1,0 +1,51 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/devtools/beads-hook.sh codex SessionStart",
+            "statusMessage": "Loading Beads context"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/devtools/beads-hook.sh codex PreCompact",
+            "statusMessage": "Checking Beads context"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/devtools/beads-hook.sh codex PostCompact",
+            "statusMessage": "Scheduling Beads context refresh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)\"/devtools/beads-hook.sh codex UserPromptSubmit",
+            "statusMessage": "Refreshing Beads context"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -16,6 +16,9 @@ models). Nothing else leaves the machine.
   Python 3.13 and uv; `asdf install` installs both.
 - Docker Engine with the Compose plugin
 - NVIDIA drivers and the NVIDIA Container Toolkit
+- For development, [beads](https://beads.gascity.com) (`bd`) 1.3.4 or later, which tracks the
+  issues found while working on the project (How changes are made). The application, its tests and
+  CI don't need it.
 
 Check that containers can reach the GPU before starting anything:
 
@@ -28,7 +31,18 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvidia-smi
 ```bash
 make env        # copy devtools/.env.sample to .env (won't overwrite an existing one)
 make install    # create .venv with the locked dependencies, Spec Kit's CLI among them, and install the git hooks
+make beads      # connect this clone to the issue tracker (development only)
 ```
+
+`make beads` connects the clone to the owner's private issue tracker, `guimassoqueto/issues`, one
+beads database for all of the owner's projects. If the tracker isn't cloned beside this repository
+(`../issues`), it clones it and runs `bd bootstrap`. Then it writes `.beads/redirect`, a file git
+ignores, pointing at the tracker: this repository keeps no issue data of its own. `bd where` shows
+the tracker a clone reaches. `BEADS_TRACKER_URL` and `BEADS_TRACKER_DIR` change where the tracker
+comes from and where it is cloned, as in `make beads BEADS_TRACKER_DIR=~/src/issues`. Without
+beads, or without access to the tracker, everything else works as before, and an agent session
+says that beads isn't available. Beads sends anonymous usage metrics (command names, its version,
+the platform, never issues); `bd metrics off` turns them off.
 
 Set `APP_UID` and `APP_GID` in `.env` if your user isn't 1000. Files copied into the app container
 with `docker compose cp` keep your IDs, and the app can write only to what its own user owns.
@@ -38,7 +52,8 @@ newline, `ruff check --fix`, `ruff format`) and re-stages the fixes, so the comm
 fails on issues that cannot be fixed automatically. The commit message must be a
 conventional commit (`feat: ...`, `chore: ...`) with a header of at most 72 characters.
 
-`main` takes no direct or force pushes, admins included: changes land through pull requests,
+`main` takes no direct or force pushes, admins included, for as long as the repository is public:
+GitHub Free enforces its ruleset on public repositories only. Changes land through pull requests,
 whose title must be a conventional commit too (`pr-title` workflow), since a squash merge
 commits it. Each merge into `main` runs the `release` workflow: commitizen reads the commits
 since the last `v*` tag and picks the bump (`fix`/`perf` patch, `feat` minor, `feat!` or a
@@ -64,6 +79,27 @@ OpenCode and the other agents that read it, where Codex calls them as `$speckit-
 every change has to respect are in `.specify/memory/constitution.md`, and `AGENTS.md` says which
 flow fits which change. The generated files are never edited by hand: after `make update` brings a
 new `specify-cli`, `make speckit-upgrade` regenerates them.
+
+What is still to be handled is tracked in [beads](https://beads.gascity.com), in the owner's
+private tracker (Setup). Anything found while working on something else, by an agent or by hand,
+becomes a bead instead of a change on the spot: a bug, a vulnerability, a feature, an idea to weigh
+first, or a trivial change. Picked up, a bead goes through its kind's flow above, links to the
+record and the pull request, and closes when the pull request merges. A feature's tasks stay in
+its `tasks.md`. The beads of this repository carry the label `repo:local-book-rag`, and
+`AGENTS.md`, Issues, has the rules. Claude Code and Codex sessions start with the commands, from
+`.beads/PRIME.md`, through the hooks in `.claude/settings.json` and `.codex/`. From the terminal:
+
+```bash
+bd dolt pull                                    # get what other machines recorded
+bd ready --label repo:local-book-rag            # what nothing blocks, highest priority first
+bd create "<title>" -t bug -p 2 -l repo:local-book-rag -d "<what was seen, and where>"
+bd show <id>
+bd close <id> --reason "Merged in #<n>"
+bd dolt push                                    # send what was recorded here
+```
+
+A vulnerability is never described in public before its fix lands. While the repository is
+public, it is fixed in a security advisory's temporary private fork (`AGENTS.md`, Issues).
 
 ## Running
 
@@ -709,4 +745,7 @@ specs/             # one directory per feature since v0.1.0: its spec, plan and 
 .specify/          # Spec Kit: the constitution, templates and scripts, and the bug and idea records
 .claude/skills/    # Spec Kit's skills for Claude Code, generated
 .agents/skills/    # the same skills for the agents that read .agents/skills, generated
+.claude/settings.json, .codex/  # the agents' session hook, which gives them beads' commands
+.beads/PRIME.md    # those commands; the rest of .beads/ (the redirect to the tracker) stays local
+devtools/          # development scripts, the hook's beads-hook.sh among them
 ```

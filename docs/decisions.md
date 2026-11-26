@@ -825,6 +825,85 @@ changed the version of none, and the image installs no dev dependencies.
 Fixed, they would no longer match the hashes Spec Kit recorded, and `specify integration upgrade`
 refuses to replace files it takes for local edits.
 
+### Beads, the backlog (`specs/010-beads-issue-tracking`)
+
+Spec Kit records how each change was handled, but nothing recorded what was still to be handled.
+A fix report's Follow-ups were read only by whoever opened that report, and what an agent noticed
+in passing was fixed on the spot or lost. [Beads](https://beads.gascity.com) (`bd` 1.3.4) is now
+the backlog, and Spec Kit stays the record.
+
+**One private tracker for all of the owner's projects, not this repository's `origin`.** By
+default, beads syncs its Dolt database to the repository's own `origin`, under `refs/dolt/data`.
+Anyone can fetch every ref of a public repository, so every issue would be public, vulnerabilities
+among them. `local-book-rag` was public, private for a few hours on 2026-11-26, and public again.
+The issues live in `guimassoqueto/issues`, private, which the owner's other repositories share,
+and this one keeps no issue data whatever its visibility.
+
+**Reached through `.beads/redirect`, written by `make beads`.** A redirect in `.beads/` sends every
+`bd` started in the clone, and in its linked worktrees, to the tracker's clone beside it. A
+relative path counts from the repository's root. Beads keeps the file local, and so does the
+`.gitignore`. `BEADS_DIR`, which beads documents for a shared tracker, lives in a shell profile,
+which an agent started elsewhere doesn't see. `bd init` here was never an option: it commits its
+files to the current branch, and wires this repository's `origin` as the remote. So `make beads`
+refuses to run when `.beads/` holds a database.
+
+**Which repository a bead belongs to is a label, `repo:<name>`.** A beads store has a single issue
+prefix, so a prefix per repository would need explicit IDs or routes to other stores. Every
+listing an agent makes filters on the label.
+
+**`idea` and `vulnerability` are custom types.** Beads' `bug`, `feature` and `chore` cover three of
+the flows. A `security` label would be easy to leave out, and `bd ready -t` couldn't select it.
+Beads' `spike` is time-boxed research, not an idea for an assessment to weigh. The types are stored
+in the database, so every clone has them.
+
+**A bead closes in the first session that sees its pull request merged, not in CI.** This
+repository's workflows would need a credential to the private tracker, in a repository that is
+public. Beads are picked up with `--status in_progress`, not `--claim`. A claim takes a lease of a
+few minutes, kept alive by `bd heartbeat` and reaped by `bd reclaim`, which suits short-lived
+workers under a supervisor. A change here lasts days.
+
+**`.beads/PRIME.md` replaces beads' session text.** The default says "Use beads for ALL task
+tracking", against `tasks.md` staying the one list of a feature's tasks. It also says not to use
+the agents' own memory files. A `PRIME.md` in the clone's `.beads` wins over the default and over
+the tracker's. It holds the commands, and `AGENTS.md`, Issues, the rules, so the two can't
+disagree. `bd prime` reads `PRIME.md` only from the directory it runs in. From `app/`, it gave the
+default text, so the hook runs it from the repository's root.
+
+**The hooks are written by hand, through `devtools/beads-hook.sh`.** `bd setup claude` writes a
+section into `CLAUDE.md`, which only imports `AGENTS.md`. `bd setup codex` writes a managed
+section into `AGENTS.md` and a beads skill into `.agents/skills/`, both carrying the default text.
+So `.claude/settings.json` and `.codex/` take the shapes beads documents for manual setup, and call
+one script. Without `bd` 1.3.4, or without a tracker, the script tells the session why, and always
+exits 0, so a session starts whatever beads' state. It is tested with a stand-in `bd`, so
+`make test` needs no beads. Codex wasn't installed on the owner's machine, so its hook was checked
+by running it by hand.
+
+**No beads git hooks.** With the Dolt backend, issue data never travels in commits, and beads' git
+hooks only chain the others and add agent trailers. pre-commit keeps `.git/hooks` as it was.
+
+**No auto-push.** Beads keeps it opt-in, because concurrent pushes to a git remote can corrupt or
+strand its history. A session pulls at its start and pushes at its end.
+
+**A vulnerability's path depends on the repository's visibility, as `main`'s protection does.**
+Repository security advisories exist only on public repositories. While this one is public, a
+vulnerability is fixed in an advisory's temporary private fork. Status checks don't run there, and
+GitHub doesn't enforce the target branch's rules when the advisory merges. A trial on 2026-11-26
+kept a phrase in the fork's branch and pull request, and found it nowhere in the public repository.
+Closing the advisory unpublished left the fork, which has to be deleted by hand. While it is private,
+nothing in it is public, and the usual bug flow does. The same switch decides whether `main` is
+protected. GitHub Free enforces `protect-main` on public repositories only, and while the
+repository was private, the API refused to read it and `main` took direct pushes.
+
+**Neither tasks nor beads are mirrored.** A feature's tasks stay in `tasks.md`, which implement and
+converge check off: copied into beads, the two lists would drift apart. Beads aren't mirrored to
+GitHub Issues either (`bd github sync`), which would need a token on each machine and conflict when
+both sides are edited.
+
+**The tracker started with the open backlog.** The three fix reports' Follow-ups and
+`docs/benchmark-results.md`'s Recommendations and Known limitations held 25 items. Four were done
+or moot, and three pairs were duplicates, so 18 became beads, each with the place it was listed in
+`found_in`. The reports themselves weren't edited.
+
 ## Removed with PDF and EPUB (v0.5.0)
 
 The library reads Markdown only since v0.5.0 (Ingestion). These decisions explained the readers

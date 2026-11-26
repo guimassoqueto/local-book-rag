@@ -232,6 +232,11 @@ benchmarks/
 data/
 logs/
 
+# Beads: the issues live in a private tracker (`make beads`). Its redirect, and whatever else
+# beads writes here, stays local; only the session text is tracked.
+.beads/*
+!.beads/PRIME.md
+
 # Spec Kit catalog cache, written by `specify extension update`. .specify/.gitignore
 # covers the rest of its machine-local state.
 .specify/extensions/.cache/
