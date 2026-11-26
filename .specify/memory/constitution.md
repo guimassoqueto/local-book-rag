@@ -265,6 +265,10 @@ first finds out from `docs/decisions.md` why it is that way.
   `book-rag validate-benchmark`: every evidence quote has to be in its book exactly as written.
 - **Spec Kit** takes every change that isn't trivial, and `AGENTS.md` says which flow fits which
   change.
+- **Beads** holds what is still to be handled: what is found while working on something else
+  becomes a bead in the owner's private tracker, not a change on the spot, and a bead picked up
+  goes through the flow `AGENTS.md` maps its kind to. The repository holds no issue data, and a
+  vulnerability is never described in public before its fix lands. `AGENTS.md` says how.
 
 ## Governance
 
@@ -291,4 +295,4 @@ first finds out from `docs/decisions.md` why it is that way.
   rewords without changing what is required. The ratification date stays, and the amendment date
   is the date of the latest version.
 
-**Version**: 3.0.0 | **Ratified**: 2026-11-08 | **Last Amended**: 2026-11-20
+**Version**: 3.1.0 | **Ratified**: 2026-11-08 | **Last Amended**: 2026-11-26
