@@ -516,10 +516,12 @@ session does, and weren't told about beads.
   `origin` had no ref beyond branches and tags. Searched for in every branch, the 28 bead titles
   turned up in two files only, `docs/benchmark-results.md` and the unmarked-abstentions fix report,
   where two seed beads (S5, S18) took their titles from what those public records say.
-- **SC-003: pass, on a copy.** The branch wasn't pushed, so a fresh clone from GitHub would lack
-  `make beads`. A copy of the working tree, in a new git repository, ran
-  `make beads BEADS_TRACKER_DIR=<new directory>`. It cloned the tracker, bootstrapped it, and
-  listed the 19 beads in 7 seconds.
+- **SC-003: pass.** At first the branch wasn't pushed, so the check ran on a copy of the working
+  tree, in a new git repository: `make beads BEADS_TRACKER_DIR=<new directory>` cloned the
+  tracker, bootstrapped it, and listed the 19 beads then, in 7 seconds. Once `feat/beads` was
+  pushed (convergence, T036), a clone of it from GitHub ran the same command, with a new
+  directory for the tracker. It listed all 28 beads in 10 seconds, from the clone to the count,
+  and the clone's `git status` stayed clean.
 - **SC-004: pass.** Picked up, the four trial beads went in progress. The session named the bug
   flow for the bug, the assessment for the idea, and no flow for the chore. For the feature, it
   told the owner to run `/speckit-specify` with the bead's description. Pull request #29, a draft
@@ -552,6 +554,14 @@ session does, and weren't told about beads.
   left the fork, which was deleted once the owner granted `gh` the `delete_repo` scope.
 - **SC-009: pass.** The 18 seed beads, with this feature's (`iss-bzz`), made 19, each with its
   `found_in`, and none of the four items left out.
+- **FR-006, US1/AC4: pass (convergence, T035).** On the research's scratch tracker, with a local
+  bare repository standing in for GitHub:
+  - With the remote moved away, a bead was recorded and kept. Its push failed, and once the
+    remote was back the next push sent it, and a second clone pulled it.
+  - Beads recorded in both clones before a sync were in both after it. The second clone's push
+    was refused until it pulled, which merged the two, and then it pushed.
+
+  `.beads/PRIME.md` now says to pull and push again when a push is refused.
 
 ### Corrections during implementation
 

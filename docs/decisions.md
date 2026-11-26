@@ -876,7 +876,9 @@ So `.claude/settings.json` and `.codex/` take the shapes beads documents for man
 one script. Without `bd` 1.3.4, or without a tracker, the script tells the session why, and always
 exits 0, so a session starts whatever beads' state. It is tested with a stand-in `bd`, so
 `make test` needs no beads. Codex wasn't installed on the owner's machine, so its hook was checked
-by running it by hand.
+by running it by hand. Nothing of the integration is in a file Spec Kit generates: the skills in
+`.claude/skills/speckit-*` and `.agents/skills/speckit-*`, and `.specify/` but for the constitution
+and the records. After `make speckit-upgrade` regenerated them, the hook still served `PRIME.md`.
 
 **No beads git hooks.** With the Dolt backend, issue data never travels in commits, and beads' git
 hooks only chain the others and add agent trailers. pre-commit keeps `.git/hooks` as it was.

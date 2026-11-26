@@ -266,8 +266,13 @@ Task: "Update README.md: Requirements, Setup, How changes are made, Layout"   # 
 
 ## Phase 8: Convergence
 
-- [ ] T034 Close a vulnerability bead fixed through an advisory once the advisory's fix has merged, with the advisory named: add it to `AGENTS.md`'s Vulnerabilities bullet, and to `.beads/PRIME.md`'s start-of-session check, which reads only `gh-<n>` refs today. A `GHSA-…` ref is read with `gh api repos/<owner>/<repo>/security-advisories/<id> --jq .state` per FR-019, US3/AC5 (partial)
-- [ ] T035 Verify recording without a network and from two places before a sync, on a scratch tracker with a local bare remote: a bead recorded with the remote unreachable is kept and reaches the remote at the next push, and beads recorded in two clones before syncing are both in each after a pull and a push. Record the outcome in `specs/010-beads-issue-tracking/spec.md`'s Results per FR-006, US1/AC4, Edge Cases (partial)
-- [ ] T036 Once `feat/beads` is pushed, rerun quickstart.md § 7 from a clone of GitHub, not a copy of the working tree, and update SC-003's entry in `specs/010-beads-issue-tracking/spec.md`'s Results per SC-003 (partial)
-- [ ] T037 Say in `AGENTS.md`'s Issues, How, that a bead found here about another repository gets that repository's label, `repo:<name>`, per Edge Cases, "A bead about another repository" (partial)
-- [ ] T038 Correct `../issues/README.md`, What is here: `main` also holds `.beads/README.md`, `.beads/.gitignore` and `.gitignore`. Commit and push it to the tracker per T003 (partial)
+- [X] T034 Close a vulnerability bead fixed through an advisory once the advisory's fix has merged, with the advisory named: add it to `AGENTS.md`'s Vulnerabilities bullet, and to `.beads/PRIME.md`'s start-of-session check, which reads only `gh-<n>` refs today. A `GHSA-…` ref is read with `gh api repos/<owner>/<repo>/security-advisories/<id> --jq .state` per FR-019, US3/AC5 (partial)
+- [X] T035 Verify recording without a network and from two places before a sync, on a scratch tracker with a local bare remote: a bead recorded with the remote unreachable is kept and reaches the remote at the next push, and beads recorded in two clones before syncing are both in each after a pull and a push. Record the outcome in `specs/010-beads-issue-tracking/spec.md`'s Results per FR-006, US1/AC4, Edge Cases (partial)
+- [X] T036 Once `feat/beads` is pushed, rerun quickstart.md § 7 from a clone of GitHub, not a copy of the working tree, and update SC-003's entry in `specs/010-beads-issue-tracking/spec.md`'s Results per SC-003 (partial)
+- [X] T037 Say in `AGENTS.md`'s Issues, How, that a bead found here about another repository gets that repository's label, `repo:<name>`, per Edge Cases, "A bead about another repository" (partial)
+- [X] T038 Correct `../issues/README.md`, What is here: `main` also holds `.beads/README.md`, `.beads/.gitignore` and `.gitignore`. Commit and push it to the tracker per T003 (partial)
+
+## Phase 9: Convergence
+
+- [X] T039 Say in `AGENTS.md`'s Vulnerabilities bullet what happens when the repository's visibility changes while a vulnerability is open. A fix begun in the usual bug flow while the repository is private is merged before the repository is made public. Otherwise its branch and pull request are deleted, and the fix is made again through an advisory. Per Edge Cases, "The repository's visibility changes" (partial)
+- [X] T040 Add to the hooks entry in `docs/decisions.md`, Process, that the integration writes none of Spec Kit's generated files (`.claude/skills/speckit-*`, `.agents/skills/speckit-*`, `.specify/` but the constitution and the records), and that `make speckit-upgrade` left it working per FR-029, SC-007 (partial)

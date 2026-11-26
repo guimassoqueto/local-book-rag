@@ -62,7 +62,8 @@ them with `bd prime`.
 - **What counts.** Anything found while working on something else: a bug, a vulnerability, a
   feature, an idea whose worth is uncertain, or a trivial change.
 - **How.** A bead has exactly one label `repo:<repository>`, `repo:local-book-rag` here, which
-  `bd label add` gives to one that lacks it. Its description says what was seen and where (the file
+  `bd label add` gives to one that lacks it. A bead found here about another of the owner's
+  repositories gets that repository's label, and lists with its beads. Its description says what was seen and where (the file
   and line, the command and its output, the record or the run), and is never empty. Its kind is `bug`,
   `vulnerability`, `feature`, `idea` or `chore` (a trivial change), and its priority runs from 0,
   critical, to 4, backlog. It links to the work it came from: `discovered-from` that work's bead,
@@ -93,8 +94,13 @@ them with `bd prime`.
     (`…/security-advisories/<ghsa_id>/forks -X POST`). The fix and its bug record are made in that
     fork, and merged from the advisory, whose status checks and branch rules don't apply there. The
     bead's `external_ref` is the advisory's `GHSA-…` ID. The advisory is published once the fix
-    has merged. One closed without a fix leaves its fork, which the owner deletes (`gh repo delete`
-    needs the `delete_repo` scope).
+    has merged, and the first session that sees it published closes the bead with "Fixed through
+    GHSA-…" (`.beads/PRIME.md`). One closed without a fix puts the bead back to open, and leaves
+    its fork, which the owner deletes (`gh repo delete` needs the `delete_repo` scope).
+  - **If the visibility changes while the fix is open**, the visibility when the fix started still
+    decides. A fix begun in the usual bug flow while the repository was private is merged before
+    the repository is made public. If it can't be, its branch and pull request are deleted before,
+    and the fix is made again through an advisory.
 - **Tasks.** A feature's tasks stay in its `tasks.md`: no task becomes a bead.
 - **Without beads.** When the session says beads isn't available, work as usual, and list in the
   report what would have been recorded.

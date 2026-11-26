@@ -17,6 +17,12 @@ For each of those beads whose `external_ref` is a pull request, `gh-<n>`, run
 `gh pr view <n> --json state`. If it's `MERGED`, run `bd close <id> --reason "Merged in #<n>"`. If
 it's `CLOSED`, run `bd update <id> --status open`, which keeps the bead's links.
 
+For each whose `external_ref` is a security advisory, `GHSA-…`, run
+`gh api repos/guimassoqueto/local-book-rag/security-advisories/<GHSA-…> --jq .state`. If it's
+`published`, which happens only once its fix has merged, run
+`bd close <id> --reason "Fixed through <GHSA-…>"`. If it's `closed`, the advisory ended without a
+fix: run `bd update <id> --status open`. A `draft` or `triage` advisory is still in progress.
+
 ## What to work on next
 
 ```bash
@@ -58,5 +64,7 @@ bd close <id> --reason "Duplicate of <id>"
 bd dolt push
 ```
 
-The tracker is private, and pushing it needs no other permission. Committing and pushing this
+If the push is refused because another machine pushed first, run `bd dolt pull`, which merges
+both, then push again. If it fails because there's no network, nothing is lost: the next push
+sends it. The tracker is private, and pushing it needs no other permission. Committing and pushing this
 repository still follow `AGENTS.md`.
