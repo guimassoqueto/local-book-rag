@@ -665,6 +665,19 @@ support a claim, so a share of "correct" citations would punish correct answers.
 **Experiments run in their own workspace**, on separate files and `bench_*` collections, so that
 nothing they do can reach the real library.
 
+**RAGAS sends no analytics, and its switch is in the code.** RAGAS posts usage events to its
+authors, at `t.explodinggradients.com`, unless `RAGAS_DO_NOT_TRACK` is `true`. It sends one when
+the judge's embeddings are built and one for each embedding request while the judge scores. Each
+carries a persistent random ID, the RAGAS version and the embedding model's name, but no book text,
+question, answer or key. Nothing set the switch, so every generation run sent them until
+`.specify/bugs/ragas-analytics`, against Principle I: nothing contacts a third party nobody chose.
+The other libraries' telemetry was off from the first image: ChromaDB's in the client's settings
+(`app/storage/chroma.py`), Hugging Face's and Gradio's in the Dockerfile. RAGAS's is set in
+`app/evaluation/__init__.py`, which runs before any module that imports RAGAS. It is in code, not
+the Dockerfile, for two reasons: the unit tests and CI import RAGAS outside the image, and RAGAS
+reads the switch only once, so it has to be set before then. It is set outright, not as a
+default, so a value left in the environment can't turn the analytics back on.
+
 **The benchmark's files left the repository.** The owner removed `benchmarks/` with the volumes, as
 the folder was mounted into the app with them, and its result files went too. The experiments are
 still in commit `c7bb785`. The dataset's last version, whose books became Markdown in v0.5.0, is in
