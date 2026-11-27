@@ -85,3 +85,10 @@ None.
   turns a failing metric into `None` (`app/evaluation/generation_metrics.py:102`), so this bug's
   `ImportError` would have ended a run at its first answered question. Found in the assessment,
   and raised again by the review.
+- **iss-hdq**, "Benchmark results don't record the judge's instructor and openai versions" (bug,
+  P3, `discovered-from` iss-30k): `_TRACKED_PACKAGES` (`app/evaluation/benchmark.py:68`) leaves
+  out both, so a result from before this fix and one after it, both on ragas 0.4.4, record the
+  same packages. Raised by the review of #31.
+- iss-wf8 now also covers packages that `make update` holds back without saying so, such as
+  `jiter`, which this fix's floor keeps below 0.19 for `anthropic` and `openai` (a comment on
+  the bead).
