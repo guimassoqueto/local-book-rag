@@ -71,7 +71,10 @@ python-preference = "only-system"
 # The only deployment target; keeps the CUDA wheels out of other platforms' markers.
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
 # ragas 0.4.3 imports langchain_community.chat_models.vertexai, which 0.4.2 removed.
-constraint-dependencies = ["langchain-community<0.4.2"]
+# Unbounded, ragas fell to 0.3.1, its last release without instructor, when jiter outgrew
+# instructor's cap, and 0.3.1 has no InstructorBaseRagasLLM, which the judge subclasses.
+# 0.4.4 is the version the judges were verified on.
+constraint-dependencies = ["langchain-community<0.4.2", "ragas>=0.4.4"]
 
 [tool.uv.build-backend]
 module-name = "app"

@@ -57,6 +57,15 @@ is deterministic, and `tokenizers` for each model's own token counts.
 
 **`langchain-community<0.4.2`.** ragas 0.4.3 imports a module that 0.4.2 removed.
 
+**`ragas>=0.4.4`.** Listed unbounded, ragas went from 0.4.4 back to 0.3.1 in a `make update`:
+`jiter` moved up to 0.19, `instructor` caps it below that, and 0.3.1 is the last ragas without
+`instructor`, so the resolver gave up ragas rather than `jiter`. 0.3.1 has no
+`InstructorBaseRagasLLM`, which `ProviderLLM` subclasses: `make test` stopped at collection, and
+the generation benchmark couldn't judge. The bound is a constraint, like the one above, so the
+dependency lists stay unpinned, and 0.4.4 is the version the judges were verified on. It holds
+`jiter` below 0.19 for the whole project, `anthropic` and `openai` included, until `instructor`
+lifts its cap: one lock resolves every extra together.
+
 **LangChain is only here through ragas**, in the `evaluation` extra.
 
 ## Configuration
