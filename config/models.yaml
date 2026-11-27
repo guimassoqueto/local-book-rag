@@ -121,7 +121,7 @@ cloud_profiles:
     # Sent as the request's effort. The current Claude models reason whatever they are told,
     # and Claude Opus 5.5 can't be told not to. They take no sampling temperature either, so
     # generation.yaml's temperature doesn't apply to them.
-    reasoning: medium
+    reasoning: low
 
     # Added to every request's max_tokens, since reasoning counts against it, and set aside from
     # context_size.
@@ -156,7 +156,7 @@ cloud_profiles:
     # models reasoned no tokens at all on the integration tests' questions (2026-11-20), so no
     # summary of their reasoning came back. The GPT-6 models take no sampling temperature, so
     # generation.yaml's temperature doesn't apply to them.
-    reasoning: medium
+    reasoning: low
 
     # Added to every request's max_output_tokens, since reasoning counts against it, and set
     # aside from context_size.
