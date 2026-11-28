@@ -5,12 +5,28 @@ from dataclasses import dataclass
 import gradio as gr
 
 from app.container import Container
-from app.generation.summarization import ChapterSummary
 from app.interface.common import reports_errors
 from app.interface.formatting import chapter_choices, summary_report
 from app.interface.model_choice import build_model_choice
 
 SAME_AS_BOOK = "Same as the book"
+
+# The browser makes the file, from the name and text the service built. Gradio's download button
+# serves a file from its cache, which the app sweeps of copies older than 50 minutes, so a summary
+# read for an hour would download nothing. Made in the page, the file can't expire, and the click
+# reaches no server (specs/011-summary-download, research.md R1 and R2).
+_DOWNLOAD = """
+(name, text) => {
+    const url = URL.createObjectURL(new Blob([text], {type: "text/markdown;charset=utf-8"}));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+"""
 
 
 @dataclass(frozen=True)
@@ -35,8 +51,11 @@ def build_summarization_tab(container: Container) -> SummarizationTab:
 
         report = gr.Markdown()
         summary_text = gr.Markdown(container=True, min_height=120)
-        save = gr.Button("Save the summary", interactive=False)
-        current = gr.State()
+        download = gr.Button("Download the summary", interactive=False)
+        # The file of the summary shown, for the download: a JavaScript function reads its inputs from
+        # the page, where a gr.State never goes.
+        file_name = gr.Textbox(visible=False)
+        file_text = gr.Textbox(visible=False)
 
     @reports_errors
     def on_book_change(book_id: str | None) -> gr.Dropdown:
@@ -53,7 +72,7 @@ def build_summarization_tab(container: Container) -> SummarizationTab:
         model: str | None = None,
         fallbacks: list[str] | None = None,
         progress: gr.Progress = gr.Progress(),  # noqa: B008
-    ) -> tuple[str, str, ChapterSummary, gr.Button]:
+    ) -> tuple[str, str, str, str, gr.Button]:
         if not book_id or number is None:
             raise gr.Error("Choose a book and a chapter first.")
         # The progress shows what the service says, a model's failure and the next one included.
@@ -66,20 +85,16 @@ def build_summarization_tab(container: Container) -> SummarizationTab:
             model=model,
             fallbacks=tuple(fallbacks or ()),
         )
-        return summary_report(summary, container.models), summary.text, summary, gr.Button(interactive=True)
-
-    @reports_errors
-    def on_save(summary: ChapterSummary | None) -> None:
-        if summary is None:
-            raise gr.Error("Generate a summary first.")
-        gr.Info(f"Saved to {container.summaries.save(summary)}.")
+        file = container.summaries.summary_file(summary)
+        report_text = summary_report(summary, container.models)
+        return report_text, summary.text, file.name, file.text, gr.Button(interactive=True)
 
     book.change(on_book_change, inputs=book, outputs=chapter, api_visibility="private")
     generate.click(
         on_generate,
         inputs=[book, chapter, summary_type, language, choice.model, choice.fallbacks],
-        outputs=[report, summary_text, current, save],
+        outputs=[report, summary_text, file_name, file_text, download],
         api_name="summarize",
     )
-    save.click(on_save, inputs=current, api_name="save_summary")
+    download.click(None, inputs=[file_name, file_text], js=_DOWNLOAD, api_visibility="private")
     return SummarizationTab(book)

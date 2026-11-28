@@ -12,6 +12,7 @@ This works the same for every model.
 
 import logging
 import re
+import unicodedata
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from time import perf_counter
@@ -53,6 +54,9 @@ _MIN_PARTIAL_WORDS = 150  # below this, a part can't say anything: better to com
 _MERGE_LIMIT_RATIO = 2  # models overrun word targets, and a merge cut off at the limit gains nothing
 _MIN_ROUND_SHRINK = 0.9  # what a round of merges has to leave, at most, of what it was given
 _MIN_STATEMENT_WORDS = 5  # shorter lines are labels, with nothing to look up
+# A downloaded summary's name leaves room for its folder: Windows' paths stop at 260 characters by
+# default, and most file systems take 255 bytes for a name.
+_FILE_NAME_LIMIT = 100
 
 
 class SourceLocator(Protocol):
@@ -114,6 +118,20 @@ class ChapterSummary:
     attempts: tuple[Attempt, ...] = ()
     prompt_tokens: int = 0
     completion_tokens: int = 0
+
+
+@dataclass(frozen=True)
+class SummaryFile:
+    """A summary as a Markdown file of its own, which the Summarization tab downloads.
+
+    Attributes:
+        name: the file's name, with `.md`: the book, the chapter, the type and the language asked for.
+        text: a title naming the book and the chapter, a line naming the type, the summary as the tab
+            shows it, and a closing note naming the model that wrote it.
+    """
+
+    name: str
+    text: str
 
 
 class ChapterSummarizer:
@@ -362,6 +380,27 @@ class ChapterSummarizer:
             record["tokens"] = {"read": attempt.prompt_tokens, "generated": attempt.completion_tokens}
         return record
 
+    def summary_file(self, summary: ChapterSummary) -> SummaryFile:
+        """The summary as a Markdown file to download, made from the summary alone.
+
+        It reads no book, no chunk and no model, and writes nothing. Once downloaded, the file has
+        left the tab's report behind, so its closing note names the model that wrote it, after a
+        rule, which reads as a footnote in every viewer. It names only that model: a summary is
+        written by one model, which starts again from the first step when another fails.
+        """
+        if self._models.is_cloud_provider(summary.provider):
+            origin = f"a cloud model from {self._models.label_of(summary.provider)}"
+        else:
+            origin = "a local model"
+        blocks = (
+            _file_title(summary),
+            _type_line(summary),
+            summary.text.strip(),
+            "---",
+            f"Written by `{summary.model}`, {origin}.",
+        )
+        return SummaryFile(_file_name(summary), "\n\n".join(blocks) + "\n")
+
     def _budget(self, run: "_Run", max_tokens: int) -> int:
         """How many tokens a prompt may take in the run's model, after reserving the reply and a margin."""
         return int(run.llm.context_size() * (1 - self._safety_margin)) - max_tokens
@@ -603,3 +642,45 @@ def _with_references(text: str, citations: Sequence[Citation]) -> str:
 def without_references(text: str) -> str:
     """A summary as the model wrote it. The references quote the book, which the model didn't write."""
     return text.split(_REFERENCES)[0]
+
+
+def _file_title(summary: ChapterSummary) -> str:
+    """The titles go in as the catalog holds them: a title made from a file name, such as
+    `02_a_era_das_revolucoes`, renders as written, since an underscore between letters isn't
+    emphasis."""
+    title = f"# {summary.book_title}, chapter {summary.chapter_number}"
+    return f"{title}: {summary.chapter_title}" if summary.chapter_title else title
+
+
+def _type_line(summary: ChapterSummary) -> str:
+    kind = f"{summary.summary_type[:1].upper()}{summary.summary_type[1:]} summary"
+    return f"{kind}, in {summary.language}." if summary.language else f"{kind}."
+
+
+def _file_name(summary: ChapterSummary) -> str:
+    """`<book>_chapter_<NN>_<type>[_<language>].md`, a name every system takes.
+
+    Underscores separate the parts and hyphens the words. A name over the limit loses the end of
+    its book part, at a word when it can: the chapter, the type and the language are what tell one
+    book's summaries apart.
+    """
+    parts = [f"chapter_{summary.chapter_number:02d}", _safe_name_part(summary.summary_type)]
+    if summary.language:
+        parts.append(_safe_name_part(summary.language))
+    rest = "_" + "_".join(parts) + ".md"
+    book = _safe_name_part(summary.book_title) or _safe_name_part(summary.book_id)
+    room = max(_FILE_NAME_LIMIT - len(rest), 1)
+    if len(book) > room:
+        cut = book[:room]
+        if book[room] != "-" and "-" in cut:
+            cut = cut[: cut.rindex("-")]
+        book = cut.rstrip("-")
+    return book + rest
+
+
+def _safe_name_part(text: str) -> str:
+    """Lowercase words of letters and digits in any script, and the marks that combine with them,
+    joined by hyphens. NFC keeps an accented letter one character, however its title was typed."""
+    text = unicodedata.normalize("NFC", text.lower())
+    kept = "".join(c if c.isalnum() or unicodedata.category(c).startswith("M") else " " for c in text)
+    return "-".join(kept.split())

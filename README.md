@@ -151,7 +151,7 @@ The Gradio interface at <http://localhost:7860> has four tabs:
 | ------------- | ----------------------------------------------------------------------------------- |
 | Library       | Upload, replace, remove and reindex books, and reset. Shows each book's status, and the progress of each operation |
 | Chat          | Ask about one book, one chapter or several books, and inspect the retrieved passages. With a cloud model set up, pick the model and its fallbacks for the tab |
-| Summarization | Summarize a chapter in any of the types, and save the result. Its own model choice, as in Chat |
+| Summarization | Summarize a chapter in any of the types, and download the result as a Markdown file. Its own model choice, as in Chat |
 | Research      | The latest question from the inside: the model that answered and any that failed first, each stage's scores, final context, reasoning, tokens, timings, and GPU memory |
 
 Everything in it goes through the same services as the commands. Destructive actions need
@@ -449,6 +449,16 @@ A saved summary's JSON file also records its model's provider, the models that f
 and, for a cloud model, the tokens it read and generated. `reindex-all --regenerate-summaries`
 writes the saved summaries again with the local model, except those a cloud model wrote: it leaves
 them as they were, lists them, and calls no cloud model (see Cloud models).
+
+The Summarization tab doesn't save into the library: its "Download the summary" saves a Markdown
+file on your machine, such as `02-a-era-das-revolucoes_chapter_06_brief.md`, named after the book,
+the chapter, the type and the language asked for. The file opens with a title naming the book and
+the chapter, and a line naming the type. Then comes the summary as the tab shows it, with its
+citations and references, and, after a rule, a note naming the model that wrote it: ``Written by
+`gpt-oss:20b`, a local model.``, or which cloud provider's model it was. The browser makes the file
+from the page, so a download works however long after the summary was made, and reaches no
+server. Keeping a summary in the library, where `reindex-all --regenerate-summaries` finds it, is
+`summarize --save`'s.
 
 ## Cloud models
 

@@ -85,12 +85,12 @@ def test_both_tabs_offer_it_and_it_answers_summarizes_and_shows_in_the_research_
 
     question = ("Where is the dog?", [], formatting.ALL_CHAPTERS, "Same as the question", "fc-a")
     *_, (status, text, _, _, answer) = ask(*question)
-    report, _, summary, _ = summarize("book_001", 1, "brief", "Same as the book", "fc-b", ["fc-a"])
+    report, _, _, file_text, _ = summarize("book_001", 1, "brief", "Same as the book", "fc-b", ["fc-a"])
 
     assert len(dropdowns) == 2
     assert all(("fc-a · FakeCloud", "fc-a") in dropdown.choices for dropdown in dropdowns)
     assert status.startswith("Answered by fc-a (FakeCloud)") and text == "A cloud answer [1]."
-    assert (summary.model, summary.provider) == ("fc-b", "fakecloud")
+    assert file_text.endswith("Written by `fc-b`, a cloud model from FakeCloud.\n")
     assert "`fc-b`, FakeCloud" in report
     run = formatting.run_markdown(answer, "embedding", "reranker", app_container.models)
     assert "| LLM | `fc-a` (FakeCloud) |" in run.splitlines()
