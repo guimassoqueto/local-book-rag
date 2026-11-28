@@ -248,6 +248,23 @@ summarized both Portuguese chapters of the benchmark in English. Named, the lang
 `qwen3.5` still copied the English headings it was asked to translate, even with the language
 named, so the headings are listed already translated, for the six languages the interface offers.
 
+**The Summarization tab downloads a summary, and the browser makes the file**
+(`specs/011-summary-download`). The tab's button saved a summary into `data/summaries/`, which
+lives in the app container: `make up` recreates it after any change to the code or to `config/`,
+deleting what it holds, and the owner's machine can't open the file without copying it out
+(Infrastructure). So the tab downloads the summary instead, as a Markdown file that stays on the
+owner's machine. Keeping one in the library, for `reindex-all --regenerate-summaries`, is
+`summarize --save`'s, as before. The service builds the file, its title, type line, summary and
+note, and the tab only hands it to the browser. The browser makes the file from the page, instead
+of a `gr.DownloadButton` serving it: that button downloads a file already in Gradio's cache at the
+moment it is clicked, and the cache sweep (Infrastructure) deletes it after 50 minutes, so a
+summary read for an hour would download nothing, without a word. Made in the page, the file can't
+expire, and the click reaches no server. Once downloaded, the file has left the tab's report and a
+saved summary's JSON file behind, so it ends with a note naming the model that wrote it, and that
+one only: a summary is written by one model (Cloud models). The note is a closing line after a
+rule, not Markdown's footnote syntax, which some viewers show as written and which needs a marker
+in the text.
+
 **The no-evidence marker is matched with any dash.** `gpt-oss` writes some hyphens as the
 non-breaking hyphen, U+2011, and did so in the marker in 2 of 360 answers. Unrecognized, the
 abstention was shown as an answer, with the marker in its first line. `gemma4` translated the

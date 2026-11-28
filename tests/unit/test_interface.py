@@ -291,6 +291,11 @@ def handler(interface, name):
     return next(fn.fn for fn in interface.fns.values() if fn.api_name == name)
 
 
+def handler_name(fn):
+    """The name of an event's Python function, or None for an event that runs JavaScript alone."""
+    return getattr(fn.fn, "__name__", None)
+
+
 def test_every_primary_operation_is_reachable(interface):
     names = {fn.api_name for fn in interface.fns.values()}
 
@@ -304,9 +309,9 @@ def test_every_primary_operation_is_reachable(interface):
         "reset_everything",
         "ask",
         "summarize",
-        "save_summary",
         "system_status",
     } <= names
+    assert "save_summary" not in names  # keeping a summary in the library is the command line's
 
 
 def test_the_list_of_books_refreshes_after_a_failure_too(interface):
@@ -404,20 +409,63 @@ def test_asking_an_empty_library_is_a_visible_error(interface):
         list(handler(interface, "ask")("Q?", [], formatting.ALL_CHAPTERS, "Same as the question"))
 
 
-def test_a_summary_can_be_generated_and_saved(interface, library, tmp_path):
+def test_a_summary_can_be_generated_and_downloaded(interface, library, tmp_path):
     book = library.add(tmp_path)
 
-    report, text, generated, _ = handler(interface, "summarize")(book.book_id, 1, "brief", "Same as the book")
-    handler(interface, "save_summary")(generated)
+    report, text, name, file_text, _ = handler(interface, "summarize")(book.book_id, 1, "brief", "Same as the book")
 
     assert "of" in report
     assert "Chapter overview" in text
-    assert len(library.summary_documents.saved()) == 1
+    assert name.endswith(".md") and "Chapter overview" in file_text
+    assert library.summary_documents.saved() == []  # the tab writes nothing into the library
 
 
 def test_summarizing_needs_a_chapter(interface):
     with pytest.raises(gr.Error, match="Choose a book"):
         handler(interface, "summarize")("book_001", None, "brief", "Same as the book")
+
+
+# The download (specs/011-summary-download, contracts/summarization-tab.md)
+
+
+def button_labelled(interface, label):
+    return next(
+        (block for block in interface.blocks.values() if isinstance(block, gr.Button) and block.value == label), None
+    )
+
+
+def test_the_download_waits_for_a_summary_and_nothing_offers_to_save(interface):
+    assert button_labelled(interface, "Download the summary").interactive is False
+    assert button_labelled(interface, "Save the summary") is None
+
+
+def test_a_generated_summary_comes_with_its_file(interface, library, tmp_path):
+    book = library.add(tmp_path)
+
+    report, text, name, file_text, button = handler(interface, "summarize")(
+        book.book_id, 1, "brief", "Same as the book"
+    )
+
+    assert name == "one_chapter_01_brief.md"
+    assert file_text.startswith("# one, chapter 1")
+    assert text.strip() in file_text
+    assert file_text.endswith("\n\n---\n\nWritten by `fake-llm`, a local model.\n")
+    assert button.interactive is True
+
+
+def test_the_download_is_made_in_the_browser_from_the_two_hidden_boxes(interface):
+    download = button_labelled(interface, "Download the summary")
+    summarize = next(fn for fn in interface.fns.values() if fn.api_name == "summarize")
+    event = next(fn for fn in interface.fns.values() if (download._id, "click") in fn.targets)
+    name_box, text_box = summarize.outputs[2], summarize.outputs[3]
+
+    assert event.fn is None  # the click reaches no server: nothing there can expire (research.md R1, R2)
+    assert "new Blob" in event.js and ".download" in event.js
+    assert list(event.inputs) == [name_box, text_box]
+    assert list(event.outputs) == []
+    assert event.api_visibility == "private"
+    assert all(isinstance(box, gr.Textbox) and box.visible is False for box in (name_box, text_box))
+    assert summarize.outputs[4] is download
 
 
 def test_replacing_through_the_interface_uses_the_service(interface, library, tmp_path):
@@ -935,7 +983,7 @@ def model_dropdowns(interface):
 
 
 def model_change(interface):
-    return next(fn.fn for fn in interface.fns.values() if fn.fn.__name__ == "on_model_change")
+    return next(fn.fn for fn in interface.fns.values() if handler_name(fn) == "on_model_change")
 
 
 def test_without_cloud_models_no_model_choice_shows(interface):
@@ -1010,7 +1058,7 @@ def test_a_local_answer_without_failures_reads_as_today(cloud_interface, library
 
 
 def model_changes(interface):
-    return [fn.fn for fn in interface.fns.values() if fn.fn.__name__ == "on_model_change"]
+    return [fn.fn for fn in interface.fns.values() if handler_name(fn) == "on_model_change"]
 
 
 def test_each_tab_keeps_its_own_model_choice(cloud_interface):
@@ -1032,14 +1080,14 @@ def test_the_summarization_notice_speaks_of_the_chapter(cloud_interface):
 def test_a_cloud_summary_names_its_provider_and_its_tokens(cloud_interface, library, tmp_path):
     book = library.add(tmp_path)
 
-    report, text, generated, _ = handler(cloud_interface, "summarize")(
+    report, text, _, file_text, _ = handler(cloud_interface, "summarize")(
         book.book_id, 1, "brief", "Same as the book", "fc-b"
     )
 
     first = report.split("\n\n")[0]
     assert "(direct, `fc-b`, FakeCloud)" in first
     assert first.endswith("Read 100 tokens and generated 20.")
-    assert (generated.model, generated.provider) == ("fc-b", "fakecloud")
+    assert file_text.endswith("Written by `fc-b`, a cloud model from FakeCloud.\n")
 
 
 def test_a_summary_after_a_failure_lists_it_with_the_tokens_it_spent():
@@ -1094,7 +1142,7 @@ def test_the_library_tab_tells_of_the_summaries_kept(interface, library, tmp_pat
 
 
 def fallbacks_change(interface):
-    return next(fn.fn for fn in interface.fns.values() if fn.fn.__name__ == "on_fallbacks_change")
+    return next(fn.fn for fn in interface.fns.values() if handler_name(fn) == "on_fallbacks_change")
 
 
 def test_the_fallbacks_show_once_a_cloud_model_is_picked_offering_the_other_ones(cloud_interface):
@@ -1142,7 +1190,7 @@ def test_the_fallbacks_reach_the_service_in_their_order(cloud_interface, library
 
 def test_each_tab_changes_only_its_own_components(cloud_interface):
     names = ("on_model_change", "on_fallbacks_change")
-    changes = [fn for fn in cloud_interface.fns.values() if fn.fn.__name__ in names]
+    changes = [fn for fn in cloud_interface.fns.values() if handler_name(fn) in names]
 
     outputs = [{id(component) for component in fn.outputs} for fn in changes]
     chat = outputs[0] | outputs[1]
@@ -1219,7 +1267,7 @@ def test_a_cloud_models_reasoning_is_labeled_a_summary_or_said_missing():
 
 
 def checks_after_an_answer(interface):
-    return next(fn.fn for fn in interface.fns.values() if fn.fn.__name__ == "on_answer_checks")
+    return next(fn.fn for fn in interface.fns.values() if handler_name(fn) == "on_answer_checks")
 
 
 def test_the_checks_after_an_answer_leave_the_providers_alone_and_check_again_asks_them(library, monkeypatch):

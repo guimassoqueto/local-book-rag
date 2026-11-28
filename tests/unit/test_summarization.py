@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import logging
 import re
@@ -565,6 +566,130 @@ def test_a_summary_can_be_saved_with_how_it_was_made(settings, catalog, tmp_path
     assert metadata["chunks_covered"] == 2
 
 
+# The downloaded file (specs/011-summary-download, contracts/summary-file.md)
+
+
+def local_summary(settings, catalog, tmp_path, **fields):
+    """A brief summary of chapter 4 by the local model, with any of its fields replaced."""
+    service = summarizer(settings, FakeLLM([FINAL]), catalog, chapter(2, words=100), tmp_path)
+    return service, dataclasses.replace(service.summarize("book_001", 4, "brief"), **fields)
+
+
+def test_a_downloaded_summary_has_its_title_its_type_the_summary_and_its_model(settings, catalog, tmp_path):
+    service, summary = local_summary(settings, catalog, tmp_path)
+
+    text = service.summary_file(summary).text
+
+    assert text == (
+        "# The Book, chapter 4: Chapter 4\n\n"
+        "Brief summary.\n\n"
+        f"{summary.text.strip()}\n\n"
+        "---\n\n"
+        "Written by `fake-llm`, a local model.\n"
+    )
+    assert "\n## References\n" in text  # the summary comes with its references, unchanged
+
+
+def test_a_downloaded_summary_names_the_language_asked_for(settings, catalog, tmp_path):
+    service, summary = local_summary(settings, catalog, tmp_path, language="Portuguese")
+
+    file = service.summary_file(summary)
+
+    assert file.text.split("\n\n")[1] == "Brief summary, in Portuguese."
+    assert file.name == "the-book_chapter_04_brief_portuguese.md"
+
+
+def test_a_chapter_without_a_title_is_named_by_its_number(settings, catalog, tmp_path):
+    service, summary = local_summary(settings, catalog, tmp_path, chapter_title="")
+
+    assert service.summary_file(summary).text.startswith("# The Book, chapter 4\n\nBrief summary.\n\n")
+
+
+def test_a_summary_without_citations_downloads_without_references(settings, catalog, tmp_path):
+    uncited = "## Chapter overview\nNothing here resembles the chapter."
+    service, summary = local_summary(settings, catalog, tmp_path, text=uncited, citations=())
+
+    blocks = service.summary_file(summary).text.split("\n\n")
+
+    assert blocks == [
+        "# The Book, chapter 4: Chapter 4",
+        "Brief summary.",
+        uncited,
+        "---",
+        "Written by `fake-llm`, a local model.\n",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("fields", "name"),
+    [
+        (
+            {"book_title": "02_a_era_das_revolucoes", "summary_type": "standard"},
+            "02-a-era-das-revolucoes_chapter_04_standard.md",
+        ),
+        (
+            {"book_title": "Memórias Póstumas de Brás Cubas", "chapter_number": 12, "language": "English"},
+            "memórias-póstumas-de-brás-cubas_chapter_12_brief_english.md",
+        ),
+        (
+            {"book_title": 'What? A "Title": Part 1/2', "chapter_number": 3, "summary_type": "analytical"},
+            "what-a-title-part-1-2_chapter_03_analytical.md",
+        ),
+        (
+            {"book_title": "!!!", "book_id": "book_007", "chapter_number": 1, "summary_type": "standard"},
+            "book-007_chapter_01_standard.md",
+        ),
+        ({"book_title": "Война и мир"}, "война-и-мир_chapter_04_brief.md"),
+        ({"book_title": "हिन्दी साहित्य"}, "हिन्दी-साहित्य_chapter_04_brief.md"),  # its vowel signs are marks: kept
+        ({"book_title": "Brás"}, "brás_chapter_04_brief.md"),  # a decomposed accent, named as the composed one
+        ({"chapter_number": 123}, "the-book_chapter_123_brief.md"),
+    ],
+)
+def test_a_downloaded_summary_is_named_after_its_book_chapter_type_and_language(
+    settings, catalog, tmp_path, fields, name
+):
+    service, summary = local_summary(settings, catalog, tmp_path, **fields)
+
+    assert service.summary_file(summary).name == name
+
+
+def test_a_long_title_is_cut_at_a_word_and_the_rest_of_the_name_kept(settings, catalog, tmp_path):
+    title = " ".join(["word"] * 60)
+    service, summary = local_summary(
+        settings, catalog, tmp_path, book_title=title, summary_type="standard", language="English"
+    )
+
+    name = service.summary_file(summary).name
+    book_part = name.removesuffix("_chapter_04_standard_english.md")
+
+    assert len(name) <= 100
+    assert name.endswith("_chapter_04_standard_english.md")
+    assert book_part and not book_part.endswith("-")
+    assert set(book_part.split("-")) == {"word"}
+
+
+def test_a_long_title_of_one_word_is_cut_at_the_limit(settings, catalog, tmp_path):
+    service, summary = local_summary(settings, catalog, tmp_path, book_title="a" * 300)
+
+    name = service.summary_file(summary).name
+
+    assert name == "a" * (100 - len("_chapter_04_brief.md")) + "_chapter_04_brief.md"
+
+
+def test_building_the_download_reads_and_writes_nothing(settings, catalog, tmp_path):
+    llm = FakeLLM([FINAL])
+    summary = summarizer(settings, llm, catalog, chapter(2, words=100), tmp_path).summarize("book_001", 4, "brief")
+    calls = len(llm.calls)
+    # A summarizer with no book, no chunk and no reply left: the file comes from the summary alone.
+    empty = summarizer(settings, llm, BookCatalog(tmp_path / "empty.db"), [], tmp_path)
+
+    file = empty.summary_file(summary)
+
+    assert file.name == "the-book_chapter_04_brief.md"
+    assert len(llm.calls) == calls
+    assert not any((tmp_path / "summaries").rglob("*"))
+
+
 # Cloud models (specs/008-cloud-llm-providers, research.md R8)
 
 RATE_LIMITED = ModelFailedError("fc-a", "fakecloud", FailureReason.RATE_LIMITED, label="FakeCloud")
@@ -653,6 +778,20 @@ def test_a_saved_summary_records_its_provider_its_failures_and_a_cloud_models_to
     ]
     assert (by_local["provider"], by_local["failed_attempts"]) == ("ollama", [])
     assert "tokens" not in by_local
+
+
+def test_a_downloaded_cloud_summary_names_its_provider_and_only_the_model_that_wrote_it(settings, catalog, tmp_path):
+    failing = cloud(
+        context_size=8192, fail=RATE_LIMITED, fail_after_calls=1, respond=lambda messages, parameters: FINAL
+    )
+    service = summarizer(settings, choices(FakeLLM([FINAL]), failing, cloud("fc-b")), catalog, chapter(30), tmp_path)
+    summary = service.summarize("book_001", 4, "brief", model="fc-a", fallbacks=["fc-b"])
+
+    text = service.summary_file(summary).text
+
+    assert [attempt.model for attempt in summary.attempts] == ["fc-a"]
+    assert text.endswith("\n\n---\n\nWritten by `fc-b`, a cloud model from FakeCloud.\n")
+    assert "fc-a" not in text  # it wrote none of it
 
 
 def test_a_refused_sequence_stops_before_the_chapter_is_read(settings, catalog, tmp_path):
